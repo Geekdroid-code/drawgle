@@ -21,6 +21,7 @@ import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { isProjectAgentV2Enabled } from "@/lib/env/server";
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
 import { indexScreenCode } from "@/lib/generation/block-index";
+import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { findRepairTarget } from "@/lib/generation/screen-repair";
 import { findLatestProjectReference } from "@/lib/generation/prompt-reference-storage";
@@ -2044,7 +2045,7 @@ export async function POST(request: Request) {
 
       const { data: screen, error: screenError } = await admin
         .from("screens")
-        .select("id, name, code")
+        .select("id, name, code, design_revision")
         .eq("id", targetScreenId)
         .eq("project_id", payload.projectId)
         .maybeSingle();
@@ -2062,23 +2063,19 @@ export async function POST(request: Request) {
       const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
       const changed = nextCode !== currentCode;
 
-      await admin
-        .from("screens")
-        .update({
-          code: nextCode,
-          block_index: indexScreenCode(nextCode) as never,
-          status: "ready",
-          error: null,
-          updated_at: now(),
-        })
-        .eq("id", screen.id);
+      if (changed) {
+        const saved = await persistDesignChange(admin, { projectId: payload.projectId, ownerId: user.id,
+          target: { context: "screen", screenId: screen.id } }, { expectedRevision: screen.design_revision,
+          requestId: userMessage.id, payload: { code: nextCode }, label: `Replaced image in ${screen.name}`, origin: "agent-deterministic" });
+        if (saved.status !== "success") throw new Error("The screen changed during image replacement. Refresh and retry explicitly.");
+      }
 
       if (changed) {
-        await tasks.trigger<typeof enrichScreenMemoryTask>(
+        void tasks.trigger<typeof enrichScreenMemoryTask>(
           "enrich-screen-memory",
           { screenId: screen.id },
           { concurrencyKey: `screen-memory-${screen.id}` },
-        );
+        ).catch(error => console.error("Could not queue screen memory enrichment", error));
       }
 
       const completionContent = changed
@@ -2508,7 +2505,7 @@ export async function POST(request: Request) {
       if (requestTargetsNavigation) {
         const { data: navigation, error: navigationError } = await admin
           .from("project_navigation")
-          .select("id, shell_code")
+          .select("id, shell_code, design_revision")
           .eq("project_id", payload.projectId)
           .maybeSingle();
 
@@ -2530,16 +2527,13 @@ export async function POST(request: Request) {
           : "No material token style changes were applied to Navigation.";
 
         if (changed) {
-          await admin
-            .from("project_navigation")
-            .update({
-              shell_code: nextCode,
-              block_index: indexScreenCode(nextCode) as never,
-              status: "ready",
-              error: null,
-              updated_at: now(),
-            })
-            .eq("id", navigation.id);
+          const identity = { projectId: payload.projectId, ownerId: user.id, target: { context: "navigation" as const } };
+          const snapshot = await readDesignTarget(admin, identity);
+          if (snapshot.revision !== navigation.design_revision) throw new Error("Navigation changed during the edit. Refresh and retry explicitly.");
+          const saved = await persistDesignChange(admin, identity, { expectedRevision: snapshot.revision,
+            requestId: userMessage.id, payload: { ...snapshot.payload as object, shellCode: nextCode },
+            label: "Styled shared navigation", origin: "agent-deterministic" });
+          if (saved.status !== "success") throw new Error("Navigation changed during the edit. Refresh and retry explicitly.");
         }
       } else {
         if (!targetScreenId) {
@@ -2548,7 +2542,7 @@ export async function POST(request: Request) {
 
         const { data: screen, error: screenError } = await admin
           .from("screens")
-          .select("id, name, code")
+          .select("id, name, code, design_revision")
           .eq("id", targetScreenId)
           .eq("project_id", payload.projectId)
           .maybeSingle();
@@ -2571,21 +2565,15 @@ export async function POST(request: Request) {
           : `No material token style changes were applied to ${screen.name}.`;
 
         if (changed) {
-          await admin
-            .from("screens")
-            .update({
-              code: nextCode,
-              block_index: indexScreenCode(nextCode) as never,
-              status: "ready",
-              error: null,
-              updated_at: now(),
-            })
-            .eq("id", screen.id);
-          await tasks.trigger<typeof enrichScreenMemoryTask>(
+          const saved = await persistDesignChange(admin, { projectId: payload.projectId, ownerId: user.id,
+            target: { context: "screen", screenId: screen.id } }, { expectedRevision: screen.design_revision,
+            requestId: userMessage.id, payload: { code: nextCode }, label: `Styled ${screen.name}`, origin: "agent-deterministic" });
+          if (saved.status !== "success") throw new Error("The screen changed during the edit. Refresh and retry explicitly.");
+          void tasks.trigger<typeof enrichScreenMemoryTask>(
             "enrich-screen-memory",
             { screenId: screen.id },
             { concurrencyKey: `screen-memory-${screen.id}` },
-          );
+          ).catch(error => console.error("Could not queue screen memory enrichment", error));
         }
       }
       if (changed) {

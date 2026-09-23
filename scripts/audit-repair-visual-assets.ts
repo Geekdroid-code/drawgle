@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 import { loadEnvConfig } from "@next/env";
@@ -13,6 +14,7 @@ import {
   semanticTokens,
 } from "../lib/generation/asset-semantics";
 import { indexScreenCode } from "../lib/generation/block-index";
+import { persistDesignChange } from "../lib/design-history/persistence";
 import { showcaseSourceData } from "../lib/showcase-source-data";
 import type { AssetRequirement, ScreenAssetManifest, VisualAssetRole, VisualAssetType } from "../lib/types";
 
@@ -429,8 +431,13 @@ async function main() {
   }
 
   for (const screen of changedScreens.values()) {
-    const { error } = await admin.from("screens").update({ code: screen.code, block_index: screen.block_index, updated_at: new Date().toISOString() }).eq("id", screen.id);
-    if (error) throw error;
+    if (screen.status !== "ready") throw new Error(`Cannot repair source for an unfinished screen: ${screen.id}`);
+    const saved = await persistDesignChange(admin, { projectId: screen.project_id, ownerId: screen.owner_id,
+      target: { context: "screen", screenId: screen.id } }, {
+      expectedRevision: screen.design_revision, requestId: randomUUID(), payload: { code: screen.code },
+      label: "Repaired visual assets", origin: "maintenance",
+    });
+    if (saved.status !== "success") throw new Error(`Screen ${screen.id} changed during repair; refresh the audit before retrying.`);
   }
   for (const runId of changedRunIds) {
     const run = runs.get(runId);

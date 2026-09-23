@@ -73,6 +73,7 @@ export interface Database {
       };
       projects: {
         Row: {
+          token_revision?: number;
           id: string;
           owner_id: string;
           name: string;
@@ -181,6 +182,8 @@ export interface Database {
       };
       screens: {
         Row: {
+          design_revision?: number;
+          last_accepted_code?: string | null;
           id: string;
           project_id: string;
           owner_id: string;
@@ -451,6 +454,7 @@ export interface Database {
       };
       project_navigation: {
         Row: {
+          design_revision?: number;
           id: string;
           project_id: string;
           owner_id: string;
@@ -857,6 +861,27 @@ export interface Database {
     };
     Views: {};
     Functions: {
+      restore_last_good_screen: { Args: { input_project_id: string; input_owner_id: string; input_screen_id: string;
+        input_expected_revision: number; input_request_id: string; input_block_index: Json | null }; Returns: Json };
+      list_design_history: { Args: { input_project_id: string; input_owner_id: string; input_context: string; input_target_id: string }; Returns: Json };
+      read_design_history_entry: { Args: { input_project_id: string; input_owner_id: string; input_context: string; input_target_id: string; input_entry_id: string }; Returns: Json };
+      read_design_history_operation: { Args: { input_project_id: string; input_owner_id: string; input_context: string; input_target_id: string; input_action: string; input_entry_id?: string }; Returns: Json };
+      apply_navigation_repair: { Args: { input_project_id: string; input_owner_id: string;
+        input_expected_revision: number | null; input_request_id: string; input_payload: Json; input_block_index: Json | null }; Returns: Json };
+      read_design_target: {
+        Args: { input_project_id: string; input_owner_id: string; input_context: string; input_target_id: string };
+        Returns: Json;
+      };
+      apply_design_history: {
+        Args: { input_project_id: string; input_owner_id: string; input_context: string; input_target_id: string;
+          input_expected_revision: number; input_request_id: string; input_action: string; input_payload?: Json;
+          input_entry_id?: string; input_label?: string; input_origin?: string; input_block_index?: Json; input_generation_run_id?: string };
+        Returns: Json;
+      };
+      read_export_context: {
+        Args: { input_project_id: string; input_owner_id: string; input_screen_ids: string[] };
+        Returns: Json;
+      };
       claim_screen_state_generation: {
         Args: { input_project_id: string; input_owner_id: string; input_message_id: string; input_parent_hash: string };
         Returns: Json;

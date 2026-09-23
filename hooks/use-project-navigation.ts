@@ -7,6 +7,7 @@ import type { ProjectNavigationRow } from "@/lib/supabase/database.types";
 import { mapProjectNavigationRow } from "@/lib/supabase/mappers";
 import { fetchProjectNavigation } from "@/lib/supabase/queries";
 import type { ProjectNavigationData } from "@/lib/types";
+import { PROJECT_REFRESH_EVENT, isProjectRefresh } from "@/lib/project-refresh";
 
 export function useProjectNavigation(projectId: string, initialNavigation: ProjectNavigationData | null) {
   const [projectNavigation, setProjectNavigation] = useState<ProjectNavigationData | null>(initialNavigation);
@@ -25,11 +26,13 @@ export function useProjectNavigation(projectId: string, initialNavigation: Proje
 
     const supabase = createClient();
     let cancelled = false;
+    let requestVersion = 0;
 
     const loadNavigation = async () => {
+      const version = ++requestVersion;
       try {
         const nextNavigation = await fetchProjectNavigation(supabase, projectId);
-        if (!cancelled) {
+        if (!cancelled && version === requestVersion) {
           setProjectNavigation(nextNavigation);
         }
       } catch (error) {
@@ -38,6 +41,8 @@ export function useProjectNavigation(projectId: string, initialNavigation: Proje
     };
 
     void loadNavigation();
+    const handleRefresh = (event: Event) => { if (isProjectRefresh(event, projectId)) void loadNavigation(); };
+    window.addEventListener(PROJECT_REFRESH_EVENT, handleRefresh);
 
     const channel = supabase
       .channel(`project-navigation:${projectId}`)
@@ -50,12 +55,14 @@ export function useProjectNavigation(projectId: string, initialNavigation: Proje
           filter: `project_id=eq.${projectId}`,
         },
         (payload) => {
+          requestVersion += 1;
           if (payload.eventType === "DELETE") {
             setProjectNavigation(null);
             return;
           }
 
-          setProjectNavigation(mapProjectNavigationRow(payload.new as ProjectNavigationRow));
+          const next = mapProjectNavigationRow(payload.new as ProjectNavigationRow);
+          setProjectNavigation(current => current?.designRevision !== undefined && next.designRevision !== undefined && current.designRevision > next.designRevision ? current : next);
         },
       )
       .subscribe((status) => {
@@ -66,6 +73,8 @@ export function useProjectNavigation(projectId: string, initialNavigation: Proje
 
     return () => {
       cancelled = true;
+      requestVersion += 1;
+      window.removeEventListener(PROJECT_REFRESH_EVENT, handleRefresh);
       void supabase.removeChannel(channel);
     };
   }, [projectId]);

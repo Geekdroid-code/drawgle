@@ -17,6 +17,7 @@ import type { CuratedStyleSelectionDiagnostics } from "@/lib/generation/curated-
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
+import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
 import { runRollingBuilds } from "@/lib/generation/build-scheduler";
 import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
@@ -743,7 +744,7 @@ async function buildStateVariantsForParent({
 
         const { data: editedVariant } = await admin
           .from("screens")
-          .select("code, status, error")
+          .select("code, status, error, design_revision")
           .eq("id", variantScreenId)
           .maybeSingle();
 
@@ -765,7 +766,9 @@ async function buildStateVariantsForParent({
               ...buildStateVariantFailurePatch(message),
               updated_at: now(),
             })
-            .eq("id", variantScreenId);
+            .eq("id", variantScreenId)
+            .eq("generation_run_id", payload.generationRunId)
+            .eq("design_revision", editedVariant?.design_revision ?? -1);
 
           await postStatusMessage(
             admin,
@@ -873,7 +876,9 @@ async function buildStateVariantsForParent({
               ...buildStateVariantFailurePatch(message),
               updated_at: now(),
             })
-            .eq("id", variantScreenId);
+            .eq("id", variantScreenId)
+            .eq("generation_run_id", payload.generationRunId)
+            .neq("status", "ready");
         }
 
         await postStatusMessage(
@@ -1222,6 +1227,13 @@ export const buildScreenTask = task({
   run: async (payload: BuildScreenTaskPayload) => {
     const generationEngineVersion = getGenerationEngineVersion();
     const admin = createAdminClient();
+    const { data: startingScreen, error: startingScreenError } = await admin.from("screens")
+      .select("id, owner_id, design_revision, generation_run_id")
+      .eq("id", payload.screenId).eq("project_id", payload.projectId).maybeSingle();
+    if (startingScreenError || !startingScreen || startingScreen.generation_run_id !== payload.generationRunId) {
+      throw new Error("This screen build no longer owns its target. The current design was preserved.");
+    }
+    const startingRevision: number = startingScreen.design_revision;
     const failWithoutSavingGeneratedCode = async ({
       error,
       metadata,
@@ -1240,7 +1252,9 @@ export const buildScreenTask = task({
       await admin
         .from("screens")
         .update(failurePatch)
-        .eq("id", payload.screenId);
+        .eq("id", payload.screenId)
+        .eq("generation_run_id", payload.generationRunId)
+        .eq("design_revision", startingRevision);
 
       logger.warn("Screen generation output was rejected before save", {
         screenId: payload.screenId,
@@ -1281,7 +1295,9 @@ export const buildScreenTask = task({
       await admin
         .from("screens")
         .update(failurePatch)
-        .eq("id", payload.screenId);
+        .eq("id", payload.screenId)
+        .eq("generation_run_id", payload.generationRunId)
+        .eq("design_revision", startingRevision);
 
       logger.warn("Screen generation output was saved with blocking diagnostics", {
         screenId: payload.screenId,
@@ -1300,10 +1316,32 @@ export const buildScreenTask = task({
     };
 
     const persistScreenRow = async (patch: Record<string, unknown>) => {
+      if (patch.status === "ready" && typeof patch.code === "string") {
+        try {
+          const saved = await persistDesignChange(admin, { projectId: payload.projectId, ownerId: startingScreen.owner_id,
+            target: { context: "screen", screenId: payload.screenId } }, {
+            expectedRevision: startingRevision, requestId: payload.generationRunId,
+            payload: { code: patch.code }, label: `Generated ${payload.screenPlan.name}`,
+            origin: "generation", generationRunId: payload.generationRunId,
+          });
+          if (saved.status !== "success") {
+            const conflict = new Error("The screen changed during generation. The current design was preserved.");
+            conflict.name = "DesignRevisionConflict";
+            return conflict;
+          }
+          // Summary and memory are derived data; their failure cannot undo a committed design.
+          if (typeof patch.summary === "string") void admin.from("screens").update({ summary: patch.summary })
+            .eq("id", payload.screenId).eq("generation_run_id", payload.generationRunId)
+            .then(({ error }: { error: unknown }) => { if (error) logger.warn("Could not update generated summary", { screenId: payload.screenId, error }); });
+          return null;
+        } catch (error) { return error; }
+      }
       const { error: updateError } = await admin
         .from("screens")
         .update(patch)
-        .eq("id", payload.screenId);
+        .eq("id", payload.screenId)
+        .eq("generation_run_id", payload.generationRunId)
+        .eq("design_revision", startingRevision);
       return updateError;
     };
 
@@ -1753,6 +1791,10 @@ export const buildScreenTask = task({
 
     if (updateError) {
       const userError = toUserFacingScreenError(updateError);
+      if (updateError instanceof Error && updateError.name === "DesignRevisionConflict") {
+        return { screenId: payload.screenId, status: "failed" as const, error: userError,
+          usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean) };
+      }
       logger.error("Failed to persist screen code", {
         screenId: payload.screenId,
         error: updateError,
@@ -2002,7 +2044,7 @@ export const generateUiFlowTask = task({
     let designTokens = payload.designTokens ?? null;
     const { data: existingProject } = await admin
       .from("projects")
-      .select("project_charter, design_tokens, product_planning")
+      .select("project_charter, design_tokens, product_planning, token_revision")
       .eq("id", payload.projectId)
       .maybeSingle();
     const referenceScope = resolveReferenceScope({
@@ -2040,6 +2082,14 @@ export const generateUiFlowTask = task({
       };
     }
     const projectTokens = existingProject?.design_tokens as DesignTokens | null | undefined;
+    let tokenExpectedRevision: number = existingProject?.token_revision ?? 0;
+    const saveGeneratedTokens = async (nextTokens: DesignTokens) => {
+      const saved = await persistDesignChange(admin, { projectId: payload.projectId, ownerId: payload.ownerId,
+        target: { context: "tokens" } }, { expectedRevision: tokenExpectedRevision, requestId: randomUUID(),
+        payload: { tokens: nextTokens }, label: "Updated generated design tokens", origin: "generation" });
+      if (saved.status !== "success") throw new Error("Design tokens changed during generation. Refresh and retry explicitly.");
+      tokenExpectedRevision = saved.revision ?? tokenExpectedRevision;
+    };
     const candidateTokens = designTokens ?? projectTokens ?? null;
     const currentSourceHash = productPlanning?.experience?.referenceHash
       ?? (payload.imagePath ? createHash("sha256").update(payload.imagePath).digest("hex") : null);
@@ -2076,9 +2126,7 @@ export const generateUiFlowTask = task({
       status: "generating",
     };
 
-    if (designTokens && !screenScoped) {
-      projectUpdate.design_tokens = designTokens as never;
-    }
+    if (designTokens && !screenScoped) await saveGeneratedTokens(designTokens);
 
     if (payload.projectCharter !== undefined && !localAttachment) {
       projectUpdate.project_charter = (payload.projectCharter ?? null) as never;
@@ -2421,9 +2469,7 @@ export const generateUiFlowTask = task({
         designTokens = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
       }
 
-      if (!screenScoped) await updateProject(admin, payload.projectId, {
-        design_tokens: designTokens as never,
-      });
+      if (!screenScoped) await saveGeneratedTokens(designTokens);
 
       await mergeGenerationRunMetadata(admin, payload.generationRunId, {
         designTokenSnapshot: designTokens,
@@ -2449,9 +2495,7 @@ export const generateUiFlowTask = task({
         const reconciled = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
         if (reconciled !== designTokens) {
           designTokens = reconciled;
-          await updateProject(admin, payload.projectId, {
-            design_tokens: designTokens as never,
-          });
+          await saveGeneratedTokens(designTokens);
         }
       }
       await mergeGenerationRunMetadata(admin, payload.generationRunId, {
@@ -2892,11 +2936,13 @@ export const generateUiFlowTask = task({
     }));
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    const { data: savedNavigation } = (screenScoped || payload.productExecutionKeys) ? await admin.from("project_navigation").select("plan, shell_code, status")
-      .eq("project_id", payload.projectId).maybeSingle() : { data: null };
+    const { data: savedNavigation } = await admin.from("project_navigation").select("plan, shell_code, status, design_revision")
+      .eq("project_id", payload.projectId).maybeSingle();
     const sharedNavigationReady = savedNavigation?.status === "ready" && typeof savedNavigation.shell_code === "string"
       && JSON.stringify(savedNavigation.plan) === JSON.stringify(plan.navigationPlan);
     if (!localAttachment && !retryOnlyStateVariants && !sharedNavigationReady) {
+      const navigationIdentity = { projectId: payload.projectId, ownerId: payload.ownerId, target: { context: "navigation" as const } };
+      const initialNavigationSnapshot = savedNavigation ? await readDesignTarget(admin, navigationIdentity) : null;
       const rawNavigationShellCode = await buildNavigationShellCode({
         navigationPlan: plan.navigationPlan,
         designTokens,
@@ -2910,6 +2956,14 @@ export const generateUiFlowTask = task({
       });
       const navigationShellCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(rawNavigationShellCode, designTokens).code, "dg-nav").code;
 
+      if (initialNavigationSnapshot) {
+        const saved = await persistDesignChange(admin, navigationIdentity, {
+          expectedRevision: initialNavigationSnapshot.revision, requestId: randomUUID(),
+          payload: { ...initialNavigationSnapshot.payload as object, plan: plan.navigationPlan, shellCode: navigationShellCode },
+          label: "Updated shared navigation", origin: "generation",
+        });
+        if (saved.status !== "success") throw new Error("Navigation changed during generation. Refresh and retry explicitly.");
+      } else {
       const { error: navigationUpsertError } = await admin
         .from("project_navigation")
         .upsert({
@@ -2925,6 +2979,7 @@ export const generateUiFlowTask = task({
 
       if (navigationUpsertError) {
         throw navigationUpsertError;
+      }
       }
     }
 
@@ -3517,7 +3572,7 @@ export const generateUiFlowTask = task({
             // Never clobber generated HTML with a raw technical error card.
             const { data: failedRow } = await admin
               .from("screens")
-              .select("code")
+              .select("code, design_revision")
               .eq("id", screenId)
               .maybeSingle();
             const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
@@ -3533,6 +3588,8 @@ export const generateUiFlowTask = task({
               .from("screens")
               .update(failurePatch)
               .eq("id", screenId)
+              .eq("generation_run_id", payload.generationRunId)
+              .eq("design_revision", failedRow?.design_revision ?? -1)
               .neq("status", "ready");
             generationJournal.screens = generationJournal.screens?.map((screen) =>
               screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
@@ -3629,7 +3686,7 @@ export const generateUiFlowTask = task({
           await postGenerationJournalSerial();
           const { data: failedRow } = await admin
             .from("screens")
-            .select("code")
+            .select("code, design_revision")
             .eq("id", screenId)
             .maybeSingle();
           const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
@@ -3645,7 +3702,10 @@ export const generateUiFlowTask = task({
                 error: message,
               }),
             )
-            .eq("id", screenId);
+            .eq("id", screenId)
+            .eq("generation_run_id", payload.generationRunId)
+            .eq("design_revision", failedRow?.design_revision ?? -1)
+            .neq("status", "ready");
 
           await postStatusMessage(
             admin,
@@ -3688,7 +3748,7 @@ export const generateUiFlowTask = task({
         if (rowInserted) {
           const { data: failedRow } = await admin
             .from("screens")
-            .select("code")
+            .select("code, design_revision")
             .eq("id", screenId)
             .maybeSingle();
           const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
@@ -3704,7 +3764,10 @@ export const generateUiFlowTask = task({
                 error: message,
               }),
             )
-            .eq("id", screenId);
+            .eq("id", screenId)
+            .eq("generation_run_id", payload.generationRunId)
+            .eq("design_revision", failedRow?.design_revision ?? -1)
+            .neq("status", "ready");
         }
 
         await postStatusMessage(

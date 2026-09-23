@@ -37,6 +37,7 @@ export function mapAuthenticatedUser(user: User): AuthenticatedUser {
 
 export function mapProjectRow(row: ProjectRow): ProjectData {
   return {
+    tokenRevision: row.token_revision,
     id: row.id,
     ownerId: row.owner_id,
     userId: row.owner_id,
@@ -56,6 +57,7 @@ export function mapProjectRow(row: ProjectRow): ProjectData {
 
 export function mapScreenRow(row: ScreenRow): ScreenData {
   return {
+    designRevision: row.design_revision,
     id: row.id,
     projectId: row.project_id,
     ownerId: row.owner_id,
@@ -147,6 +149,7 @@ export function mapProjectMessageRow(row: ProjectMessageRow): ProjectMessage {
 
 export function mapProjectNavigationRow(row: ProjectNavigationRow): ProjectNavigationData {
   return {
+    designRevision: row.design_revision,
     id: row.id,
     projectId: row.project_id,
     ownerId: row.owner_id,

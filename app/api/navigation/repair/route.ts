@@ -62,12 +62,12 @@ export async function POST(request: Request) {
         .maybeSingle(),
       admin
         .from("screens")
-        .select("id, name, prompt, chrome_policy, navigation_item_id, sort_index")
+        .select("id, name, prompt, chrome_policy, navigation_item_id, parent_screen_id, state_key, roadmap_item_id, sort_index")
         .eq("project_id", payload.projectId)
         .order("sort_index", { ascending: true }),
       admin
         .from("project_navigation")
-        .select("id, plan, shell_code, block_index, status, error")
+        .select("id, plan, shell_code, block_index, status, error, design_revision")
         .eq("project_id", payload.projectId)
         .maybeSingle(),
     ]);
@@ -137,73 +137,28 @@ export async function POST(request: Request) {
     }
 
     const plannedScreens = applyNavigationPlanToScreens(screens, normalized);
-    const timestamp = new Date().toISOString();
-    try {
-      const { error: navigationError } = await admin
-        .from("project_navigation")
-        .upsert({
-          project_id: payload.projectId,
-          owner_id: user.id,
-          plan: normalized as never,
-          shell_code: shellCode,
-          block_index: indexNavigationShell(shellCode) as never,
-          status: "ready",
-          error: null,
-          updated_at: timestamp,
-        }, { onConflict: "project_id" });
-
-      if (navigationError) throw navigationError;
-
-      await Promise.all(screenRows.map(async (screenRow, index) => {
-        const screenPlan = plannedScreens[index];
-        const { error } = await admin
-          .from("screens")
-          .update({
-            chrome_policy: (screenPlan.chromePolicy ?? null) as never,
-            navigation_item_id: screenPlan.navigationItemId ?? null,
-            updated_at: timestamp,
-          })
-          .eq("id", screenRow.id);
-        if (error) throw error;
-      }));
-    } catch (applyError) {
-      const rollbackResults = await Promise.allSettled([
-        navigationRow
-          ? admin
-              .from("project_navigation")
-              .update({
-                plan: navigationRow.plan,
-                shell_code: navigationRow.shell_code,
-                block_index: navigationRow.block_index,
-                status: navigationRow.status,
-                error: navigationRow.error,
-              })
-              .eq("id", navigationRow.id)
-          : admin
-              .from("project_navigation")
-              .delete()
-              .eq("project_id", payload.projectId)
-              .eq("owner_id", user.id),
-        ...screenRows.map((screenRow) =>
-          admin
-            .from("screens")
-            .update({
-              chrome_policy: screenRow.chrome_policy,
-              navigation_item_id: screenRow.navigation_item_id,
-            })
-            .eq("id", screenRow.id),
-        ),
-      ]);
-      const rollbackFailed = rollbackResults.some((result) =>
-        result.status === "rejected" || (result.status === "fulfilled" && result.value.error),
-      );
-      if (rollbackFailed) {
-        console.error("Navigation repair rollback was incomplete", {
-          projectId: payload.projectId,
-          rollbackResults,
-        });
-      }
-      throw applyError;
+    const { data: applied, error: applyError } = await admin.rpc("apply_navigation_repair", {
+      input_project_id: payload.projectId,
+      input_owner_id: user.id,
+      input_expected_revision: navigationRow?.design_revision ?? null,
+      input_request_id: crypto.randomUUID(),
+      input_payload: {
+        plan: normalized,
+        shellCode,
+        assignments: screenRows.map((row, index) => ({
+          screenId: row.id,
+          chromePolicy: plannedScreens[index].chromePolicy ?? null,
+          navigationItemId: plannedScreens[index].navigationItemId ?? null,
+          parentScreenId: row.parent_screen_id,
+          stateKey: row.state_key,
+          roadmapItemId: row.roadmap_item_id,
+        })),
+      } as never,
+      input_block_index: indexNavigationShell(shellCode) as never,
+    });
+    if (applyError) throw applyError;
+    if ((applied as { status?: string } | null)?.status !== "success") {
+      return NextResponse.json({ error: "Navigation changed while repairing. Refresh and try again." }, { status: 409 });
     }
     return NextResponse.json({
       action: "applied",

@@ -30,6 +30,15 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from(table:
     then: (resolve: (value: ReturnType<typeof execute>) => void) => Promise.resolve(execute()).then(resolve),
   };
   return query;
+}, rpc: async (name: string, args: Record<string, unknown>) => {
+  if (name !== "apply_design_history") throw new Error(`Unexpected RPC: ${name}`);
+  const project = mocks.tables.projects.find(row => row.id === args.input_project_id);
+  if (!project || project.token_revision !== args.input_expected_revision) return { data: { status: "stale_revision" }, error: null };
+  const tokens = (args.input_payload as { tokens: unknown }).tokens;
+  if (JSON.stringify(tokens) !== JSON.stringify(project.design_tokens)) {
+    project.design_tokens = tokens; project.token_revision = Number(project.token_revision) + 1;
+  }
+  return { data: { status: "success", revision: project.token_revision }, error: null };
 } }) }));
 import { POST } from "@/app/api/generations/route";
 import { proposeProductScope, readProductPlanning } from "./model";
@@ -39,7 +48,7 @@ const request = (extra: Record<string, unknown> = {}) => new Request("http://loc
 describe("approved scope through the existing generation route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.tables = { projects: [{ id: projectId, owner_id: ownerId, design_tokens: null, product_planning: proposeProductScope(productFixture()) }], generation_runs: [], project_messages: [] };
+    mocks.tables = { projects: [{ id: projectId, owner_id: ownerId, design_tokens: null, token_revision: 0, product_planning: proposeProductScope(productFixture()) }], generation_runs: [], project_messages: [] };
     mocks.trigger.mockResolvedValue({ id: "trigger-run" });
     mocks.credits.mockResolvedValue({ hasCredits: true, currentBalance: 500 });
   });

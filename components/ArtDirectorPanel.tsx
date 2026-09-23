@@ -8,6 +8,7 @@ import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { createClient } from "@/lib/supabase/client";
 import { updateProjectFields } from "@/lib/supabase/queries";
+import { saveDesignTokens } from "@/lib/design-history/save-tokens";
 import type { DesignTokens, ProjectData, PromptImagePayload } from "@/lib/types";
 
 interface ArtDirectorPanelProps {
@@ -51,7 +52,6 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
       return;
     }
 
-    const supabase = createClient();
     setIsLoading(true);
     setLoadingText("Analyzing your design brief...");
     setDesignError(null);
@@ -76,8 +76,8 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
         throw new Error("Design generation returned an empty or unusable mobile_universal_core token set.");
       }
 
+      await saveDesignTokens(project.id, nextTokens, project.tokenRevision ?? 0, signal);
       setTokens(nextTokens);
-      await updateProjectFields(supabase, project.id, { designTokens: nextTokens });
     } catch (error) {
       if ((error as Error).name === "AbortError") {
         return;
@@ -90,7 +90,7 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
       isFetchingDesignRef.current = false;
       setIsLoading(false);
     }
-  }, [draftImage, project.id, project.prompt]);
+  }, [draftImage, project.id, project.prompt, project.tokenRevision]);
 
   useEffect(() => {
     if (tokensRef.current || !project.prompt || isFetchingDesignRef.current) {
@@ -118,10 +118,7 @@ export function ArtDirectorPanel({ project, draftImage = null, onGenerationStart
 
     try {
       const supabase = createClient();
-      await updateProjectFields(supabase, project.id, {
-        designTokens: tokens,
-        status: "active",
-      });
+      await updateProjectFields(supabase, project.id, { status: "active" });
 
       await onGenerationStart(tokens);
     } catch (error) {

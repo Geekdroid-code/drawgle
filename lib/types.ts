@@ -1044,6 +1044,7 @@ export interface ScreenBlockIndex {
 }
 
 export interface ProjectData {
+  tokenRevision?: number;
   productPlanning?: import("@/lib/product-planning/model").ProductPlanning | null;
   id: string;
   ownerId?: string;
@@ -1061,6 +1062,7 @@ export interface ProjectData {
 }
 
 export interface ScreenData {
+  designRevision?: number;
   id: string;
   projectId: string;
   ownerId?: string;
@@ -1091,6 +1093,7 @@ export interface ScreenData {
 }
 
 export interface ProjectNavigationData {
+  designRevision?: number;
   id: string;
   projectId: string;
   ownerId: string;

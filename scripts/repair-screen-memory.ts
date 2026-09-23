@@ -20,7 +20,7 @@ async function main() {
 const admin = createAdminClient();
 let query = admin
   .from("screens")
-  .select("id, project_id, name, prompt, code, summary, embedding, block_index")
+  .select("id, project_id, name, prompt, code, summary, embedding, block_index, design_revision")
   .order("id", { ascending: true })
   .limit(limit);
 if (projectId) query = query.eq("project_id", projectId);
@@ -56,13 +56,13 @@ const worker = async () => {
 
     if (apply && needsRepair) {
       const embedding = await generateEmbedding(summary, "RETRIEVAL_DOCUMENT");
-      const { error: updateError } = await admin.from("screens").update({
+      const { data: updated, error: updateError } = await admin.from("screens").update({
         summary,
         embedding: embedding as never,
         block_index: blockIndex as never,
-      }).eq("id", screen.id);
+      }).eq("id", screen.id).eq("design_revision", screen.design_revision).select("id").maybeSingle();
       if (updateError) throw updateError;
-      item.applied = true;
+      item.applied = Boolean(updated);
     }
     report.push(item);
   }

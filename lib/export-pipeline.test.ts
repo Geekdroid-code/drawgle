@@ -2,6 +2,7 @@ import { strFromU8, unzipSync } from "fflate";
 import { describe, expect, it } from "vitest";
 
 import { buildPublicDesignMdDocument } from "@/lib/design-md";
+import { compileProductSpecification } from "@/lib/export/product-spec";
 import {
   buildAgentHandoffPrompt,
   buildAgentPackFiles,
@@ -106,6 +107,20 @@ const projectNavigation: ProjectNavigationData = {
 const context = { project, screens, projectNavigation, designTokens };
 
 describe("export pipeline", () => {
+  it("adds versioned behavior files without changing compiled visual artifacts", () => {
+    const legacy = buildAgentPackFiles({ context });
+    const productSpecification = compileProductSpecification(screens.map(s => ({ screenId: s.id, name: s.name })));
+    const enriched = buildAgentPackFiles({ context: { ...context, productSpecification } });
+    expect(JSON.parse(enriched[".drawgle/manifest.json"]).version).toBe(2);
+    expect(JSON.parse(legacy[".drawgle/manifest.json"]).version).toBe(1);
+    expect(enriched[".drawgle/product-spec.md"]).toContain("Behavior specification unavailable");
+    for (const path of Object.keys(legacy).filter(path => path.endsWith(".html") || path.includes("design-tokens"))) {
+      expect(enriched[path]).toBe(legacy[path]);
+    }
+    const prompt = buildAgentHandoffPrompt({ context: { ...context, productSpecification }, screen: screens[0], target: "auto" });
+    expect(prompt).toContain(`(${screens[0].id})`);
+    expect(prompt).not.toContain(`## ${screens[1].name} (${screens[1].id})`);
+  });
   it("sanitizes editor metadata from exported HTML", () => {
     expect(sanitizeHtmlForExport(screens[0].code)).toBe("<main><h1>Home balance</h1></main>");
   });

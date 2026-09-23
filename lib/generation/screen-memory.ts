@@ -19,7 +19,7 @@ export async function refreshScreenRetrievalMemory(
 ): Promise<ScreenMemoryRefreshResult> {
   const { data: screen, error } = await admin
     .from("screens")
-    .select("id, name, prompt, code, summary, embedding, block_index, updated_at")
+    .select("id, name, prompt, code, summary, embedding, block_index, updated_at, design_revision")
     .eq("id", screenId)
     .maybeSingle();
 
@@ -46,6 +46,7 @@ export async function refreshScreenRetrievalMemory(
     })
     .eq("id", screenId)
     .eq("updated_at", screen.updated_at)
+    .eq("design_revision", screen.design_revision)
     .select("id")
     .maybeSingle();
 

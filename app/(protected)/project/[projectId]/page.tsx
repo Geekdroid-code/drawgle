@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { ProjectShell } from "@/components/ProjectShell";
+import { recoveryEnabled } from "@/lib/design-history/persistence";
 import type { ProjectNavigationRow } from "@/lib/supabase/database.types";
 import { mapAuthenticatedUser, mapGenerationRunRow, mapProjectNavigationRow, mapProjectRow, mapScreenCatalogRow } from "@/lib/supabase/mappers";
 import { PROJECT_NAVIGATION_SELECT_COLUMNS, SCREEN_CATALOG_SELECT_COLUMNS } from "@/lib/supabase/queries";
@@ -62,6 +63,7 @@ export default async function ProjectPage({
 
   return (
     <ProjectShell
+      historyEnabled={recoveryEnabled()}
       user={mapAuthenticatedUser(user)}
       initialProject={mapProjectRow(projectRow)}
       initialScreens={((screenRows ?? []) as unknown as Parameters<typeof mapScreenCatalogRow>[0][]).map(mapScreenCatalogRow)}

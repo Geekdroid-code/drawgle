@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 import {
   AlertTriangle,
   Bot,
@@ -169,10 +169,6 @@ export function ExportMenu({
   project,
   screens,
   initialScreenId,
-  projectNavigation,
-  designTokens,
-  tokenCss,
-  googleFontAssetLinks,
   tokenDirty,
   generationActive,
 }: {
@@ -194,6 +190,8 @@ export function ExportMenu({
   const [previousInitialScreenId, setPreviousInitialScreenId] = useState(initialScreenId);
   const [copiedAction, setCopiedAction] = useState<string | null>(null);
   const [packDownloaded, setPackDownloaded] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
 
   if (open !== previousOpen || initialScreenId !== previousInitialScreenId) {
     setPreviousOpen(open);
@@ -205,53 +203,51 @@ export function ExportMenu({
   }
 
   const activeScreen = screens.find((screen) => screen.id === activeScreenId) || screens[0] || null;
-  const context = useMemo<ExportProjectContext>(() => ({
-    project,
-    screens,
-    projectNavigation,
-    designTokens,
-    tokenCss,
-    googleFontAssetLinks,
-  }), [designTokens, googleFontAssetLinks, project, projectNavigation, screens, tokenCss]);
-
-  const buildScreenHtml = useCallback((screen: ScreenData) => {
-    const navigationCode = resolveScreenNavigationCode(screen, projectNavigation);
+  const buildScreenHtml = (screen: ScreenData, context: ExportProjectContext) => {
+    const navigationCode = resolveScreenNavigationCode(screen, context.projectNavigation);
     return buildStandaloneHtmlExport({
       screen,
       navigationCode,
       activeNavigationItemId: screen.navigationItemId,
-      designTokens,
-      tokenCss,
-      googleFontAssetLinks,
+      designTokens: context.designTokens,
     });
-  }, [designTokens, googleFontAssetLinks, projectNavigation, tokenCss]);
+  };
 
-  const agentPrompt = useMemo(
-    () => activeScreen ? buildAgentHandoffPrompt({ context, screen: activeScreen, target: "auto" }) : "",
-    [activeScreen, context],
-  );
-  const htmlExport = useMemo(
-    () => activeScreen ? buildScreenHtml(activeScreen) : "",
-    [activeScreen, buildScreenHtml],
-  );
+  const withSnapshot = async (selected: ScreenData[], action: (context: ExportProjectContext) => void | Promise<void>) => {
+    if (preparing || tokenDirty || !selected.length) return;
+    setPreparing(true);
+    setExportError(null);
+    try {
+      const response = await fetch(`/api/projects/${project.id}/export-context`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ screenIds: selected.map(s => s.id) }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Export failed. Please retry.");
+      await action(result as ExportProjectContext);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "Export failed. Please retry.");
+    } finally { setPreparing(false); }
+  };
 
   const markCopied = async (key: string, value: string) => {
-    await navigator.clipboard?.writeText(value).catch(() => undefined);
+    if (!navigator.clipboard) throw new Error("Clipboard unavailable. Download the Markdown handoff instead.");
+    await navigator.clipboard.writeText(value);
     setCopiedAction(key);
     window.setTimeout(() => setCopiedAction(null), 1400);
   };
 
-  const copyScreenForAgent = (screen: ScreenData) => {
-    const prompt = buildAgentHandoffPrompt({ context, screen, target: "auto" });
-    void markCopied(`screen:${screen.id}`, prompt);
+  const copyScreenForAgent = (screen: ScreenData, key = `screen:${screen.id}`) => {
+    void withSnapshot([screen], context => markCopied(key, buildAgentHandoffPrompt({ context, screen: context.screens[0], target: "auto" })));
   };
 
   const downloadScreenHtml = (screen: ScreenData) => {
-    downloadBlob([buildScreenHtml(screen)], "text/html;charset=utf-8", `${slugifyExportName(screen.name, "screen")}.html`);
+    void withSnapshot([screen], context => downloadBlob([buildScreenHtml(context.screens[0], context)], "text/html;charset=utf-8", `${slugifyExportName(screen.name, "screen")}.html`));
   };
 
   const downloadAgentPack = () => {
     if (agentPackDisabled) return;
+    void withSnapshot(readyScreens, context => {
     const bytes = buildAgentPackZip({ context, target: "auto" });
     downloadBlob(
       [new Uint8Array(bytes)],
@@ -259,18 +255,19 @@ export function ExportMenu({
       `drawgle-agent-pack-${slugifyExportName(project.name, "project")}.zip`,
     );
     setPackDownloaded(true);
+    });
   };
 
-  const screenName = activeScreen?.name || "Screen";
-  const screenSlug = slugifyExportName(screenName, "screen");
+  const readyScreens = screens.filter(screen => screen.status === "ready");
+  const omittedScreens = screens.filter(screen => screen.status !== "ready");
   const selectedScreenBlockedReason = tokenDirty
     ? "Save or discard design token changes before exporting."
-    : activeScreen?.status === "building"
-    ? "This screen is still building."
+    : activeScreen?.status !== "ready"
+    ? "Select a ready screen before exporting."
     : null;
-  const agentPackBlockedReason = tokenDirty ? "Save or discard design token changes before exporting." : null;
-  const selectedActionsDisabled = !!selectedScreenBlockedReason;
-  const agentPackDisabled = !!agentPackBlockedReason;
+  const agentPackBlockedReason = tokenDirty ? "Save or discard design token changes before exporting." : !readyScreens.length ? "No ready screens to export." : null;
+  const selectedActionsDisabled = preparing || !!selectedScreenBlockedReason;
+  const agentPackDisabled = preparing || !!agentPackBlockedReason;
   const menuWidth = typeof window !== "undefined" ? Math.max(360, Math.min(960, window.innerWidth - 24)) : 920;
   const wideLayout = menuWidth >= 720;
 
@@ -318,6 +315,8 @@ export function ExportMenu({
         <div className={cn("grid gap-3", wideLayout ? "grid-cols-[minmax(290px,0.42fr)_minmax(360px,0.58fr)]" : "grid-cols-1")}>
           <section className="rounded-[20px] bg-[#f4f5f7] p-3 dark:bg-white/[0.04]">
             <div className="space-y-2">
+              {exportError ? <p role="alert" className="p-3 text-sm text-red-600">{exportError} Use the export action again to retry.</p> : null}
+              {preparing ? <p role="status" className="p-3 text-sm">Preparing saved designs…</p> : null}
               {selectedScreenBlockedReason ? (
                 <div className="flex items-start gap-2 rounded-2xl bg-amber-50 px-3 py-2.5 text-[12px] font-semibold leading-5 text-amber-800 dark:bg-amber-400/10 dark:text-amber-200" data-testid="selected-export-blocked">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -329,7 +328,7 @@ export function ExportMenu({
                 title={copiedAction === "agent" ? "Copied for AI Agent" : "Copy Designs for AI Agent"}
                 description="Build with Cursor, Claude Code, Codex"
                 recommended
-                onClick={() => void markCopied("agent", agentPrompt)}
+                onClick={() => activeScreen && copyScreenForAgent(activeScreen, "agent")}
                 disabled={selectedActionsDisabled}
                 testId="copy-for-agent"
                 trailing={<Clipboard className="h-5 w-5" />}
@@ -339,7 +338,7 @@ export function ExportMenu({
                 title="Download HTML / Tailwind"
                 description="Standalone source for the selected screen"
                 meta="HTML"
-                onClick={() => downloadBlob([htmlExport], "text/html;charset=utf-8", `${screenSlug}.html`)}
+                onClick={() => activeScreen && downloadScreenHtml(activeScreen)}
                 disabled={selectedActionsDisabled}
                 testId="download-screen-html"
                 trailing={<Download className="h-5 w-5" />}
@@ -349,7 +348,7 @@ export function ExportMenu({
                 title="Agent Prompt Markdown"
                 description="Download the selected screen handoff"
                 meta="MD"
-                onClick={() => downloadBlob([agentPrompt], "text/markdown;charset=utf-8", `${screenSlug}-agent-prompt.md`)}
+                onClick={() => activeScreen && void withSnapshot([activeScreen], context => downloadBlob([buildAgentHandoffPrompt({ context, screen: context.screens[0], target: "auto" })], "text/markdown;charset=utf-8", `${slugifyExportName(activeScreen.name, "screen")}-agent-prompt.md`))}
                 disabled={selectedActionsDisabled}
                 trailing={<FileCode2 className="h-5 w-5" />}
               />
@@ -363,17 +362,18 @@ export function ExportMenu({
               <ActionCard
                 icon={FolderArchive}
                 title="Download Agent Pack"
-                description="Every screen + Design.md + agent skills"
+                description="Ready screens + saved context + agent skills"
                 meta="ZIP"
                 onClick={downloadAgentPack}
                 disabled={agentPackDisabled}
                 testId="download-agent-pack"
                 trailing={<Download className="h-5 w-5" />}
               />
+              <p className="px-3 text-xs text-slate-500">Included: {readyScreens.map(s => s.name).join(", ") || "none"}.{omittedScreens.length ? ` Omitted (unfinished): ${omittedScreens.map(s => s.name).join(", ")}.` : ""}</p>
               {packDownloaded ? (
                 <button
                   type="button"
-                  onClick={() => void markCopied("pack-instruction", HANDOFF_INSTRUCTION)}
+                  onClick={() => void markCopied("pack-instruction", HANDOFF_INSTRUCTION).catch(() => setExportError("Clipboard unavailable. Please copy the instruction manually."))}
                   className="flex w-full items-center gap-2 rounded-2xl border border-emerald-600/10 bg-emerald-50 px-3 py-3 text-left text-[12px] font-semibold leading-5 text-emerald-800 dark:bg-emerald-400/10 dark:text-emerald-200"
                   data-testid="pack-after-download"
                 >
@@ -395,7 +395,7 @@ export function ExportMenu({
             </div>
             <div className="space-y-1.5">
               {screens.map((screen) => {
-                const disabled = tokenDirty || screen.status === "building";
+                const disabled = preparing || tokenDirty || screen.status !== "ready";
                 return (
                   <ScreenExportRow
                     key={screen.id}

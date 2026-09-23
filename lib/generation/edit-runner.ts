@@ -21,18 +21,17 @@ import {
   type SelectedElementDomMergeDiagnostics,
 } from "@/lib/drawgle-dom-server";
 import {
-  buildScreenHealthError,
   detectScreenHealth,
   isBlockingScreenHealthFailure,
   normalizeSharedNavigationClearanceHtml,
   normalizeStaticDrawgleHtml,
-  screenStatusForHealth,
   stripGenerationCompleteSentinel,
   validateSourceCompletion,
   validateStaticDrawgleHtml,
 } from "@/lib/generation/screen-quality";
-import { buildScreenPersistPatch, sanitizeScreenCodeForPersist } from "@/lib/generation/persist-safe";
-import { cleanUnknownError, USER_FACING_PERSIST_FAILED_ERROR } from "@/lib/ai/error-handler";
+import { sanitizeScreenCodeForPersist } from "@/lib/generation/persist-safe";
+import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
+import { cleanUnknownError } from "@/lib/ai/error-handler";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
 import {
   applyNavigationDesignEdit,
@@ -350,22 +349,15 @@ const persistScreenCode = async (
   screenId: string,
   code: string,
   health: ReturnType<typeof detectScreenHealth>,
+  identity: { projectId: string; ownerId: string; expectedRevision: number; requestId: string; screenName: string },
 ) => {
   const sanitized = sanitizeScreenCodeForPersist(code);
-  const patch = buildScreenPersistPatch({
-    code: sanitized.value,
-    status: screenStatusForHealth(health),
-    error: buildScreenHealthError(health),
-    blockIndex: indexScreenCode(sanitized.value),
-  });
-  const { error: updateError } = await admin
-    .from("screens")
-    .update(patch)
-    .eq("id", screenId);
-
-  if (updateError) {
-    throw new Error(cleanUnknownError(updateError, USER_FACING_PERSIST_FAILED_ERROR));
-  }
+  if (isBlockingScreenHealthFailure(health)) throw new Error("The edit did not pass source checks. The saved design was left unchanged.");
+  const saved = await persistDesignChange(admin, { projectId: identity.projectId, ownerId: identity.ownerId,
+    target: { context: "screen", screenId } }, { expectedRevision: identity.expectedRevision,
+    requestId: identity.requestId, payload: { code: sanitized.value },
+    label: `Edited ${identity.screenName}`, origin: "ai-edit" });
+  if (saved.status !== "success") throw new Error("This screen changed while the edit was running. Your current design was preserved; retry explicitly.");
 
   return sanitized.value;
 };
@@ -720,13 +712,26 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
   if (requestedNavigationEdit) {
     const { data: projectNavigation, error: navigationError } = await admin
       .from("project_navigation")
-      .select("id, shell_code, block_index, plan")
+      .select("id, shell_code, block_index, plan, design_revision")
       .eq("project_id", payload.projectId)
       .maybeSingle();
 
     if (navigationError || !projectNavigation?.shell_code) {
       throw new Error(navigationError?.message ?? "Shared project navigation was not found for this project.");
     }
+    const navigationIdentity = { projectId: payload.projectId, ownerId: payload.ownerId, target: { context: "navigation" as const } };
+    const navigationSnapshot = await readDesignTarget(admin, navigationIdentity);
+    if (navigationSnapshot.revision !== projectNavigation.design_revision) {
+      throw new Error("Navigation changed while the edit was starting. Retry explicitly.");
+    }
+    const saveNavigation = async (nextCode: string, nextPlan: NavigationPlan) => {
+      const saved = await persistDesignChange(admin, navigationIdentity, {
+        expectedRevision: projectNavigation.design_revision, requestId: payload.userMessageId,
+        payload: { ...navigationSnapshot.payload as object, shellCode: nextCode, plan: nextPlan },
+        label: "Edited shared navigation", origin: "ai-edit",
+      });
+      if (saved.status !== "success") throw new Error("Navigation changed while the edit was running. Retry explicitly.");
+    };
 
     const navigationCode = ensureDrawgleIds(projectNavigation.shell_code, "dg-nav").code;
     const navigationPlan = projectNavigation.plan as unknown as NavigationPlan;
@@ -885,20 +890,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       }
 
       if (editChanged) {
-        const { error: updateError } = await admin
-          .from("project_navigation")
-          .update({
-            shell_code: nextCode,
-            block_index: indexScreenCode(nextCode) as never,
-            status: "ready",
-            error: null,
-            updated_at: now(),
-          })
-          .eq("id", projectNavigation.id);
-
-        if (updateError) {
-          throw new Error(cleanUnknownError(updateError, USER_FACING_PERSIST_FAILED_ERROR));
-        }
+        await saveNavigation(nextCode, navigationPlan);
       }
 
       let designSummary: any = null;
@@ -969,21 +961,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const nextCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(editedNavigationCode, designTokens).code, "dg-nav").code;
     const planChanged = JSON.stringify(nextNavigationPlan) !== JSON.stringify(navigationPlan);
     if (nextCode !== navigationCode || planChanged) {
-      const { error: updateError } = await admin
-        .from("project_navigation")
-        .update({
-          plan: nextNavigationPlan as never,
-          shell_code: nextCode,
-          block_index: indexScreenCode(nextCode) as never,
-          status: "ready",
-          error: null,
-          updated_at: now(),
-        })
-        .eq("id", projectNavigation.id);
-
-      if (updateError) {
-        throw new Error(cleanUnknownError(updateError, USER_FACING_PERSIST_FAILED_ERROR));
-      }
+      await saveNavigation(nextCode, nextNavigationPlan);
     }
 
     const isChanged = nextCode !== navigationCode || planChanged;
@@ -1023,7 +1001,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
 
   const { data: screen, error: screenError } = await admin
     .from("screens")
-    .select("id, name, prompt, code, block_index, chrome_policy, navigation_item_id")
+    .select("id, name, prompt, code, block_index, chrome_policy, navigation_item_id, design_revision")
     .eq("id", payload.screenId)
     .eq("project_id", payload.projectId)
     .maybeSingle();
@@ -1476,7 +1454,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     }
 
     if (editChanged) {
-      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth, { projectId: payload.projectId, ownerId: payload.ownerId, expectedRevision: screen.design_revision, requestId: payload.userMessageId, screenName: screen.name });
     }
 
     let designSummary: any = null;
@@ -1600,7 +1578,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const nextHealth = detectScreenHealth({ code: nextCode, screenPrompt });
 
     if (!isBlockingScreenHealthFailure(nextHealth)) {
-      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth, { projectId: payload.projectId, ownerId: payload.ownerId, expectedRevision: screen.design_revision, requestId: payload.userMessageId, screenName: screen.name });
     }
 
     const fullResponse = !isBlockingScreenHealthFailure(nextHealth)
@@ -1694,7 +1672,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const repairCanBeSaved = nextCode !== screenCode && !isBlockingScreenHealthFailure(nextHealth);
 
     if (repairCanBeSaved) {
-      await persistScreenCode(admin, screen.id, nextCode, nextHealth);
+      await persistScreenCode(admin, screen.id, nextCode, nextHealth, { projectId: payload.projectId, ownerId: payload.ownerId, expectedRevision: screen.design_revision, requestId: payload.userMessageId, screenName: screen.name });
     }
 
     const fullResponse = nextCode === screenCode
@@ -1943,7 +1921,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     return { targetType: "screen" as const, screenId: screen.id, changed: false, message: blockedContent };
   }
 
-  await persistScreenCode(admin, screen.id, nextCode, nextHealth);
+  await persistScreenCode(admin, screen.id, nextCode, nextHealth, { projectId: payload.projectId, ownerId: payload.ownerId, expectedRevision: screen.design_revision, requestId: payload.userMessageId, screenName: screen.name });
 
   const visibleEditContent = `Applied changes to ${screen.name}.`;
   const modelMessage = await upsertActivityMessage(admin, editActivityKey, {

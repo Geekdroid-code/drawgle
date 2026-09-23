@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { tasks } from "@trigger.dev/sdk";
 
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleElementTargetType } from "@/lib/drawgle-dom";
-import { indexScreenCode } from "@/lib/generation/block-index";
+import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
@@ -66,10 +66,12 @@ export async function POST(req: Request) {
     const targetType: DrawgleElementTargetType = body.targetType === "navigation" ? "navigation" : "screen";
     const drawgleId = typeof body.drawgleId === "string" ? body.drawgleId : "";
     const operations = Array.isArray(body.operations) ? body.operations.filter(isOperation) : [];
+    const expectedRevision = Number.isSafeInteger(body.expectedRevision) ? body.expectedRevision as number : null;
+    const requestId = typeof body.requestId === "string" ? body.requestId : "";
 
-    if (!projectId || !drawgleId || operations.length === 0) {
+    if (!projectId || !drawgleId || operations.length === 0 || expectedRevision === null || !requestId) {
       return NextResponse.json(
-        { error: "projectId, drawgleId, and operations are required." },
+        { error: "Project, target, operations, revision and request ID are required." },
         { status: 400 },
       );
     }
@@ -97,17 +99,14 @@ export async function POST(req: Request) {
     const designTokens = (project.design_tokens as DesignTokens | null) ?? null;
 
     if (targetType === "navigation") {
-      const { data: navigation, error: navigationError } = await admin
-        .from("project_navigation")
-        .select("id, shell_code")
-        .eq("project_id", projectId)
-        .maybeSingle();
-
-      if (navigationError || !navigation) {
+      const target = { projectId, ownerId: user.id, target: { context: "navigation" as const } };
+      const saved = await readDesignTarget(admin, target);
+      if (!saved.ready) {
         return NextResponse.json({ error: "Shared navigation not found." }, { status: 404 });
       }
+      if (saved.revision !== expectedRevision) return NextResponse.json({ error: "Navigation changed. Refresh before saving your edit." }, { status: 409 });
 
-      const currentCode = ensureDrawgleIds(navigation.shell_code ?? "", "dg-nav").code;
+      const currentCode = ensureDrawgleIds((saved.payload as { shellCode: string }).shellCode, "dg-nav").code;
       const editedCode = applyDeterministicEdits({
         code: currentCode,
         drawgleId,
@@ -116,20 +115,11 @@ export async function POST(req: Request) {
       });
       const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
 
-      const { error: updateError } = await admin
-        .from("project_navigation")
-        .update({
-          shell_code: nextCode,
-          block_index: indexScreenCode(nextCode) as never,
-          status: "ready",
-          error: null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", navigation.id);
-
-      if (updateError) {
-        throw updateError;
-      }
+      const result = await persistDesignChange(admin, target, { expectedRevision, requestId,
+        payload: { ...saved.payload as object, shellCode: nextCode },
+        label: operations[0]?.type === "deleteElement" ? "Deleted navigation element" : "Edited shared navigation",
+        origin: "element-edit" });
+      if (result.status !== "success") return NextResponse.json({ error: "Navigation changed. Refresh before retrying.", status: result.status }, { status: 409 });
 
       return NextResponse.json({ ok: true, targetType, changed: nextCode !== currentCode });
     }
@@ -138,18 +128,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "screenId is required for screen edits." }, { status: 400 });
     }
 
-    const { data: screen, error: screenError } = await admin
-      .from("screens")
-      .select("id, code")
-      .eq("id", screenId)
-      .eq("project_id", projectId)
-      .maybeSingle();
-
-    if (screenError || !screen) {
+    const target = { projectId, ownerId: user.id, target: { context: "screen" as const, screenId } };
+    const saved = await readDesignTarget(admin, target);
+    if (!saved.ready) {
       return NextResponse.json({ error: "Screen not found." }, { status: 404 });
     }
+    if (saved.revision !== expectedRevision) return NextResponse.json({ error: "Screen changed. Refresh before saving your edit." }, { status: 409 });
 
-    const currentCode = ensureDrawgleIds(screen.code ?? "").code;
+    const currentCode = ensureDrawgleIds((saved.payload as { code: string }).code).code;
     const editedCode = applyDeterministicEdits({
       code: currentCode,
       drawgleId,
@@ -157,27 +143,17 @@ export async function POST(req: Request) {
     });
     const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
 
-    const { error: updateError } = await admin
-      .from("screens")
-      .update({
-        code: nextCode,
-        block_index: indexScreenCode(nextCode) as never,
-        status: "ready",
-        error: null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", screen.id);
-
-    if (updateError) {
-      throw updateError;
-    }
+    const result = await persistDesignChange(admin, target, { expectedRevision, requestId,
+      payload: { code: nextCode }, label: operations[0]?.type === "deleteElement" ? "Deleted element" :
+        operations[0]?.type === "duplicateElement" ? "Duplicated element" : "Edited element", origin: "element-edit" });
+    if (result.status !== "success") return NextResponse.json({ error: "Screen changed. Refresh before retrying.", status: result.status }, { status: 409 });
 
     if (nextCode !== currentCode) {
-      await tasks.trigger<typeof enrichScreenMemoryTask>(
+      void tasks.trigger<typeof enrichScreenMemoryTask>(
         "enrich-screen-memory",
-        { screenId: screen.id },
-        { concurrencyKey: `screen-memory-${screen.id}` },
-      );
+        { screenId },
+        { concurrencyKey: `screen-memory-${screenId}` },
+      ).catch(error => console.error("Could not queue screen memory enrichment", error));
     }
 
     return NextResponse.json({ ok: true, targetType, changed: nextCode !== currentCode });

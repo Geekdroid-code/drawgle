@@ -1,4 +1,5 @@
 "use client";
+import { confirmPermanentScreenDeletion } from "@/lib/confirm-screen-deletion";
 
 import { useState, useEffect, useRef } from "react";
 import { Message, ScreenData } from "@/lib/types";
@@ -6,10 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Send, Loader2, X, MessageSquare, Trash2, ChevronDown } from "lucide-react";
 import { applyEdits } from "@/lib/diff-engine";
-import { indexScreenCode } from "@/lib/generation/block-index";
 import { useScreenMessages } from "@/hooks/use-screen-messages";
 import { createClient } from "@/lib/supabase/client";
-import { deleteScreen, insertScreenMessage, updateScreenCode } from "@/lib/supabase/queries";
+import { deleteScreen, insertScreenMessage } from "@/lib/supabase/queries";
 
 export function ScreenEditorPanel({
   screen,
@@ -41,6 +41,7 @@ export function ScreenEditorPanel({
   }, [messages]);
 
   const handleDelete = async () => {
+    if (!confirmPermanentScreenDeletion(screen.name)) return;
     try {
       const supabase = createClient();
       await deleteScreen(supabase, screen.id);
@@ -111,7 +112,12 @@ export function ScreenEditorPanel({
         const newCode = applyEdits(sourceCode, fullResponse);
         
         if (newCode !== sourceCode) {
-          await updateScreenCode(supabase, screen.id, newCode, "ready", indexScreenCode(newCode));
+          const saved = await fetch(`/api/projects/${screen.projectId}/screen-design`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ screenId: screen.id, code: newCode, expectedRevision: screen.designRevision,
+              requestId: crypto.randomUUID(), label: `Edited ${screen.name}` }),
+          });
+          if (!saved.ok) throw new Error((await saved.json().catch(() => null))?.error || "Screen edit conflicted with a newer design.");
           void fetch(`/api/screens/${screen.id}/memory`, { method: "POST" }).catch((error) => {
             console.error("Failed to queue screen memory refresh", error);
           });
@@ -120,6 +126,7 @@ export function ScreenEditorPanel({
 
     } catch (error) {
       console.error("Edit error:", error);
+      setPrompt(userMessageContent);
       // Optionally add an error message to the chat
       try {
         await insertScreenMessage(supabase, {

@@ -7,7 +7,6 @@ import type {
   ProjectStatus,
   ProjectNavigationRow,
   ScreenRow,
-  ScreenStatus,
 } from "@/lib/supabase/database.types";
 import {
   mapGenerationRunRow,
@@ -18,11 +17,12 @@ import {
   mapScreenCatalogRow,
   mapScreenRow,
 } from "@/lib/supabase/mappers";
-import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ProjectMessage, ProjectNavigationData, ScreenBlockIndex, ScreenData } from "@/lib/types";
+import type { DesignTokens, GenerationRunData, Message, ProjectCharter, ProjectData, ProjectMessage, ProjectNavigationData, ScreenData } from "@/lib/types";
 
 type Client = SupabaseClient<Database>;
 
 export const SCREEN_SELECT_COLUMNS = [
+  "design_revision",
   "id",
   "project_id",
   "owner_id",
@@ -51,6 +51,7 @@ export const SCREEN_SELECT_COLUMNS = [
 ].join(", ");
 
 export const SCREEN_CATALOG_SELECT_COLUMNS = [
+  "design_revision",
   "id",
   "project_id",
   "owner_id",
@@ -77,6 +78,7 @@ export const SCREEN_CATALOG_SELECT_COLUMNS = [
 ].join(", ");
 
 export const PROJECT_NAVIGATION_SELECT_COLUMNS = [
+  "design_revision",
   "id",
   "project_id",
   "owner_id",
@@ -245,32 +247,6 @@ export async function updateScreenPosition(client: Client, screenId: string, x: 
       position_y: Math.round(y),
     })
     .eq("id", screenId);
-
-  if (error) {
-    throw error;
-  }
-}
-
-export async function updateScreenCode(
-  client: Client,
-  screenId: string,
-  code: string,
-  status?: ScreenStatus,
-  blockIndex?: ScreenBlockIndex | null,
-) {
-  const update: Database["public"]["Tables"]["screens"]["Update"] = {
-    code,
-  };
-
-  if (status) {
-    update.status = status;
-  }
-
-  if (blockIndex !== undefined) {
-    update.block_index = blockIndex as never;
-  }
-
-  const { error } = await client.from("screens").update(update).eq("id", screenId);
 
   if (error) {
     throw error;

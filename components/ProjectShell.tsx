@@ -1,4 +1,7 @@
 "use client";
+import { HistoryControls } from "@/components/HistoryControls";
+import type { HistoryTarget } from "@/lib/design-history/types";
+import { confirmPermanentScreenDeletion } from "@/lib/confirm-screen-deletion";
 
 import type { ProductAnswers } from "@/lib/product-planning/questions";
 
@@ -15,6 +18,7 @@ import { PreviewShareDialog } from "@/components/PreviewShareDialog";
 import { ChatPanel } from "@/components/ChatPanel";
 import { PlanningEmptyCanvas } from "@/components/product-planning/PlanningEmptyCanvas";
 import { notifyProjectChanged } from "@/lib/project-refresh";
+import { saveDesignTokens } from "@/lib/design-history/save-tokens";
 import { ColorPickerButton } from "@/components/DesignSystemEditor";
 import type { ElementSelectionLostReason, SelectedElementInfo, SelectedElementPreviewPayload } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
@@ -57,7 +61,7 @@ import { useScreens } from "@/hooks/use-screens";
 import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { filterPendingGenerationPreview, readGenerationPreview } from "@/lib/generation-preview";
 import { createClient } from "@/lib/supabase/client";
-import { deleteScreen, insertProjectMessage, updateProjectFields } from "@/lib/supabase/queries";
+import { deleteScreen, insertProjectMessage } from "@/lib/supabase/queries";
 import { getDrawgleTokenReferences, buildDrawgleTokenCss, buildGoogleFontAssetLinks } from "@/lib/token-runtime";
 import type {
   AuthenticatedUser,
@@ -596,6 +600,7 @@ function SelectedElementInspectorSidebar({
   onAskAiRefine,
   onReplaceImage,
   onDelete,
+  onDirtyChange,
 }: {
   project: ProjectData;
   selectedScreen: ScreenData | null;
@@ -607,6 +612,7 @@ function SelectedElementInspectorSidebar({
   onAskAiRefine?: (intent: string) => void | Promise<void>;
   onReplaceImage: (target: DrawgleImageTargetMeta, file: File) => Promise<boolean>;
   onDelete?: () => void | Promise<void>;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [isSaving, setIsSaving] = useState(false);
   const [imageUploadError, setImageUploadError] = useState<string | null>(null);
@@ -796,6 +802,8 @@ function SelectedElementInspectorSidebar({
     });
     return classChanged || textChanged || styleChanged;
   }, [classDraft, classDraftTouched, classListKey, inspectedProperties, normalizeClassNames, styleDrafts, textDrafts, textNodes]);
+  useEffect(() => { onDirtyChange?.(hasDraftChanges); }, [hasDraftChanges, onDirtyChange]);
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
 
   const targetLabel = selectedElementInfo?.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
   const riskMessages = [
@@ -1610,12 +1618,14 @@ export function ProjectShell({
   initialScreens,
   initialGenerationRuns,
   initialProjectNavigation,
+  historyEnabled = false,
 }: {
   user: AuthenticatedUser;
   initialProject: ProjectData;
   initialScreens: ScreenData[];
   initialGenerationRuns: GenerationRunData[];
   initialProjectNavigation: ProjectNavigationData | null;
+  historyEnabled?: boolean;
 }) {
   const router = useRouter();
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
@@ -1631,6 +1641,8 @@ export function ProjectShell({
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pointer");
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+  const [workspaceTab, setWorkspaceTab] = useState<"chat" | "design" | "design-md">("chat");
+  const [inspectorDirty, setInspectorDirty] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -1992,6 +2004,7 @@ export function ProjectShell({
     if (!selectedScreen) {
       return;
     }
+    if (!confirmPermanentScreenDeletion(selectedScreen.name)) return;
 
     try {
       const supabase = createClient();
@@ -2240,6 +2253,8 @@ export function ProjectShell({
           targetType,
           drawgleId,
           operations,
+          expectedRevision: targetType === "navigation" ? projectNavigation?.designRevision : screens.find(screen => screen.id === screenId)?.designRevision,
+          requestId: crypto.randomUUID(),
         }),
       });
 
@@ -2250,6 +2265,8 @@ export function ProjectShell({
 
       setSelectedElementPreview(null);
       await refreshScreens();
+      notifyProjectChanged(project.id);
+      clearEditSession();
       return true;
     } catch (error: any) {
       console.error("Deterministic element edit error:", error);
@@ -2366,9 +2383,10 @@ export function ProjectShell({
     setTokenSaving(true);
     try {
       const normalized = normalizeDesignTokens(tokenDraft);
-      await updateProjectFields(createClient(), project.id, { designTokens: normalized });
+      await saveDesignTokens(project.id, normalized, project.tokenRevision ?? 0);
       setTokenDraft(normalized);
       setTokenDirty(false);
+      notifyProjectChanged(project.id);
     } catch (error) {
       console.error("Failed to save design tokens", error);
     } finally {
@@ -2623,6 +2641,20 @@ export function ProjectShell({
                 </Button>
               }
             />
+            {historyEnabled ? <HistoryControls
+              key={editSession?.element.targetType === "navigation" ? "navigation" : editSession?.screenId ??
+                (workspaceTab === "design" ? "tokens" : selectedScreen?.id ?? "none")}
+              projectId={project.id}
+              target={editSession?.element.targetType === "navigation" ? { context: "navigation" } :
+                editSession?.screenId ? { context: "screen", screenId: editSession.screenId } :
+                workspaceTab === "design" ? { context: "tokens" } :
+                selectedScreen ? { context: "screen", screenId: selectedScreen.id } : null}
+              screenName={screens.find(screen => screen.id === (editSession?.screenId ?? selectedScreen?.id))?.name}
+              screens={screens} navigation={projectNavigation ?? null} tokens={effectiveDesignTokens ?? null}
+              disabledReason={tokenDirty || inspectorDirty ? "Save or discard the current draft before using saved history." :
+                isCanvasInteractionLocked ? "Wait for the active design job to finish." : null}
+              onApplied={async () => { clearEditSession(); setExportMenuOpen(false); notifyProjectChanged(project.id); await refreshScreens(); }}
+            /> : null}
           </div>
 
           {/* Credits & Upgrade pill */}
@@ -2834,6 +2866,7 @@ export function ProjectShell({
           </Dialog>
 
           <ChatPanel
+            onWorkspaceTabChange={setWorkspaceTab}
             project={project}
             screens={screens}
             selectedScreen={selectedScreen}
@@ -2903,6 +2936,7 @@ export function ProjectShell({
               onAskAiRefine={(intent) => void handlePromptAction({ prompt: intent })}
               onReplaceImage={handleReplaceSelectedImage}
               onDelete={handleDeleteSelectedElement}
+              onDirtyChange={setInspectorDirty}
             />
           ) : null}
 

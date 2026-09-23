@@ -7,6 +7,8 @@ import type { ProjectMessageRow, ScreenRow } from "@/lib/supabase/database.types
 import { mapScreenRow } from "@/lib/supabase/mappers";
 import { fetchScreenCatalog, fetchScreenSource } from "@/lib/supabase/queries";
 import type { ScreenData } from "@/lib/types";
+import { acceptFetchedSource, mergeScreenCatalog } from "@/lib/design-history/screen-cache";
+import { PROJECT_REFRESH_EVENT, isProjectRefresh } from "@/lib/project-refresh";
 
 const sortScreens = (screens: ScreenData[]) =>
   [...screens].sort((left, right) => {
@@ -46,15 +48,10 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
   const [screens, setScreens] = useState<ScreenData[]>(sortScreens(initialScreens));
   const [isLoading, setIsLoading] = useState(initialScreens.length === 0);
   const sourceRequestsRef = useRef(new Set<string>());
+  const catalogRequestRef = useRef(0);
 
   const mergeCatalog = useCallback((catalog: ScreenData[], current: ScreenData[]) => {
-    const currentById = new Map(current.map((screen) => [screen.id, screen]));
-    return catalog.map((screen) => {
-      const existing = currentById.get(screen.id);
-      return existing?.sourceLoaded
-        ? { ...screen, code: existing.code, blockIndex: existing.blockIndex, sourceLoaded: true }
-        : screen;
-    });
+    return mergeScreenCatalog(catalog, current);
   }, []);
 
   useEffect(() => {
@@ -75,10 +72,11 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
     let refreshTimer: number | null = null;
 
     const loadScreens = async () => {
+      const requestVersion = ++catalogRequestRef.current;
       try {
         setIsLoading(true);
         const nextScreens = await fetchScreenCatalog(supabase, projectId);
-        if (!cancelled) {
+        if (!cancelled && requestVersion === catalogRequestRef.current) {
           setScreens((current) => sortScreens(mergeCatalog(nextScreens, current)));
         }
       } catch (error) {
@@ -102,6 +100,8 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
     };
 
     void loadScreens();
+    const handleRefresh = (event: Event) => { if (isProjectRefresh(event, projectId)) void loadScreens(); };
+    window.addEventListener(PROJECT_REFRESH_EVENT, handleRefresh);
 
     const channel = supabase
       .channel(`screens:${projectId}`)
@@ -114,6 +114,7 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
           filter: `project_id=eq.${projectId}`,
         },
         (payload) => {
+          catalogRequestRef.current += 1;
           if (payload.eventType === "DELETE") {
             setScreens((currentScreens) => currentScreens.filter((screen) => screen.id !== payload.old.id));
             return;
@@ -122,6 +123,7 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
           setScreens((currentScreens) => {
             const nextScreen = mapScreenRow(payload.new as ScreenRow);
             const currentScreen = currentScreens.find((screen) => screen.id === nextScreen.id);
+            if (currentScreen?.designRevision !== undefined && nextScreen.designRevision !== undefined && currentScreen.designRevision > nextScreen.designRevision) return currentScreens;
 
             return upsertScreen(currentScreens, currentScreen ? mergeScreenPatch(currentScreen, nextScreen) : nextScreen);
           });
@@ -174,6 +176,8 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
 
     return () => {
       cancelled = true;
+      catalogRequestRef.current += 1;
+      window.removeEventListener(PROJECT_REFRESH_EVENT, handleRefresh);
       if (refreshTimer) {
         window.clearTimeout(refreshTimer);
       }
@@ -186,8 +190,9 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
     if (!projectId) return;
     try {
       const supabase = createClient();
+      const requestVersion = ++catalogRequestRef.current;
       const nextScreens = await fetchScreenCatalog(supabase, projectId);
-      setScreens((current) => sortScreens(mergeCatalog(nextScreens, current)));
+      if (requestVersion === catalogRequestRef.current) setScreens((current) => sortScreens(mergeCatalog(nextScreens, current)));
     } catch (error) {
       console.error("Failed to refresh screens", error);
     }
@@ -202,7 +207,7 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
         try {
           const source = await fetchScreenSource(createClient(), screenId);
           if (source.projectId === projectId) {
-            setScreens((entries) => upsertScreen(entries, source));
+            setScreens((entries) => sortScreens(acceptFetchedSource(entries, source)));
           }
           return;
         } catch (error) {

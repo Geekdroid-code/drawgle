@@ -2044,6 +2044,7 @@ export function ChatPanel({
   onClearSelectedElement,
   onDeleteSelectedElement,
   contextualSuggestionsEnabled = true,
+  onWorkspaceTabChange,
 }: {
   project: ProjectData;
   screens: ScreenData[];
@@ -2071,6 +2072,7 @@ export function ChatPanel({
   onApproveScreenState?: (proposalMessageId: string) => void;
   onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation, selectedItemIds: string[]) => void;
   contextualSuggestionsEnabled?: boolean;
+  onWorkspaceTabChange?: (tab: "chat" | "design" | "design-md") => void;
   onBuildPlannedScreen?: () => void;
   onCancelPlan?: () => void;
   isCollapsed: boolean;
@@ -2312,7 +2314,7 @@ export function ChatPanel({
         <PremiumSegmentedTabs
           items={CHAT_WORKSPACE_TABS}
           value={activeTab}
-          onValueChange={setActiveTab}
+          onValueChange={(tab) => { setActiveTab(tab); onWorkspaceTabChange?.(tab); }}
           size="sm"
           layoutId="chat-workspace-tab"
         />

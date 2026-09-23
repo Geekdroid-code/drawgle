@@ -1,7 +1,7 @@
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Button } from "@/components/ui/button";
 import type { ProjectData, ScreenData } from "@/lib/types";
@@ -23,6 +23,8 @@ vi.mock("@/lib/export-pipeline", async (importOriginal) => {
 });
 
 import { ExportMenu } from "./ExportMenu";
+const TestResizeObserver = globalThis.ResizeObserver;
+const TestMutationObserver = globalThis.MutationObserver;
 
 const project: ProjectData = {
   id: "project",
@@ -37,6 +39,7 @@ const project: ProjectData = {
 const screens: ScreenData[] = [
   {
     id: "home",
+    status: "ready",
     projectId: "project",
     userId: "user",
     name: "Home",
@@ -49,6 +52,7 @@ const screens: ScreenData[] = [
   },
   {
     id: "details",
+    status: "ready",
     projectId: "project",
     userId: "user",
     name: "Details",
@@ -76,11 +80,23 @@ function renderMenu(initialScreenId = "details", props: Partial<ComponentProps<t
 }
 
 describe("ExportMenu", () => {
+  beforeEach(() => {
+    vi.stubGlobal("ResizeObserver", TestResizeObserver);
+    vi.stubGlobal("MutationObserver", TestMutationObserver);
+    vi.stubGlobal("fetch", vi.fn(async (_url, init) => {
+      const ids = JSON.parse(init.body).screenIds;
+      return { ok: true, json: async () => ({ project, screens: screens.filter(s => ids.includes(s.id)).map(s => ({ ...s, code: "saved source" })) }) };
+    }));
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => undefined);
+    vi.stubGlobal("URL", { ...URL, createObjectURL: vi.fn(() => "blob:test"), revokeObjectURL: vi.fn() });
+  });
   afterEach(() => {
     cleanup();
     buildAgentHandoffPromptMock.mockClear();
     buildAgentPackZipMock.mockClear();
     buildStandaloneHtmlExportMock.mockClear();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("shows selected-screen and whole-project actions together", () => {
@@ -93,9 +109,7 @@ describe("ExportMenu", () => {
     expect(view.getByText("Download Agent Pack")).toBeTruthy();
     expect(view.queryByText("Native Scaffolds")).toBeNull();
     expect(view.queryByText(/Preview/)).toBeNull();
-    expect(buildStandaloneHtmlExportMock).toHaveBeenCalledWith(expect.objectContaining({
-      screen: expect.objectContaining({ id: "details" }),
-    }));
+    expect(buildStandaloneHtmlExportMock).not.toHaveBeenCalled();
   });
 
   it("blocks fidelity exports when design token changes are unsaved", async () => {
@@ -111,17 +125,17 @@ describe("ExportMenu", () => {
   });
 
   it("blocks selected-screen exports when the selected screen is not ready", async () => {
-    const user = userEvent.setup();
     const blockedScreens = screens.map((screen) => screen.id === "details" ? { ...screen, status: "building" as const } : screen);
     const view = renderMenu("details", { screens: blockedScreens });
 
-    expect(view.getByTestId("selected-export-blocked").textContent).toContain("This screen is still building");
+    expect(view.getByTestId("selected-export-blocked").textContent).toContain("Select a ready screen");
     expect(view.getByTestId("copy-for-agent").hasAttribute("disabled")).toBe(true);
   });
   it("always creates agent handoff and Agent Pack with auto detection", async () => {
     const user = userEvent.setup();
     const view = renderMenu();
-
+    await user.click(view.getByTestId("copy-for-agent"));
+    await waitFor(() => expect(buildAgentHandoffPromptMock).toHaveBeenCalled());
     expect(buildAgentHandoffPromptMock).toHaveBeenCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "details" }),
       target: "auto",
@@ -137,11 +151,33 @@ describe("ExportMenu", () => {
     const view = renderMenu();
 
     await user.click(view.getByText("Home"));
+    await user.click(view.getByTestId("copy-for-agent"));
+    await waitFor(() => expect(buildAgentHandoffPromptMock).toHaveBeenCalled());
 
     expect(buildAgentHandoffPromptMock).toHaveBeenLastCalledWith(expect.objectContaining({
       screen: expect.objectContaining({ id: "home" }),
       target: "auto",
     }));
+  });
+
+  it("uses freshly fetched source for unopened screens and retains the UI on failure", async () => {
+    const user = userEvent.setup();
+    const view = renderMenu("home", { screens: screens.map(s => ({ ...s, code: "", sourceLoaded: false })) });
+    await user.click(view.getByTestId("download-screen-html"));
+    await waitFor(() => expect(buildStandaloneHtmlExportMock).toHaveBeenCalledWith(expect.objectContaining({ screen: expect.objectContaining({ code: "saved source" }) })));
+    vi.mocked(fetch).mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Refresh and reselect" }) } as Response);
+    await user.click(view.getByTestId("download-screen-html"));
+    expect((await view.findByRole("alert")).textContent).toContain("Refresh and reselect");
+    expect(view.getByTestId("export-menu")).toBeTruthy();
+  });
+
+  it("does not claim clipboard success when writing fails", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("Clipboard denied"));
+    const view = renderMenu();
+    await user.click(view.getByTestId("copy-for-agent"));
+    expect((await view.findByRole("alert")).textContent).toContain("Clipboard denied");
+    expect(view.queryByText("Copied for AI Agent")).toBeNull();
   });
 
   it("keeps the menu open and reveals a copyable instruction after Agent Pack download", async () => {

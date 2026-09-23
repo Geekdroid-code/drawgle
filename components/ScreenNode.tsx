@@ -1,4 +1,5 @@
 "use client";
+import { confirmPermanentScreenDeletion } from "@/lib/confirm-screen-deletion";
 
 import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
 import { useState, useRef, useEffect, useMemo, useCallback, memo } from "react";
@@ -1009,13 +1010,14 @@ export function ScreenNode({
 
   // ── Delete
   const handleDelete = useCallback(async () => {
+    if (!confirmPermanentScreenDeletion(screen.name)) return;
     try {
       const supabase = createClient();
       await deleteScreen(supabase, screen.id);
     } catch (err) {
       console.error("Failed to delete screen", err);
     }
-  }, [screen.id]);
+  }, [screen.id, screen.name]);
 
   const handleInlineDelete = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
