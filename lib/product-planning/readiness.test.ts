@@ -12,7 +12,7 @@ describe("bounded product readiness review", () => {
     const result = await reviewProductReadiness(productFixture(), "Only onboarding for now");
     expect(result.ready).toBe(false);
     const request = mocks.generate.mock.calls[0][0];
-    expect(request.config.systemInstruction).toContain("Reject scope rationale");
+    expect(request.config.systemInstruction).toContain("Reject a scope that silently omits named user-facing features");
     expect(JSON.stringify(request.contents)).toContain("Orders");
     expect(JSON.stringify(request.contents)).toContain("Only onboarding for now");
     expect(mocks.generate).toHaveBeenCalledOnce();

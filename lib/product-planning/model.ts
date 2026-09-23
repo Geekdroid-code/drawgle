@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isScreenDesignCardQuestion, screenDecisionTypeSchema } from "./discovery-decisions";
 import { journeyCoverageSchema } from "./flow-review";
 import { normalizePlanningInput } from "./reference-context";
 import { decisionProvenanceSchema, evidenceAssessmentSchema, evidenceAllowsProposal } from "./evidence";
@@ -24,6 +25,7 @@ export const productFactSchema = z.object({
   blocking: z.boolean().default(false),
   // Connects a saved question to the interactive card that answered it.
   decisionKey: z.string().regex(/^[a-z0-9_-]{1,100}$/).optional(),
+  designDecisionType: screenDecisionTypeSchema.optional(),
   status: z.enum(["active", "superseded"]).default("active"),
   supersededBy: id.nullable().default(null),
   messageId: z.string().uuid().nullable().default(null),
@@ -100,6 +102,10 @@ export const productPatchSchema = z.object({ operations: z.array(productOperatio
 export const activeFacts = (state: ProductPlanning, section?: ProductFact["section"]) =>
   state.blueprint.facts.filter((fact) => fact.status === "active" && (!section || fact.section === section));
 
+export const blockingScreenQuestions = (state: ProductPlanning) => activeFacts(state, "questions")
+  .filter(fact => fact.blocking && Boolean(fact.designDecisionType)
+    && isScreenDesignCardQuestion({ question: fact.detail, consequence: "" }));
+
 export function applyProductPatch(state: ProductPlanning, value: unknown, messageId: string): ProductPlanning {
   const { operations } = productPatchSchema.parse(value);
   const next = structuredClone(state);
@@ -174,7 +180,7 @@ export function readinessIssues(state: ProductPlanning): string[] {
   for (const section of recreation ? ["identity"] as const : ["identity", "actors", "jobs", "journeys"] as const) {
     if (!activeFacts(state, section).length) issues.push(`Clarify the product's ${section}.`);
   }
-  issues.push(...activeFacts(state, "questions").filter((fact) => fact.blocking).map((fact) => fact.detail));
+  issues.push(...blockingScreenQuestions(state).map((fact) => fact.detail));
   if (!state.scope) issues.push("Choose what to design first.");
   else {
     const surfaces = new Set(activeFacts(state, "surfaces").map((fact) => fact.id));

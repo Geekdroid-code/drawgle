@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confirmedMessageEvidence, formatProductAnswers, productAnswersSchema, readProductQuestions, resolveProductAnswers, type ProductQuestions } from "./questions";
+import { confirmedMessageEvidence, formatProductAnswers, isScreenDesignQuestionCard, productAnswersSchema, readProductQuestions, resolveProductAnswers, type ProductQuestions } from "./questions";
 
 export const questionFixture: ProductQuestions = [{
   question: "What should onboarding accomplish?", consequence: "This changes the steps before shopping.",
@@ -12,6 +12,14 @@ export const questionFixture: ProductQuestions = [{
 const messageId = "11111111-1111-4111-8111-111111111111";
 const message = { id: messageId, role: "model", content: "Choose below", metadata: { productQuestions: questionFixture } };
 describe("product question answers", () => {
+  it("recognizes saved implementation cards so they can be replaced by screen-planning recovery", () => {
+    expect(isScreenDesignQuestionCard([{ ...questionFixture[0], question: "How should the app handle final restored files?" }])).toBe(false);
+    expect(isScreenDesignQuestionCard([{ ...questionFixture[0], question: "What should be the primary output for animated photos?" }])).toBe(false);
+    expect(isScreenDesignQuestionCard([{ ...questionFixture[0], question: "Which screens should show finished results?" }])).toBe(true);
+    expect(isScreenDesignQuestionCard([{ ...questionFixture[0], question: "Which screen should show results?",
+      choices: [{ label: "Cloud-synced library", description: "Back up files across devices." }, ...questionFixture[0].choices.slice(1)] }])).toBe(false);
+    expect(isScreenDesignQuestionCard([{ ...questionFixture[0], decisionKey: "reference_evidence_recovery" }])).toBe(true);
+  });
   it("reads legacy messages without cards and rejects malformed choices", () => {
     expect(readProductQuestions({})).toBeNull();
     expect(readProductQuestions({ productQuestions: [{ ...questionFixture[0], choices: questionFixture[0].choices.slice(0, 2) }] })).toBeNull();
@@ -30,7 +38,7 @@ describe("product question answers", () => {
     const old = { ...message, metadata: { productQuestions: [{ ...questionFixture[0], question: "Should I recreate the supplied screens, or adapt their design to your product?" }] } };
     const result = resolveProductAnswers([old], { messageId, answers: [{ kind: "choice", index: 0 }] }, "turn");
     expect(result.confirmed).toEqual([]);
-    expect(result.content).toContain("Continue planning my product");
+    expect(result.content).toContain("Continue designing the requested screens");
     expect(result.content).not.toContain("supplied screens");
   });
   it("requires an explicit custom answer or skip for every question", () => {

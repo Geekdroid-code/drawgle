@@ -95,7 +95,7 @@ export function ProductQuestionCard({ questions, messageId, active, disabled, on
   if ((!active && !error && !busy) || sent) return (
     <details className="mx-4 mb-4 rounded-xl border border-slate-950/10 bg-slate-50/50 p-3 text-xs text-slate-500">
       <summary className="cursor-pointer font-medium hover:text-slate-700">
-        Product choices · {questions.length} {questions.length === 1 ? "question" : "questions"}
+        Screen choices · {questions.length} {questions.length === 1 ? "question" : "questions"}
       </summary>
       <div className="mt-2 space-y-1.5 border-t border-slate-950/10 pt-2">
         {questions.map(item => <p key={item.question} className="leading-relaxed">{item.question}</p>)}
@@ -105,9 +105,9 @@ export function ProductQuestionCard({ questions, messageId, active, disabled, on
   );
 
   return (
-    <section aria-label="Product questions" aria-busy={busy} className="mx-4 mb-4 rounded-2xl border border-slate-950/10 bg-white p-4 text-sm text-slate-950 shadow-sm">
+    <section aria-label="Screen design questions" aria-busy={busy} className="mx-4 mb-4 rounded-2xl border border-slate-950/10 bg-white p-4 text-sm text-slate-950 shadow-sm">
       <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500">
-        <span>Shape your product · Optional</span>
+        <span>Shape your screens · Optional</span>
         <span className="font-mono text-xs">{index + 1} / {questions.length}</span>
       </div>
       <div aria-live="polite" aria-atomic="true">

@@ -11,7 +11,7 @@ import { referenceRecoveryQuestions, validateReferencePreference } from "./refer
 import { reviewFactEvidence } from "./review-fact-evidence";
 import { prepareDesignerPatch } from "./designer-patch";
 import { describeToolFailure, ProductToolError, type PlanningFailure } from "./tool-failure";
-import { activeFacts, applyProductPatch, proposeProductScope, readinessIssues } from "./model";
+import { activeFacts, applyProductPatch, blockingScreenQuestions, proposeProductScope, readinessIssues } from "./model";
 import { designerInstructions, designerToolDeclarations } from "./designer-tools";
 import { loadProductPlanning, saveProductPlanning, PlanningConflict, type PlanningStore } from "./store";
 import { loadPlanningReference, storePlanningReference } from "./references";
@@ -173,7 +173,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           gaps: [],
           recommendations: [],
           delegation: "",
-          rationale: "User provided answers to previous product questions.",
+          rationale: "User provided answers to previous screen-design questions.",
         }
       : await assessProductEvidence({
           state,
@@ -245,7 +245,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
         if (call.name === "propose_scope") attemptedProposal = true;
         let result: Record<string, unknown>;
         try {
-          if (!assessment.productReady && ["set_design_scope", "update_functional_plan"].includes(call.name ?? "")) throw new Error("Resolve the material product questions with the user before choosing concrete screens.");
+          if (!assessment.productReady && ["set_design_scope", "update_functional_plan"].includes(call.name ?? "")) throw new Error("Resolve the material screen-design questions before choosing concrete screens.");
           if (call.name === "update_product" || call.name === "set_design_scope") {
             const userEvidence = [...(originalPrompt ? [originalPrompt] : []), ...history.filter(message => message.role === "user").flatMap(confirmedMessageEvidence), ...(resolvedAnswers ? resolvedAnswers.confirmed : [effectivePrompt])];
             const { patch, assumptions } = await reviewFactEvidence(prepareDesignerPatch(call.name, call.args, userEvidence, history, assessment), history);
@@ -284,8 +284,8 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           } else if (call.name === "propose_scope") {
             if (!evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Discuss the evidence assessment's unresolved questions with the user first.");
             if (!state.experience) throw new Error("Inspect a reference and establish an experience direction before proposing designs.");
-            const openQuestions = activeFacts(state, "questions").filter(fact => fact.blocking);
-            if (openQuestions.length) throw new ProductToolError("Resolve the saved product questions before proposing a scope.",
+            const openQuestions = blockingScreenQuestions(state);
+            if (openQuestions.length) throw new ProductToolError("Resolve the saved screen-design questions before proposing a scope.",
               "UNRESOLVED_PRODUCT_DECISIONS", { questions: openQuestions.map(fact => fact.label) });
             const proposed = proposeProductScope(await snapshotFunctionalScope(admin, projectId, ownerId, state));
             const review = await reviewProductReadiness(proposed, effectivePrompt, {
@@ -328,7 +328,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     if (failure) reply = `${failure.summary} Your saved product decisions are intact. Continue below to finish planning; generation has not started.`;
     const questions = referenceRecovery ? referenceRecoveryQuestions : readProductQuestions({ productQuestions: assessment.gaps });
     if (referenceRecovery) reply = "The references I inspected don't support your saved direction well enough. Your requirements are preserved. Choose how to continue below.";
-    if (questions && !attemptedProposal && !failure) reply = "Let's shape how this works. Choose an answer below, write your own, or skip and I'll recommend a direction.";
+    if (questions && !attemptedProposal && !failure) reply = "Let's shape the screens and flow. Choose an answer below, write your own, or skip and I'll recommend a direction.";
     if (!reply && state.scope?.status === "proposed") reply = "The current scope is ready to review. Use the approval card when you'd like me to start.";
     if (!reply) throw new Error("I couldn't complete this product turn. Your saved decisions are intact; please try again.");
     const modelMessage = await insertProjectMessage(admin, { projectId, ownerId, role: "model", content: reply, metadata: {

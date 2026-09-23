@@ -20,6 +20,8 @@ describe("optional product question cards", () => {
   it("shows three choices, one recommendation, custom input and Skip without auto-submitting", async () => {
     const onSubmit = vi.fn(async (_input: unknown) => true);
     render(<ProductQuestionCard questions={questions} messageId={messageId} active onSubmit={onSubmit} />);
+    expect(screen.getByLabelText("Screen design questions")).toBeTruthy();
+    expect(screen.getByText("Shape your screens · Optional")).toBeTruthy();
     expect(screen.getAllByText("Recommended")).toHaveLength(1);
     expect(screen.getByRole("button", { name: /Write my own/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Skip" })).toBeTruthy();

@@ -16,9 +16,20 @@ describe("evidence assessment boundary", () => {
     expect(parts[0].text).toContain("No accounts");
   });
   it("cannot clear a returned gap using contradictory ready flags", async () => {
-    mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, gaps: [{ decisionKey: "onboarding-purpose", decisionType: "product_behavior", requiresUserInput: true, whyUserMustDecide: "Whether onboarding changes recommendations or just introduces the product", area: "product", question: "What does onboarding do?", consequence: "Changes the required steps", choices: [{ label: "Introduce", description: "Brand introduction" }, { label: "Personalize", description: "Useful preferences" }, { label: "Shop", description: "Begin shopping" }] }] }) });
+    mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, gaps: [{ decisionKey: "onboarding-screen", decisionType: "screen_flow", requiresUserInput: true, whyUserMustDecide: "The entry screen changes", area: "product", question: "Which screen should open the shopping flow?", consequence: "Changes the screen path", choices: [{ label: "Welcome", description: "Show a brief welcome view." }, { label: "Catalog", description: "Show products first." }, { label: "Preferences", description: "Show a preference view first." }] }] }) });
     const assessment = await assessProductEvidence({ state: designerFixture(), prompt: "Premium T-shirts", turnId: "turn", history: [], reference: null });
     expect(evidenceAllowsProposal(assessment)).toBe(false);
+  });
+  it("suppresses backend and output-format questions from the model response", async () => {
+    mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, productReady: false, gaps: [{
+      decisionKey: "animation-output", decisionType: "product_behavior", requiresUserInput: true,
+      whyUserMustDecide: "The output format changes implementation", area: "product",
+      question: "What should be the primary output for animated photos?", consequence: "Changes file handling",
+      choices: [{ label: "MP4", description: "Export video." }, { label: "GIF", description: "Export image." }, { label: "Live Photo", description: "Export live photo." }],
+    }] }) });
+    const assessment = await assessProductEvidence({ state: designerFixture(), prompt: "Design my photo app", turnId: "turn", history: [], reference: null });
+    expect(assessment.gaps).toEqual([]);
+    expect(evidenceAllowsProposal(assessment)).toBe(true);
   });
   it("rejects fabricated delegation after one internal repair", async () => {
     mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, delegation: "Decide everything" }) });

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isScreenDesignCardQuestion } from "./discovery-decisions";
 
 export const questionChoicesSchema = z.array(z.object({
   label: z.string().trim().min(1).max(100),
@@ -35,7 +36,12 @@ export function isObsoleteModeQuestion(questions: ProductQuestions) {
   return questions.some(item => item.question === "Should I recreate the supplied screens, or adapt their design to your product?");
 }
 
-export const resumeProductPlanningPrompt = "Continue planning my product using the mode I selected. Ask about how my product works where needed.";
+/** Old implementation cards remain in chat history but should no longer request answers. */
+export function isScreenDesignQuestionCard(questions: ProductQuestions) {
+  return questions.every(item => item.decisionKey === "reference_evidence_recovery" || isScreenDesignCardQuestion(item));
+}
+
+export const resumeProductPlanningPrompt = "Continue designing the requested screens using the mode I selected. Ask only about missing visible screens or flow choices.";
 
 export function productMessageContext(message: { content: string; metadata: Record<string, unknown> }) {
   const questions = readProductQuestions(message.metadata);

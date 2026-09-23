@@ -42,10 +42,19 @@ describe("durable product truth and scope", () => {
     expect(state).toEqual(before);
   });
   it("blocks only unresolved questions marked material to the current scope", () => {
-    const state = applyProductPatch(productFixture(), { operations: [{ op: "put_fact", fact: { id: "personalization", section: "questions", label: "Personalization", detail: "Does onboarding personalize shopping?", source: "assumption", evidence: "", blocking: true } }] }, messageId);
-    expect(() => proposeProductScope(state)).toThrow(/personalize/);
+    const state = applyProductPatch(productFixture(), { operations: [{ op: "put_fact", fact: { id: "personalization", section: "questions", label: "Onboarding screen", detail: "Which onboarding screen should be shown?", source: "assumption", evidence: "", blocking: true, designDecisionType: "screen_scope" } }] }, messageId);
+    expect(() => proposeProductScope(state)).toThrow(/onboarding screen/);
     const resolved = applyProductPatch(state, { operations: [{ op: "supersede_fact", id: "personalization", replacement: null }] }, messageId);
     expect(readinessIssues(resolved)).toEqual([]);
+  });
+  it("does not block screen design on legacy implementation questions", () => {
+    const state = applyProductPatch(productFixture(), { operations: [{ op: "put_fact", fact: { id: "file_format", section: "questions", label: "File output", detail: "Should animations be MP4 or GIF?", source: "assumption", evidence: "", blocking: true } }] }, messageId);
+    expect(readinessIssues(state)).toEqual([]);
+    expect(proposeProductScope(state).scope?.status).toBe("proposed");
+  });
+  it("ignores an implementation question mislabeled as a screen choice", () => {
+    const state = applyProductPatch(productFixture(), { operations: [{ op: "put_fact", fact: { id: "cloud_choice", section: "questions", label: "Cloud gallery", detail: "Should the gallery screen use cloud sync or local storage?", source: "assumption", evidence: "", blocking: true, designDecisionType: "screen_scope" } }] }, messageId);
+    expect(readinessIssues(state)).toEqual([]);
   });
   it("lets narrow image recreation propose immediately without inventing a full product", () => {
     const state = designerFixture();

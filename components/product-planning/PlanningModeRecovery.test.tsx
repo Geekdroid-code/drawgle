@@ -6,9 +6,9 @@ it("recovers without automatic turn/reload loops and keeps a retry identity", as
   const onSubmit = vi.fn(async (_input: unknown) => false);
   render(<PlanningModeRecovery active onSubmit={onSubmit} />);
   expect(onSubmit).not.toHaveBeenCalled();
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Continue planning" })));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Continue screen design" })));
   expect(screen.getByRole("alert")).toBeTruthy();
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Continue planning" })));
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Continue screen design" })));
   expect(onSubmit.mock.calls[0][0]).toEqual(onSubmit.mock.calls[1][0]);
   expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("productAnswers");
 });

@@ -4,7 +4,7 @@ import { ProductPlanningRecovery } from "@/components/product-planning/ProductPl
 import { readPlanningFailure, type PlanningFailure } from "@/lib/product-planning/tool-failure";
 import { PlanningModeRecovery } from "@/components/product-planning/PlanningModeRecovery";
 import { ProductQuestionCard } from "@/components/product-planning/ProductQuestionCard";
-import { isObsoleteModeQuestion, readProductQuestions, type ProductQuestions, type ProductAnswers } from "@/lib/product-planning/questions";
+import { isObsoleteModeQuestion, isScreenDesignQuestionCard, readProductQuestions, type ProductQuestions, type ProductAnswers } from "@/lib/product-planning/questions";
 import { PlanningConversation } from "@/components/product-planning/PlanningConversation";
 import { ProductExecutionCard } from "@/components/product-planning/ProductExecutionCard";
 import { usePlanningLease } from "@/hooks/use-planning-lease";
@@ -2402,6 +2402,10 @@ export function ChatPanel({
                           disabled={disabled || isBusy || planningBusy || !onSubmit} onSubmit={handleSubmit}
                         />}
                         {item.questions && item.messageId && (isObsoleteModeQuestion(item.questions) ? <PlanningModeRecovery
+                          active={!messages.slice(messages.findIndex(message => message.id === item.messageId) + 1).some(message => message.role === "user" || Boolean(message.metadata.productTurnComplete))}
+                          disabled={disabled || isBusy || planningBusy || !onSubmit} onSubmit={handleSubmit}
+                        /> : !isScreenDesignQuestionCard(item.questions) ? <ProductPlanningRecovery
+                          implementationQuestion
                           active={!messages.slice(messages.findIndex(message => message.id === item.messageId) + 1).some(message => message.role === "user" || Boolean(message.metadata.productTurnComplete))}
                           disabled={disabled || isBusy || planningBusy || !onSubmit} onSubmit={handleSubmit}
                         /> : <ProductQuestionCard
