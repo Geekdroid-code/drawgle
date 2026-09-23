@@ -69,6 +69,19 @@ describe("audience and evidence boundaries", () => {
     expect(prepared.patch.operations[0]).toHaveProperty("fact.source", "assumption");
     expect(() => applyEvidenceVerdicts(prepareDesignerPatch("update_product", { facts: [{ id: "habit", section: "identity", label: "Habit app", detail: "Habit tracker", source: "user", evidence: "Habit tracker" }] }, ["Habit tracker"], [], state.evidenceAssessment!), { verdicts: [] })).toThrow(/every new/);
   });
+  it("derives optional fact bookkeeping before validating the saved design fact", () => {
+    const state = designerFixture();
+    const prepared = prepareDesignerPatch("update_product", { facts: [{
+      id: "Today Screen", section: "surfaces", label: "Today", detail: "Shows today's tasks",
+      source: "user", evidence: "Shows today's tasks", provenance: { basis: "direct", recommendationMessageId: "" },
+      links: ["KIDS", "KIDS", "not a valid id!"], decisionKey: "bad key", designDecisionType: "backend",
+    }] }, ["Shows today's tasks"], [], state.evidenceAssessment!);
+    expect(prepared.patch.operations[0]).toMatchObject({ op: "put_fact", fact: {
+      id: "today-screen", source: "user", provenance: { basis: "direct", recommendationMessageId: null }, links: ["kids", "not-a-valid-id"],
+    } });
+    expect(prepared.patch.operations[0]).not.toHaveProperty("fact.decisionKey");
+    expect(prepared.patch.operations[0]).not.toHaveProperty("fact.designDecisionType");
+  });
   it("keeps product content independent of unrelated reference observations", () => {
     const state = designerFixture(); state.experience!.observations = "Password vault terminal";
     const content = compileProductContent(state)!;

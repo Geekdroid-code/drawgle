@@ -18,6 +18,17 @@ export function applyEvidenceVerdicts(prepared: ReturnType<typeof prepareDesigne
   return prepared;
 }
 
+function keepUnverifiedFactsTentative(prepared: ReturnType<typeof prepareDesignerPatch>) {
+  for (const operation of prepared.patch.operations) {
+    const fact = operation.op === "put_fact" ? operation.fact : operation.op === "supersede_fact" ? operation.replacement : null;
+    if (fact?.source !== "user") continue;
+    fact.source = "assumption";
+    fact.provenance = { basis: "inferred", recommendationMessageId: null };
+    prepared.assumptions.push(fact.id);
+  }
+  return prepared;
+}
+
 export async function reviewFactEvidence(prepared: ReturnType<typeof prepareDesignerPatch>, history: Array<{ id: string; role: string; content: string }>) {
   const facts = prepared.patch.operations.flatMap(op => op.op === "put_fact" ? [op.fact] : op.op === "supersede_fact" && op.replacement ? [op.replacement] : []).filter(f => f.source === "user");
   if (!facts.length) return prepared;
@@ -27,7 +38,15 @@ export async function reviewFactEvidence(prepared: ReturnType<typeof prepareDesi
     responseSchema: { type: Type.OBJECT, properties: { verdicts: { type: Type.ARRAY, items: { type: Type.OBJECT,
       properties: { id: { type: Type.STRING }, supported: { type: Type.BOOLEAN }, reason: { type: Type.STRING } }, required: ["id", "supported", "reason"] } } }, required: ["verdicts"] },
   });
-  const response = await createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
-    contents: [{ role: "user", parts: [{ text: JSON.stringify({ facts, acceptedRecommendations: history.filter(message => facts.some(f => f.provenance?.recommendationMessageId === message.id)) }) }] }] });
-  return applyEvidenceVerdicts(prepared, JSON.parse(response.text || "{}"));
+  try {
+    const response = await createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
+      contents: [{ role: "user", parts: [{ text: JSON.stringify({ facts, acceptedRecommendations: history.filter(message => facts.some(f => f.provenance?.recommendationMessageId === message.id)) }) }] }] });
+    return applyEvidenceVerdicts(prepared, JSON.parse(response.text || "{}"));
+  } catch (error) {
+    if (!(error instanceof SyntaxError || error instanceof z.ZodError
+      || (error instanceof Error && error.message.startsWith("Evidence review must cover")))) throw error;
+    // Verification is allowed to withhold confirmation, never to erase the
+    // model's otherwise valid design work or force the user to repeat a turn.
+    return keepUnverifiedFactsTentative(prepared);
+  }
 }

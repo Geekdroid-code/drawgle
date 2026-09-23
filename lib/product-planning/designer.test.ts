@@ -239,6 +239,33 @@ describe("product designer tool loop", () => {
     const contents = mocks.generate.mock.calls[1][0].contents;
     expect(JSON.stringify(contents)).toContain("saved as assumptions");
   });
+  it("keeps a first-prompt design brief when bookkeeping and the evidence review are malformed", async () => {
+    const prompt = "Design an organizer where parents add kids, activities, chores and reminders, then see today's work and a calendar.";
+    mocks.messages[0].content = prompt;
+    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [{
+      id: "Today screen", section: "surfaces", label: "Today", detail: "A Today view for chores and reminders",
+      source: "user", evidence: prompt, provenance: { basis: "direct", recommendationMessageId: "" },
+    }], supersessions: [] } }]))
+      .mockResolvedValueOnce({ text: "{}" }) // The separate evidence reviewer returned an incomplete verdict.
+      .mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [], supersessions: [] } }]))
+      .mockResolvedValueOnce({ text: "I can design the Today and calendar flow." });
+    await runProductDesigner({ ...options, prompt });
+    expect(mocks.state?.blueprint.facts).toMatchObject([{ id: "today-screen", section: "surfaces", source: "assumption" }]);
+    expect(mocks.messages.at(-1)?.metadata).not.toHaveProperty("productPlanningFailure");
+    expect(mocks.messages.at(-1)?.content).toContain("Today and calendar");
+  });
+  it("does not silently reclassify user requirements when the evidence provider is unavailable", async () => {
+    const prompt = "Design a Today screen for kids' chores.";
+    mocks.messages[0].content = prompt;
+    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [{
+      id: "today", section: "surfaces", label: "Today", detail: "A Today screen for kids' chores",
+      source: "user", evidence: prompt,
+    }], supersessions: [] } }])).mockRejectedValueOnce(new Error("Evidence provider unavailable"));
+    await runProductDesigner({ ...options, prompt });
+    expect(mocks.state?.blueprint.facts).toHaveLength(0);
+    expect(mocks.state?.lease).toBeNull();
+    expect(mocks.messages.at(-1)?.metadata).toHaveProperty("productPlanningFailure");
+  });
   it("keeps validated updates on provider failure and releases the turn for retry", async () => {
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [productFixture().blueprint.facts[0]], supersessions: [] } }]))
       .mockRejectedValueOnce(new Error("Provider unavailable"));

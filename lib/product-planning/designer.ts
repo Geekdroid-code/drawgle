@@ -10,6 +10,7 @@ import type { PromptImagePayload } from "@/lib/types";
 import { referenceRecoveryQuestions, validateReferencePreference } from "./reference-preference";
 import { reviewFactEvidence } from "./review-fact-evidence";
 import { prepareDesignerPatch } from "./designer-patch";
+import { createDesignerFactIds } from "./designer-fact-ids";
 import { describeToolFailure, ProductToolError, type PlanningFailure } from "./tool-failure";
 import { activeFacts, applyProductPatch, blockingScreenQuestions, proposeProductScope, readinessIssues } from "./model";
 import { designerInstructions, designerToolDeclarations } from "./designer-tools";
@@ -207,6 +208,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     const failures = new Map<string, PlanningFailure>();
     let repairRequests = 0;
     let referenceRecovery = false;
+    const factIds = createDesignerFactIds();
     const toolProgressLabels: Record<string, { title: string; detail: string }> = {
       inspect_reference: { title: "Analyzing design reference", detail: "Observing layout hierarchy and visual language..." },
       update_product: { title: "Formulating product blueprint", detail: "Recording product capabilities and user jobs..." },
@@ -248,7 +250,17 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           if (!assessment.productReady && ["set_design_scope", "update_functional_plan"].includes(call.name ?? "")) throw new Error("Resolve the material screen-design questions before choosing concrete screens.");
           if (call.name === "update_product" || call.name === "set_design_scope") {
             const userEvidence = [...(originalPrompt ? [originalPrompt] : []), ...history.filter(message => message.role === "user").flatMap(confirmedMessageEvidence), ...(resolvedAnswers ? resolvedAnswers.confirmed : [effectivePrompt])];
-            const { patch, assumptions } = await reviewFactEvidence(prepareDesignerPatch(call.name, call.args, userEvidence, history, assessment), history);
+            if (call.name === "update_product") factIds.rememberProductArgs(call.args);
+            const prepared = prepareDesignerPatch(call.name, call.name === "set_design_scope" ? factIds.scopeArgs(call.args) : call.args, userEvidence, history, assessment);
+            const { patch, assumptions } = prepared.patch.operations.length
+              ? await reviewFactEvidence(prepared, history) : prepared;
+            if (!patch.operations.length) {
+              result = { ok: true, revision: state.revision, unchanged: true };
+              responses.push(createPartFromFunctionResponse(call.id ?? crypto.randomUUID(), call.name ?? "unknown", result));
+              failures.delete(call.name ?? "unknown");
+              onTrace?.({ tool: call.name, ok: true, unchanged: true });
+              continue;
+            }
             if (screenReference && patch.operations.some(operation => {
               const fact = operation.op === "put_fact" ? operation.fact : operation.op === "supersede_fact" ? operation.replacement : null;
               return fact && (fact.provenance?.basis === "reference_observation" || (fact.section === "preferences" && fact.source !== "user"));
@@ -268,7 +280,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           } else if (call.name === "read_functional_plan") {
             result = { ok: true, items: await readFunctionalRoadmap(admin, projectId, ownerId) };
           } else if (call.name === "update_functional_plan") {
-            state = await updateFunctionalRoadmap(admin, projectId, ownerId, state, call.args);
+            state = await updateFunctionalRoadmap(admin, projectId, ownerId, state, factIds.functionalArgs(call.args));
             result = { ok: true, revision: state.revision };
           } else if (call.name === "inspect_reference") {
             if (referenceRecovery) throw new ProductToolError("Wait for the user to choose a recovery direction. Do not repeat reference search this turn.", "NO_COMPATIBLE_REFERENCE");

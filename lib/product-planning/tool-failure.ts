@@ -7,6 +7,7 @@ export class ProductToolError extends Error {
 export const planningFailureSchema = z.object({
   stage: z.string().max(100), code: z.string().max(100),
   summary: z.string().max(1000), retryable: z.boolean(),
+  issuePaths: z.array(z.string().max(120)).max(8).optional(),
 });
 export type PlanningFailure = z.infer<typeof planningFailureSchema>;
 
@@ -14,6 +15,8 @@ export function describeToolFailure(tool: string, error: unknown) {
   const record = error && typeof error === "object" ? error as Record<string, unknown> : {};
   const message = error instanceof Error ? error.message : typeof record.message === "string" ? record.message : "Invalid product update.";
   const code = error instanceof ProductToolError ? error.code : typeof record.code === "string" ? record.code : error instanceof z.ZodError ? "INVALID_TOOL_ARGUMENTS" : "PLANNING_VALIDATION";
+  const issuePaths = error instanceof z.ZodError
+    ? [...new Set(error.issues.map(issue => issue.path.map(String).join(".").slice(0, 120)))].slice(0, 8) : [];
   // Detailed repair feedback stays in the model turn. Persist/log codes and a
   // controlled summary, not raw DB/provider errors, prompts or credentials.
   const summary = code === "UNRESOLVED_PRODUCT_DECISIONS" ? "A screen or flow choice still needs an answer. Continue planning to confirm it."
@@ -22,7 +25,8 @@ export function describeToolFailure(tool: string, error: unknown) {
     : tool === "propose_scope" ? "The planned flow still has gaps or inconsistent transitions."
     : "A product planning update could not be completed.";
   return { feedback: { error: message, code, ...(error instanceof ProductToolError ? error.repair : {}) },
-    diagnostic: { stage: tool, code: code.slice(0, 100), summary, retryable: true } satisfies PlanningFailure };
+    diagnostic: { stage: tool, code: code.slice(0, 100), summary, retryable: true,
+      ...(issuePaths.length ? { issuePaths } : {}) } satisfies PlanningFailure };
 }
 
 export function readPlanningFailure(metadata: Record<string, unknown>, content: string): PlanningFailure | null {
