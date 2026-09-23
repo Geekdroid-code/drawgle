@@ -20,6 +20,7 @@ import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory
 import { assessProductEvidence } from "./assess-evidence";
 import { confirmedMessageEvidence, resolvedDecisionKeys, productMessageContext, readProductQuestions, resolveProductAnswers, type ProductAnswers } from "./questions";
 import { normalizePlanningInput, planningReferenceContext } from "./reference-context";
+import { reconcileAnsweredQuestions } from "./answered-questions";
 import { evidenceAllowsProposal } from "./evidence";
 import { inspectProductReference } from "./inspect-reference";
 import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope } from "./functional-store";
@@ -105,6 +106,11 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       projectId, ownerId, role: "user", content: prompt || "[image]", metadata: { action: "agent_turn_user", clientTurnId, image: image ?? null, ...(productAnswers ? { productAnswers, productAnswerEvidence: resolvedAnswers!.confirmed } : {}) },
     })).id;
     currentProgressUserMessageId = userMessageId;
+    const answeredState = reconcileAnsweredQuestions(state, [
+      ...history,
+      ...(productAnswers ? [{ id: userMessageId, role: "user", metadata: { productAnswers } }] : []),
+    ]);
+    if (answeredState !== state) await persist(answeredState);
     await reportProgress("Reviewing product requirements", "Reviewing your product vision and user goals...");
     const conversation = [
       ...(originalPrompt ? [{ role: "user", content: originalPrompt }] : []),
@@ -278,6 +284,9 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           } else if (call.name === "propose_scope") {
             if (!evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Discuss the evidence assessment's unresolved questions with the user first.");
             if (!state.experience) throw new Error("Inspect a reference and establish an experience direction before proposing designs.");
+            const openQuestions = activeFacts(state, "questions").filter(fact => fact.blocking);
+            if (openQuestions.length) throw new ProductToolError("Resolve the saved product questions before proposing a scope.",
+              "UNRESOLVED_PRODUCT_DECISIONS", { questions: openQuestions.map(fact => fact.label) });
             const proposed = proposeProductScope(await snapshotFunctionalScope(admin, projectId, ownerId, state));
             const review = await reviewProductReadiness(proposed, effectivePrompt, {
               history: conversation,

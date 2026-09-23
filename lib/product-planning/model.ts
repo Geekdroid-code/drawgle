@@ -22,6 +22,8 @@ export const productFactSchema = z.object({
   evidence: z.string().trim().max(1000).default(""),
   links: z.array(id).max(30).default([]),
   blocking: z.boolean().default(false),
+  // Connects a saved question to the interactive card that answered it.
+  decisionKey: z.string().regex(/^[a-z0-9_-]{1,100}$/).optional(),
   status: z.enum(["active", "superseded"]).default("active"),
   supersededBy: id.nullable().default(null),
   messageId: z.string().uuid().nullable().default(null),

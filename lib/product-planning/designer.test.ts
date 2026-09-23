@@ -26,7 +26,7 @@ vi.mock("@/lib/supabase/queries", () => ({
   },
 }));
 import { runProductDesigner } from "./designer";
-import { createProductPlanning } from "./model";
+import { activeFacts, applyProductPatch, createProductPlanning } from "./model";
 import { productFixture, experienceFixture, functionalFixture } from "./test-fixtures";
 import { ProductToolError } from "./tool-failure";
 
@@ -89,6 +89,46 @@ describe("product designer tool loop", () => {
     await runProductDesigner({ ...options, initialize: false, originalPrompt: "Build a complete collaboration app" });
     expect(mocks.assess.mock.calls[0][0].history).toContainEqual({ role: "user", content: "Build a complete collaboration app" });
     expect(JSON.stringify(mocks.generate.mock.calls[0][0].contents)).toContain("Build a complete collaboration app");
+  });
+  it("repairs answered blocking questions from a failed earlier turn before continuing", async () => {
+    const questionMessageId = "33333333-3333-4333-8333-333333333333";
+    const answerMessageId = "44444444-4444-4444-8444-444444444444";
+    mocks.state = applyProductPatch(mocks.state!, { operations: [{ op: "put_fact", fact: {
+      id: "q_portrait_assembly_logic", section: "questions", label: "Portrait assembly", detail: "Choose a method.",
+      source: "assumption", evidence: "", blocking: true,
+    } }] }, questionMessageId);
+    mocks.messages.push({ id: questionMessageId, role: "model", content: "Choose below", metadata: { productQuestions: [{
+      decisionKey: "portrait_assembly_logic", question: "How should portraits be assembled?", consequence: "Changes the workflow.",
+      choices: [{ label: "AI composite", description: "Combine headshots." }, { label: "Collage", description: "Use a template." }, { label: "Canvas", description: "Place photos." }],
+    }] } });
+    mocks.messages.push({ id: answerMessageId, role: "user", content: "AI composite", metadata: { productAnswers: {
+      messageId: questionMessageId, answers: [{ kind: "choice", index: 0 }],
+    } } });
+    await runProductDesigner({ ...options, initialize: false, clientTurnId: "resume" });
+    expect(activeFacts(mocks.state!, "questions")).toEqual([]);
+    expect(activeFacts(mocks.state!, "decisions")[0]).toMatchObject({ source: "user", detail: "AI composite: Combine headshots." });
+  });
+  it("can propose after replaying a previously answered blocking question", async () => {
+    const questionMessageId = "33333333-3333-4333-8333-333333333333";
+    mocks.state = { ...productFixture(), experience: experienceFixture() };
+    mocks.state.input.imagePath = experienceFixture().referencePath;
+    mocks.state = applyProductPatch(mocks.state, { operations: [{ op: "put_fact", fact: {
+      id: "q_portrait_assembly_logic", section: "questions", label: "Portrait assembly", detail: "Choose a method.",
+      source: "assumption", evidence: "", blocking: true,
+    } }] }, questionMessageId);
+    mocks.loadReference.mockResolvedValue({ data: "pixels", mimeType: "image/webp" });
+    mocks.messages.push({ id: questionMessageId, role: "model", content: "Choose below", metadata: { productQuestions: [{
+      decisionKey: "portrait_assembly_logic", question: "How should portraits be assembled?", consequence: "Changes the workflow.",
+      choices: [{ label: "AI composite", description: "Combine headshots." }, { label: "Collage", description: "Use a template." }, { label: "Canvas", description: "Place photos." }],
+    }] } });
+    mocks.messages.push({ id: "44444444-4444-4444-8444-444444444444", role: "user", content: "AI composite", metadata: { productAnswers: {
+      messageId: questionMessageId, answers: [{ kind: "choice", index: 0 }],
+    } } });
+    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "propose_scope", args: {} }]))
+      .mockResolvedValueOnce({ text: "Review the scope." });
+    await runProductDesigner({ ...options, initialize: false, clientTurnId: "resume" });
+    expect(mocks.state?.scope?.status).toBe("proposed");
+    expect(mocks.messages.at(-1)?.metadata).not.toHaveProperty("productPlanningFailure");
   });
   it("persists interactive questions instead of a prose question dump", async () => {
     const gap = { area: "product", question: "How should shopping begin?", consequence: "Changes the first journey.", choices: [

@@ -16,7 +16,8 @@ export function describeToolFailure(tool: string, error: unknown) {
   const code = error instanceof ProductToolError ? error.code : typeof record.code === "string" ? record.code : error instanceof z.ZodError ? "INVALID_TOOL_ARGUMENTS" : "PLANNING_VALIDATION";
   // Detailed repair feedback stays in the model turn. Persist/log codes and a
   // controlled summary, not raw DB/provider errors, prompts or credentials.
-  const summary = tool === "update_functional_plan" ? "Some planned screens or states could not be saved."
+  const summary = code === "UNRESOLVED_PRODUCT_DECISIONS" ? "Some saved product questions still need answers. Continue planning to confirm them."
+    : tool === "update_functional_plan" ? "Some planned screens or states could not be saved."
     : tool === "set_design_scope" ? "The selected scope does not yet match the saved screen flow."
     : tool === "propose_scope" ? "The planned flow still has gaps or inconsistent transitions."
     : "A product planning update could not be completed.";
