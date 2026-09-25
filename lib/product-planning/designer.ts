@@ -1,4 +1,5 @@
 import "server-only";
+import { tasks } from "@trigger.dev/sdk";
 import { createHash } from "node:crypto";
 import { SCREEN_REFERENCE_INSTRUCTION } from "@/lib/generation/reference-authority";
 import { createPartFromFunctionResponse, type Content, type Part } from "@google/genai";
@@ -24,13 +25,13 @@ import { normalizePlanningInput, planningReferenceContext } from "./reference-co
 import { reconcileAnsweredQuestions } from "./answered-questions";
 import { evidenceAllowsProposal } from "./evidence";
 import { inspectProductReference } from "./inspect-reference";
-import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope } from "./functional-store";
+import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope, saveProductPatchWithRoadmap } from "./functional-store";
 import { reconstructionInstructions, reconstructionProductContext } from "./reconstruction";
 
-export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
+export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, resumeReview = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
   admin: PlanningStore; projectId: string; ownerId: string; prompt: string; originalPrompt?: string;
   image?: PromptImagePayload | null; imageReferenceMode?: "style" | "recreate";
-  clientTurnId: string; productAnswers?: ProductAnswers; initialize?: boolean; existingUserMessageId?: string;
+  clientTurnId: string; productAnswers?: ProductAnswers; initialize?: boolean; resumeReview?: boolean; existingUserMessageId?: string;
   onTrace?: (event: Record<string, unknown>) => void;
   enqueueMemory?: boolean;
 }) {
@@ -46,17 +47,22 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     catch (error) { throw new PlanningConflict(error instanceof Error ? error.message : "These questions have changed."); }
     prompt = resolvedAnswers.content;
   }
+  const resumeSavedReview = process.env.DRAWGLE_PLANNING_REPAIR_ENABLED === "true" && resumeReview && !image && !productAnswers
+    && Boolean(state.scope?.reviewIssues?.length && state.evidenceAssessment
+      && state.scope.reviewedContentRevision === (state.contentRevision ?? 0));
   if (state.lease && Date.parse(state.lease.expiresAt) > Date.now()) throw new PlanningConflict("Drawgle is finishing the current product turn. Please try again shortly.");
   state = await saveProductPlanning(admin, projectId, ownerId, state, {
     ...state, input: normalizePlanningInput(state), lease: { id: clientTurnId, expiresAt: new Date(Date.now() + 240_000).toISOString() },
-    evidenceAssessment: null,
+    evidenceAssessment: resumeSavedReview ? state.evidenceAssessment : null,
     scope: state.scope?.status === "proposed" ? { ...state.scope, status: "draft" } : state.scope,
   });
-  const persist = async (next: typeof state) => {
+  const persist = async (next: typeof state, updateRoadmap = false) => {
     const renewed = next?.lease?.id === clientTurnId
       ? { ...next, lease: { ...next.lease, expiresAt: new Date(Date.now() + 240_000).toISOString() } }
       : next!;
-    state = await saveProductPlanning(admin, projectId, ownerId, state!, renewed);
+    state = updateRoadmap
+      ? await saveProductPatchWithRoadmap(admin, projectId, ownerId, state!, renewed)
+      : await saveProductPlanning(admin, projectId, ownerId, state!, renewed);
   };
   let progressMessageId: string | null = null;
   let currentProgressUserMessageId = existingUserMessageId;
@@ -166,7 +172,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       ...history, ...(productAnswers ? [{ id: userMessageId, role: "user", metadata: { productAnswers } }] : []),
     ])])].slice(-500);
     await reportProgress("Evaluating product scope", "Checking core capabilities, actors, and constraints...");
-    const assessment = productAnswers
+    const assessment = resumeSavedReview ? state.evidenceAssessment! : productAnswers
       ? {
           turnId: clientTurnId,
           mode: (state.input.imageReferenceMode === "recreate" ? "recreate" : "product") as "product" | "recreate",
@@ -204,11 +210,11 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     const earlyFlow = "screenFlowPreview" in assessment && Array.isArray(assessment.screenFlowPreview)
       ? assessment.screenFlowPreview.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).slice(0, 4)
       : [];
-    if (state.phase === "discovery" && assessment.productReady && earlyFlow.length > 0 && !history.some(message =>
+    if (!resumeSavedReview && state.phase === "discovery" && assessment.productReady && earlyFlow.length > 0 && !history.some(message =>
       message.metadata.action === "product_flow_preview" && message.metadata.clientTurnId === clientTurnId)) {
       await insertProjectMessage(admin, {
         projectId, ownerId, role: "model",
-        content: `From your brief, I’m shaping this screen flow:\n\n${earlyFlow.map(item => `• ${item}`).join("\n")}\n\nThis is a draft while I check the detailed flow. No screens have been generated.`,
+        content: `From your brief, I’m shaping this screen flow:\n\n${earlyFlow.map(item => `- ${item}`).join("\n")}\n\nThis is a draft while I check the detailed flow. No screens have been generated.`,
         metadata: { action: "product_flow_preview", clientTurnId, userMessageId },
       });
     }
@@ -218,7 +224,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       ? await loadPlanningReference(admin, state.screenReference.imagePath, ownerId) : null;
     const contents: Content[] = [{ role: "user", parts: [
       { text: JSON.stringify({ originalUserRequest: isReconstruction ? (state.input.recreationRequest || originalPrompt) : originalPrompt, referenceContext: planningReferenceContext(state), currentProduct: productContext, history: history.filter(message => message.metadata.action !== "product_flow_preview").map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
-      { text: `Independent evidence assessment: ${JSON.stringify(assessment)}. These user-dependent gaps cannot be resolved by inventing facts this turn. The chat automatically renders the questions and choices as optional interactive cards. Do not repeat them or add prose questions. Update known product truth first. Save useful designer-owned recommendations as tentative preference facts, superseding any earlier conflicting recommendation; never treat them as user-confirmed or ask for cosmetic decisions. Do not present a final screen list or claim readiness while gaps remain.` },
+      { text: `Independent evidence assessment: ${JSON.stringify(assessment)}. ${resumeSavedReview ? `This turn resumes the saved flow review. Repair only these issues against the existing roadmap and facts: ${JSON.stringify(state.scope?.reviewIssues)}. Preserve valid output keys and reference evidence; do not restart discovery or add duplicate product facts.` : ""} These user-dependent gaps cannot be resolved by inventing facts this turn. The chat automatically renders the questions and choices as optional interactive cards. Do not repeat them or add prose questions. Update known product truth first. Save useful designer-owned recommendations as tentative preference facts, superseding any earlier conflicting recommendation; never treat them as user-confirmed or ask for cosmetic decisions. Do not present a final screen list or claim readiness while gaps remain.` },
       ...(screenReference ? [{ text: SCREEN_REFERENCE_INSTRUCTION }, { inlineData: { data: screenReference.data, mimeType: screenReference.mimeType } }, { text: "The following image, if present, is the established PROJECT reference, not the current attachment." }] : []),
       ...(reference ? [{ inlineData: { data: reference.data, mimeType: reference.mimeType } }] : []),
     ] }];
@@ -293,8 +299,14 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
               return fact && (fact.provenance?.basis === "reference_observation" || (fact.section === "preferences" && fact.source !== "user"));
             })) throw new Error("The attachment is request-local guidance. Do not save image-derived product facts or inferred project-wide visual preferences. Only record product changes supported by the user's words.");
             let next = applyProductPatch(state, patch, userMessageId);
+            if (next === state) {
+              result = { ok: true, revision: state.revision, unchanged: true };
+              responses.push(createPartFromFunctionResponse(call.id ?? crypto.randomUUID(), call.name ?? "unknown", result));
+              failures.delete(call.name ?? "unknown");
+              continue;
+            }
             if (call.name === "set_design_scope") next = await snapshotFunctionalScope(admin, projectId, ownerId, next);
-            await persist(next);
+            await persist(next, call.name === "update_product");
             result = { ok: true, revision: state.revision, facts: activeFacts(state), scope: state.scope,
               ...(assumptions.length ? { warning: "These facts were saved as assumptions because their cited evidence did not support the entire claim. Split supported requirements from speculative additions. Do not describe them as confirmed.", assumptionIds: assumptions } : {}),
             };
@@ -331,10 +343,15 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
               history: conversation,
               roadmap: await readFunctionalRoadmap(admin, projectId, ownerId),
             });
-            if (!review.ready) throw new ProductToolError("Repair the product flow before proposing.", "FLOW_REVIEW_FAILED", { issues: review.issues });
+            if (!review.ready) {
+              if (process.env.DRAWGLE_PLANNING_REPAIR_ENABLED === "true") {
+                await persist({ ...proposed, scope: { ...proposed.scope!, status: "draft", reviewIssues: review.issues } });
+              }
+              throw new ProductToolError("Repair the product flow before proposing.", "FLOW_REVIEW_FAILED", { issues: review.issues });
+            }
             await persist({ ...proposed, scope: { ...proposed.scope!, ...(review.coverage ? {
               journeyCoverage: review.coverage.journeys, requestedScope: review.coverage.requestedScope, scopeEvidence: review.coverage.scopeEvidence,
-            } : {}) } });
+            } : {}), reviewIssues: undefined } });
             failures.clear();
             result = { ok: true, scope: state.scope, message: "Approval card will be displayed. Ask the user to approve it." };
           } else if (call.name === "read_product") {
@@ -345,7 +362,10 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           if (error instanceof ProductToolError && error.code === "NO_COMPATIBLE_REFERENCE") referenceRecovery = true;
           const failure = describeToolFailure(call.name ?? "unknown", error);
           failures.set(call.name ?? "unknown", failure.diagnostic);
-          console.warn("Product planning tool rejected", { projectId, clientTurnId, ...failure.diagnostic });
+          console.warn("Product planning tool rejected", { projectId, clientTurnId,
+            stage: failure.diagnostic.stage, code: failure.diagnostic.code,
+            validationFingerprint: failure.diagnostic.validationFingerprint,
+            issuePaths: failure.diagnostic.issuePaths, issueCount: failure.diagnostic.issues?.length ?? 0 });
           result = { ok: false, ...failure.feedback,
             ...(call.name === "set_design_scope" || call.name === "update_functional_plan" ? {
               activeSurfaceIds: activeFacts(state, "surfaces").map(fact => fact.id),
@@ -383,6 +403,13 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       productScopeProposal: state.scope?.status === "proposed" ? { scope: state.scope, revision: state.revision, surfaces: activeFacts(state, "surfaces") } : null,
     } });
     await persist({ ...state, initialTurnComplete: true, lease: null });
+    if (state.scope?.status === "proposed" && state.phase === "discovery"
+      && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true") {
+      await tasks.trigger("prepare-product-scope", { projectId, ownerId, contentRevision: state.contentRevision ?? 0 }, {
+        idempotencyKey: `scope-preparation:${projectId}:${state.contentRevision ?? 0}`,
+        idempotencyKeyTTL: "1d",
+      }).catch(() => undefined);
+    }
     await reportProgress("Product design ready", reply, "completed");
     if (enqueueMemory) await persistProjectMessageMemoryPair({ admin, userMessageId, userContent: effectivePrompt, modelMessageId: modelMessage.id, modelContent: productMessageContext({ content: reply, metadata: { productQuestions: questions } }) })
       .catch((error) => console.error("Could not enqueue product conversation memory", error));

@@ -1188,6 +1188,7 @@ export interface BuildScreenInput {
   referenceScreenIndex?: number | null;
   referenceScreenCount?: number | null;
   designStyle?: DesignStylePack | null;
+  screenFamilyContract?: ScreenFamilyContract | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;

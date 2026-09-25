@@ -22,7 +22,7 @@ export const functionalItemSchema = z.object({
 export type FunctionalItem = z.infer<typeof functionalItemSchema>;
 export const functionalDeltaSchema = z.object({ items: z.array(functionalItemSchema).max(40), removeKeys: z.array(key).max(40).default([]) });
 
-export function healFunctionalPlan(items: FunctionalItem[], existing: FunctionalItem[] = [], boundaryKeys: string[] = []): FunctionalItem[] {
+export function healFunctionalPlan(items: FunctionalItem[], existing: FunctionalItem[] = [], _boundaryKeys: string[] = []): FunctionalItem[] {
   const byKey = new Map([...items, ...existing].map(item => [item.stableKey, item]));
   if (byKey.size !== items.length + existing.length) {
     // Deduplicate stable keys if needed
@@ -66,15 +66,8 @@ export function healFunctionalPlan(items: FunctionalItem[], existing: Functional
   for (const item of items) {
     if (item.kind === "screen" && item.parentStableKey) item.parentStableKey = null;
 
-    // Filter unbuilt dependencies instead of throwing fatal planning error
-    item.dependencyKeys = item.dependencyKeys.filter(dep => byKey.has(dep));
-
-    // Clear missing action destinations so unmapped future screens don't crash
-    for (const action of item.actions) {
-      if (action.destinationKey && !byKey.has(action.destinationKey) && !boundaryKeys.includes(action.destinationKey)) {
-        action.destinationKey = null;
-      }
-    }
+    // Missing dependencies and destinations must remain visible to validation.
+    // Replacing them with null turned broken user flows into apparently valid plans.
   }
 
   // Break circular dependencies instead of throwing

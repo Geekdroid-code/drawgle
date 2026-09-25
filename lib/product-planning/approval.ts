@@ -36,7 +36,7 @@ export async function prepareProductApproval(admin: PlanningStore, ownerId: stri
   const creditCheck = await adminCreditService.hasCredits(ownerId, requiredCredits);
   if (!creditCheck.hasCredits) throw new PlanningConflict(`This scope needs ${requiredCredits} credits; your balance is ${creditCheck.currentBalance}. Add credits before approving.`);
   // Load evidence before claiming; storage failure leaves the approval available for retry.
-  const isNoReference = state.input.referencePreference?.mode === "none";
+  const isNoReference = state.input.referencePreference?.mode === "none" || state.experience?.provenance === "prompt_synthesis";
   const image = isNoReference ? null : await loadPlanningReference(admin, state.input.imagePath, ownerId);
   if (state.designerVersion === 2 && !isNoReference && (!image || createHash("sha256").update(image.data).digest("hex") !== state.experience?.referenceHash)) {
     throw new PlanningConflict("The reference changed or could not be verified. Inspect it again before approving.");

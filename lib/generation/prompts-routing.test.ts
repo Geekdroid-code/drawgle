@@ -45,6 +45,24 @@ const screenInstruction = (mode: GenerationPromptMode) => mode === "recreate"
     : buildPromptScreenInstruction(screenInput);
 
 describe("state-scoped prompt construction", () => {
+  it("passes the planned visual family to screen builders without changing exact recreation", () => {
+    const screenFamilyContract = {
+      summary: "One restrained family",
+      surfaces: "Flat lists with a single raised focal surface",
+      typography: "Shared heading and body rhythm",
+      spacing: "One 20px content rail",
+      navigation: "One shared navigation shell",
+      imagery: "Use imagery only when the task needs it",
+      consistencyRules: ["Keep control geometry consistent", "Do not clone another screen's layout"],
+    };
+    const input = { ...screenInput, screenFamilyContract };
+    const style = buildStyleScreenInstruction(input);
+    expect(style).toContain("One restrained family");
+    expect(style).toContain("Do not turn a surface cue into a card around every section");
+    expect(buildPromptScreenInstruction(input)).toContain("Keep control geometry consistent");
+    expect(buildRecreateScreenInstruction(input)).not.toContain("One restrained family");
+  });
+
   it("keeps every legacy creative-direction quality rule in all three modes", () => {
     const commonRules = [
       "elite mobile product Art Director",

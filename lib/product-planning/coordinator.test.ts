@@ -22,6 +22,7 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.
 import { generateProductFlowTask } from "@/trigger/generate-product-flow";
 import { designerFixture, functionalFixture } from "./test-fixtures";
 import { approveProductScope, proposeProductScope } from "./model";
+import { scopePreparationKey } from "./scope-preparation";
 import type { GenerateUiFlowPayload } from "@/trigger/generate-ui-flow";
 const rootId = "11111111-1111-4111-8111-111111111111";
 const owner = "owner"; const project = "project";
@@ -29,6 +30,7 @@ const invoke = (payload: GenerateUiFlowPayload) => (generateProductFlowTask as u
 describe("durable approved-flow coordinator", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED;
     mocks.tables = { generation_runs: [{ id: rootId, status: "queued", metadata: {} }], product_output_fulfillments: [], projects: [{ id: project, owner_id: owner }], screens: [] };
     mocks.credits.mockResolvedValue({ hasCredits: true });
     mocks.rpc.mockImplementation(async (name, args) => {
@@ -77,6 +79,25 @@ describe("durable approved-flow coordinator", () => {
     expect(mocks.tables.generation_runs[0].status).toBe("completed");
     expect(mocks.tables.generation_runs[0].metadata.productProgress.delivered).toBe(7);
     await invoke(payload());
+    expect(mocks.child).toHaveBeenCalledTimes(1);
+  });
+  it("starts one screen on an immediate cold Build and retains the full approved scope", async () => {
+    process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED = "true";
+    expect(await invoke(payload())).toEqual({ completed: true });
+    expect(mocks.child.mock.calls[0][1].productExecutionKeys).toEqual(["screen:0"]);
+    expect(mocks.child.mock.calls[0][1].productPlanning.scope.manifest).toHaveLength(7);
+    expect(mocks.tables.product_output_fulfillments).toHaveLength(7);
+  });
+  it("uses the full first batch when its exact approved preparation is ready", async () => {
+    process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED = "true";
+    const input = payload();
+    const keys = input.productPlanning.scope!.manifest!.map(item => item.stableKey);
+    const key = scopePreparationKey(input.productPlanning, keys, { designTokens: null, navigationPlan: null, charter: null });
+    mocks.tables.product_scope_preparations = [{ project_id: project, owner_id: owner, preparation_key: key,
+      design_tokens: {}, plan: { screens: [], charter: {}, navigationPlan: {} }, asset_requirements: [],
+      expires_at: new Date(Date.now() + 60_000).toISOString() }];
+    expect(await invoke(input)).toEqual({ completed: true });
+    expect(mocks.child.mock.calls[0][1].productExecutionKeys).toHaveLength(7);
     expect(mocks.child).toHaveBeenCalledTimes(1);
   });
   it("pauses before claiming or dispatching a batch with insufficient credit", async () => {

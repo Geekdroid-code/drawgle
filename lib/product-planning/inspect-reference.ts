@@ -53,7 +53,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
     },
   });
 
-  if (state.input.referencePreference?.mode === "none") {
+  const synthesizePromptDirection = async (reason: "explicit" | "no_compatible_reference") => {
     const textPrompt = [
       activeFacts(state).map(f => `${f.section}: ${f.label} - ${f.detail}`).join("\n"),
       explicitReqs.length ? `Explicit design requirements:\n${JSON.stringify(explicitReqs)}` : null,
@@ -77,16 +77,20 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       referenceHash: null,
       catalogHash: undefined,
       requirementsKey: reqKey,
+      provenance: "prompt_synthesis" as const,
       compatibility: {
         compatible: true,
         conflicts: [],
         transfer: "Prompt-only design direction; strictly preserve explicit user requirements and standard platform ergonomics.",
-        rationale: "User selected explicit no-reference mode.",
+        rationale: reason === "explicit"
+          ? "User selected explicit no-reference mode."
+          : "No compatible optional curated reference was available; direction follows the prompt and explicit requirements.",
       },
     });
 
     return { experience, image: null };
-  }
+  };
+  if (state.input.referencePreference?.mode === "none") return synthesizePromptDirection("explicit");
 
   // A reference asset is reusable under the same confirmed requirements and
   // exact stored pixels. Stale/rejected candidates return to bounded selection.
@@ -107,7 +111,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       request,
     ].filter(Boolean).join("\n");
 
-    const candidates = await shortlistCuratedStyleReferences(query);
+    const candidates = await shortlistCuratedStyleReferences(query).catch(() => []);
 
     let chosenExperience: ReturnType<typeof experienceSchema.parse> | null = null;
     let chosenImage: { data: string; mimeType: string } | null = null;
@@ -115,7 +119,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
 
     for (let i = 0; i < Math.min(candidates.length, 3); i += 1) {
       const candidate = candidates[i];
-      const candidateImage = await loadCuratedStyleReferenceImage(candidate.reference);
+      const candidateImage = await loadCuratedStyleReferenceImage(candidate.reference).catch(() => null);
       if (!candidateImage) continue;
 
       const candidateHash = createHash("sha256").update(candidateImage.data).digest("hex");
@@ -126,7 +130,8 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
             { inlineData: { data: candidateImage.data, mimeType: candidateImage.mimeType } },
           ],
         }],
-      });
+      }).catch(() => null);
+      if (!response) continue;
 
       let parsed: unknown;
       try { parsed = JSON.parse(response.text || "{}"); } catch { continue; }
@@ -148,7 +153,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
     }
 
     if (!chosenImage || !chosenExperience) {
-      throw new ProductToolError("No compatible reference passed inspection. Keep the saved requirements; ask the user to supply evidence, refine direction, or explicitly continue without references. Do not retry inspection in this turn.", "NO_COMPATIBLE_REFERENCE");
+      return synthesizePromptDirection("no_compatible_reference");
     }
 
     referenceId = chosenCandidate.reference.id;
@@ -164,6 +169,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       referenceHash,
       catalogHash,
       requirementsKey: reqKey,
+      provenance: "curated",
     });
     return { experience, image };
   }
@@ -193,6 +199,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
     referenceHash,
     catalogHash: catalogHash ?? undefined,
     requirementsKey: reqKey,
+    provenance: referenceId ? "curated" : "user_upload",
   });
   if (!experience.compatibility.compatible && !recreation) throw new ProductToolError("The supplied reference conflicts with your saved requirements. Explain a compatible adaptation or ask the user which choice to revise; do not substitute a library image.", "USER_REFERENCE_CONFLICT");
   return { experience, image };

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { snapshotFunctionalScope, updateFunctionalRoadmap } from "./functional-store";
+import { saveProductPatchWithRoadmap, snapshotFunctionalScope, updateFunctionalRoadmap } from "./functional-store";
 import { designerFixture, functionalFixture } from "./test-fixtures";
 import { productDesignerMemoryStore } from "@/scripts/lib/product-designer-memory-store";
 import { applyProductPatch } from "./model";
@@ -41,6 +41,16 @@ describe("functional roadmap scope snapshots", () => {
       id: "new-purchase", section: "journeys", label: "Purchase", detail: "Shops buy on behalf of shoppers", source: "assumption", evidence: "" } }] }, "11111111-1111-4111-8111-111111111111");
     await expect(snapshotFunctionalScope(admin, "project", "owner", updated)).rejects.toThrow(/changed product facts/);
   });
+  it("remaps planned roadmap fact IDs in the same save as a supersession", async () => {
+    const { state, tables, admin } = fixture();
+    const next = applyProductPatch(state, { operations: [{ op: "supersede_fact", id: "purchase", replacement: {
+      id: "purchase-v2", section: "journeys", label: "Purchase", detail: "Browse through checkout", source: "assumption", evidence: "",
+    } }] }, "11111111-1111-4111-8111-111111111111");
+    const saved = await saveProductPatchWithRoadmap(admin, "project", "owner", state, next);
+    expect(saved.revision).toBe(state.revision + 1);
+    expect(tables.project_screen_roadmap.every(row => (row.metadata as { functional: { journeyIds: string[] } }).functional.journeyIds.includes("purchase-v2"))).toBe(true);
+    expect((tables.projects[0].product_planning as { revision: number }).revision).toBe(saved.revision);
+  });
   it("commits a small delta with the substantive revision and discards a stale proposal", async () => {
     const { state, tables, admin } = fixture();
     state.scope!.status = "proposed";
@@ -61,7 +71,11 @@ describe("functional roadmap scope snapshots", () => {
       decisionIds: ["nonexistent-or-superseded-decision-id"],
       actions: [{ label: "Profile", destinationKey: "screen:profile-external", outcome: "View profile" }],
     };
-    const next = await updateFunctionalRoadmap(admin, "project", "owner", state, { items: [item], removeKeys: [] });
+    await expect(updateFunctionalRoadmap(admin, "project", "owner", state, { items: [item], removeKeys: [] }))
+      .rejects.toThrow(/missing output screen:profile-external/);
+    expect(tables.project_screen_roadmap.some(r => r.stable_key === "screen:passenger-home")).toBe(false);
+    const next = await updateFunctionalRoadmap(admin, "project", "owner", state,
+      { items: [{ ...item, actions: [{ ...item.actions[0], destinationKey: null }] }], removeKeys: [] });
     expect(next.blueprint.facts.some(f => f.id === "surface-passenger-booking" && f.section === "surfaces")).toBe(true);
     expect(next.blueprint.facts.some(f => f.id === "journey-priority-passenger-v1" && f.section === "journeys")).toBe(true);
     expect(tables.project_screen_roadmap.some(r => r.stable_key === "screen:passenger-home")).toBe(true);

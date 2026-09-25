@@ -1,6 +1,6 @@
 import "server-only";
 import { functionalDeltaSchema, functionalItemSchema, healFunctionalPlan, validateFunctionalPlan, type FunctionalItem } from "./functional-plan";
-import { type PlanningStore, PlanningConflict } from "./store";
+import { type PlanningStore, PlanningConflict, saveProductPlanning } from "./store";
 import { activeFacts, type ProductPlanning } from "./model";
 import { ProductToolError } from "./tool-failure";
 import { outputRendering, validateNewOutputPolicy } from "./output-policy";
@@ -10,6 +10,48 @@ export async function readFunctionalRoadmap(admin: PlanningStore, projectId: str
     .eq("project_id", projectId).eq("owner_id", ownerId).neq("status", "dismissed");
   if (error) throw error;
   return (data ?? []).flatMap((row: { metadata: { functional?: unknown } }) => row.metadata?.functional ? [functionalItemSchema.parse(row.metadata.functional)] : []);
+}
+
+/** Keep editable roadmap references aligned with fact supersessions in one revision-checked transaction. */
+export async function saveProductPatchWithRoadmap(admin: PlanningStore, projectId: string, ownerId: string,
+  previous: ProductPlanning, next: ProductPlanning): Promise<ProductPlanning> {
+  const oldFacts = new Map(activeFacts(previous).map(fact => [fact.id, fact]));
+  const replacements = new Map(next.blueprint.facts
+    .filter(fact => oldFacts.has(fact.id) && fact.status === "superseded")
+    .map(fact => [fact.id, fact.supersededBy]));
+  if (!replacements.size) return saveProductPlanning(admin, projectId, ownerId, previous, next);
+
+  const { data, error } = await admin.from("project_screen_roadmap")
+    .select("status,metadata").eq("project_id", projectId).eq("owner_id", ownerId).neq("status", "dismissed");
+  if (error) throw error;
+  const changed: FunctionalItem[] = [];
+  for (const row of data ?? []) {
+    if (row.status !== "planned" || !row.metadata?.functional) continue;
+    const item = functionalItemSchema.parse(row.metadata.functional);
+    const remap = (ids: string[], section: "surfaces" | "journeys" | "decisions") => ids.map(id => {
+      if (!replacements.has(id)) return id;
+      const replacement = replacements.get(id);
+      if (!replacement || !activeFacts(next, section).some(fact => fact.id === replacement)) {
+        throw new ProductToolError(`Saved screen ${item.stableKey} still depends on ${id}. Replace that ${section} fact and its roadmap reference together.`,
+          "ROADMAP_FACT_REFERENCES", { outputKey: item.stableKey, factId: id });
+      }
+      return replacement;
+    });
+    const updated = { ...item, surfaceIds: remap(item.surfaceIds, "surfaces"),
+      journeyIds: remap(item.journeyIds, "journeys"), decisionIds: remap(item.decisionIds, "decisions") };
+    if (JSON.stringify(updated) !== JSON.stringify(item)) changed.push(updated);
+  }
+  if (!changed.length) return saveProductPlanning(admin, projectId, ownerId, previous, next);
+  const saved = { ...next, revision: previous.revision + 1 };
+  const { error: writeError } = await admin.rpc("update_product_functional_plan", {
+    input_project_id: projectId, input_owner_id: ownerId, input_revision: previous.revision,
+    input_state: saved, input_items: changed, input_remove_keys: [],
+  });
+  if (writeError) {
+    if (writeError.code === "40001") throw new PlanningConflict("The product roadmap changed. Retry with current state.");
+    throw writeError;
+  }
+  return saved;
 }
 
 export async function updateFunctionalRoadmap(admin: PlanningStore, projectId: string, ownerId: string, state: ProductPlanning, value: unknown) {
@@ -114,7 +156,7 @@ export async function updateFunctionalRoadmap(admin: PlanningStore, projectId: s
   const healedMap = new Map(healedAll.map(item => [item.stableKey, item]));
   const itemsToSave = delta.items.map(item => healedMap.get(item.stableKey) ?? item);
 
-  const next = { ...state, revision: state.revision + 1, contentRevision: (state.contentRevision ?? 0) + 1, scope: state.scope ? { ...state.scope, status: "draft" as const, manifest: undefined, journeyCoverage: undefined, requestedScope: undefined, scopeEvidence: undefined, approvedRevision: null } : null };
+  const next = { ...state, revision: state.revision + 1, contentRevision: (state.contentRevision ?? 0) + 1, scope: state.scope ? { ...state.scope, status: "draft" as const, manifest: undefined, journeyCoverage: undefined, requestedScope: undefined, scopeEvidence: undefined, reviewIssues: undefined, approvedRevision: null } : null };
   const { error } = await admin.rpc("update_product_functional_plan", {
     input_project_id: projectId, input_owner_id: ownerId, input_revision: state.revision,
     input_state: next, input_items: itemsToSave, input_remove_keys: delta.removeKeys,

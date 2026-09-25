@@ -6,6 +6,7 @@ import { decisionProvenanceSchema, evidenceAssessmentSchema, evidenceAllowsPropo
 import { designRequirementsKey } from "./design-requirements";
 import { experienceSchema } from "./experience";
 import { functionalItemSchema, validateFunctionalPlan } from "./functional-plan";
+import { ProductToolError } from "./tool-failure";
 
 const text = z.string().trim().min(1).max(2400);
 const id = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/);
@@ -42,6 +43,7 @@ export const designScopeSchema = z.object({
   journeyCoverage: z.array(journeyCoverageSchema).max(100).optional(),
   requestedScope: z.enum(["whole_product", "focused"]).optional(),
   scopeEvidence: z.string().max(1500).optional(),
+  reviewIssues: z.array(z.string().min(1).max(1500)).max(12).optional(),
   reviewedContentRevision: z.number().int().nonnegative().optional(),
   rationale: text,
   status: z.enum(["draft", "proposed", "approved"]),
@@ -109,9 +111,13 @@ export const blockingScreenQuestions = (state: ProductPlanning) => activeFacts(s
 export function applyProductPatch(state: ProductPlanning, value: unknown, messageId: string): ProductPlanning {
   const { operations } = productPatchSchema.parse(value);
   const next = structuredClone(state);
-  next.contentRevision = (state.contentRevision ?? 0) + 1;
+  let changed = false;
+  const comparableFact = (fact: ProductFact) => JSON.stringify({ section: fact.section, label: fact.label, detail: fact.detail,
+    source: fact.source, evidence: fact.evidence, links: fact.links, blocking: fact.blocking,
+    decisionKey: fact.decisionKey, designDecisionType: fact.designDecisionType, provenance: fact.provenance });
   for (const operation of operations) {
     if (operation.op === "set_reference_preference") {
+      changed = true;
       next.input = {
         ...next.input,
         referencePreference: {
@@ -125,12 +131,18 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
       continue;
     }
     if (operation.op === "set_scope") {
+      if (next.scope?.status === "draft" && next.scope.goal === operation.goal
+        && next.scope.rationale === operation.rationale
+        && JSON.stringify(next.scope.surfaceIds) === JSON.stringify([...new Set(operation.surfaceIds)])
+        && JSON.stringify(next.scope.outputKeys) === JSON.stringify(operation.outputKeys)) continue;
+      changed = true;
       next.scope = { ...operation, surfaceIds: [...new Set(operation.surfaceIds)], status: "draft", approvedRevision: null, generationRunId: null };
       continue;
     }
     if (operation.op === "supersede_fact") {
       const previous = next.blueprint.facts.find((fact) => fact.id === operation.id && fact.status === "active");
-      if (!previous) throw new Error(`Active fact ${operation.id} does not exist.`);
+      if (!previous) throw new ProductToolError(`Active fact ${operation.id} does not exist. Read current fact IDs before superseding.`, "FACT_NOT_ACTIVE", { factId: operation.id });
+      changed = true;
       previous.status = "superseded";
       previous.supersededBy = operation.replacement?.id ?? null;
       for (const linked of activeFacts(next)) {
@@ -143,15 +155,24 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
     }
     const fact = operation.op === "put_fact" ? operation.fact : operation.replacement;
     if (!fact) continue;
-    if (next.blueprint.facts.some((existing) => existing.id === fact.id)) {
-      throw new Error(`Fact ${fact.id} already exists. Supersede it with a new ID to preserve decision history.`);
+    const normalizedFact = productFactSchema.parse({ ...fact, status: "active", supersededBy: null, messageId });
+    const existing = next.blueprint.facts.find((candidate) => candidate.id === normalizedFact.id);
+    if (existing) {
+      if (operation.op === "put_fact" && existing.status === "active" && comparableFact(existing) === comparableFact(normalizedFact)) continue;
+      throw new ProductToolError(`Fact ${normalizedFact.id} already exists. Read it and use supersede_fact with a new ID when its meaning changes.`,
+        "FACT_ID_CONFLICT", { factId: normalizedFact.id });
     }
-    if (fact.source === "user" && !fact.evidence.trim()) throw new Error("User-confirmed facts need evidence from the conversation.");
-    next.blueprint.facts.push({ ...fact, status: "active", supersededBy: null, messageId });
+    changed = true;
+    if (normalizedFact.source === "user" && !normalizedFact.evidence.trim()) throw new ProductToolError("User-confirmed facts need evidence from the conversation.", "FACT_EVIDENCE_MISSING", { factId: normalizedFact.id });
+    next.blueprint.facts.push(normalizedFact);
   }
+  if (!changed) return state;
+  next.contentRevision = (state.contentRevision ?? 0) + 1;
   const ids = new Set(activeFacts(next).map((fact) => fact.id));
   for (const fact of activeFacts(next)) {
-    fact.links = fact.links.filter((link) => ids.has(link));
+    const missing = fact.links.filter((link) => !ids.has(link));
+    if (missing.length) throw new ProductToolError(`Fact ${fact.id} links to inactive or missing facts: ${missing.join(", ")}.`,
+      "FACT_LINK_INVALID", { factId: fact.id, missingIds: missing });
   }
   if (next.scope) {
     const surfaces = new Set(activeFacts(next, "surfaces").map((fact) => fact.id));
@@ -159,6 +180,7 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
     next.scope.journeyCoverage = undefined;
     next.scope.requestedScope = undefined;
     next.scope.scopeEvidence = undefined;
+    next.scope.reviewIssues = undefined;
     next.scope.status = "draft";
     next.scope.approvedRevision = null;
     next.scope.generationRunId = null;
@@ -192,7 +214,8 @@ export function readinessIssues(state: ProductPlanning): string[] {
 export function assertExperienceReady(state: ProductPlanning) {
   const experience = state.experience;
   if (!experience) throw new Error("Establish an experience direction before proposing designs.");
-  if (!state.input.imagePath && state.input.referencePreference?.mode !== "none") throw new Error("Inspect visual evidence or record the explicit no-reference choice before approval.");
+  if (!state.input.imagePath && state.input.referencePreference?.mode !== "none"
+    && experience.provenance !== "prompt_synthesis") throw new Error("Inspect visual evidence or establish a prompt-derived direction before approval.");
   if (experience.referencePath !== state.input.imagePath) throw new Error("Reference changed. Inspect the current evidence before approval.");
   if (state.input.imageReferenceMode === "recreate" && state.input.imagePath) return;
   const key = designRequirementsKey(state);
@@ -223,7 +246,7 @@ export function approveProductScope(state: ProductPlanning, revision: number): P
   if (state.designerVersion === 2) {
     assertExperienceReady(state);
     if (state.scope?.reviewedContentRevision !== (state.contentRevision ?? 0)) throw new Error("Product decisions changed after review.");
-    const isNoRef = state.input.referencePreference?.mode === "none";
+    const isNoRef = state.input.referencePreference?.mode === "none" || state.experience?.provenance === "prompt_synthesis";
     const refPathMatch = isNoRef
       ? state.experience?.referencePath === null
       : state.experience?.referencePath === state.input.imagePath;

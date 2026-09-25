@@ -66,6 +66,7 @@ import { buildTokenPromptContext } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { buildTopChromeContinuityEvidenceSection } from "@/lib/generation/top-chrome-continuity";
+import { formatScreenFamilyContract } from "@/lib/generation/screen-family-contract";
 import type {
   BuildScreenInput,
   LlmInputSnapshot,
@@ -1408,19 +1409,6 @@ const buildScreenFamilyContract = ({
     consistencyRules: consistencyRules.slice(0, 8),
   };
 };
-const formatScreenFamilyContract = (contract: ScreenFamilyContract) => [
-  "Screen family contract:",
-  `- Summary: ${contract.summary}`,
-  `- Surfaces: ${contract.surfaces}`,
-  `- Typography: ${contract.typography}`,
-  `- Spacing: ${contract.spacing}`,
-  `- Navigation: ${contract.navigation}`,
-  `- Imagery: ${contract.imagery}`,
-  contract.consistencyRules.length
-    ? `- Consistency rules: ${contract.consistencyRules.join(" | ")}`
-    : null,
-].filter(Boolean).join("\n");
-
 const normalizeScreenBriefs = ({
   screens,
   prompt,
@@ -4055,6 +4043,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   const systemInstruction = buildInstruction({
     designTokens: input.designTokens,
     designStyle: input.designStyle,
+    screenFamilyContract: input.screenFamilyContract,
     screenPlan: input.screenPlan,
     prompt: input.prompt,
     requiresBottomNav: input.requiresBottomNav,

@@ -41,4 +41,12 @@ describe("rolling builds", () => {
     await vi.waitFor(() => expect(started).toEqual([0, 1])); canceled = true;
     releases.forEach(release => release()); await run; expect(started).toEqual([0, 1]);
   });
+  it("does not start siblings when the first rendered screen cannot anchor the family", async () => {
+    const started: number[] = [];
+    let anchorAccepted = false;
+    await runRollingBuilds([0, 1, 2], async item => { started.push(item); if (item === 0) anchorAccepted = false; }, {
+      anchorFirst: true, canStart: async () => started.length === 0 || anchorAccepted,
+    });
+    expect(started).toEqual([0]);
+  });
 });

@@ -1019,6 +1019,15 @@ const resolveRequirement = async ({
     };
   }
 
+  if (requirement.role === "avatar") {
+    diagnostic.selectedVia = "placeholder";
+    diagnostic.selectedSource = "placeholder";
+    diagnostic.rejectionCode = "identity_requires_supplied_image";
+    diagnostic.durationMs = Date.now() - startedAt;
+    return { manifests: [placeholderManifest(requirement, "Use initials or a person icon until this person supplies a photo.")],
+      assetIds: [], diagnostic };
+  }
+
   const cacheKey = `${requirement.sourcePreference}:${semanticRequirementKey(requirement)}:${requirement.reusePolicy}:${desiredCount}`;
   const memoryAssets = memoryCache.get(cacheKey);
   if (memoryAssets?.length) {

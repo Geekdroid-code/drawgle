@@ -9,6 +9,7 @@ import { saveExecutionProgress } from "@/lib/product-planning/execution-progress
 import { reusableProductOutputs } from "@/lib/product-planning/retry-outputs";
 import { functionalBrief, functionalStateVariant, functionalRoadmapItem } from "@/lib/product-planning/functional-plan";
 import { scopedGenerationPrompt, productScopeContract } from "@/lib/product-planning/generation-context";
+import { readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
 import { SCREEN_GENERATION_CREDIT_COST, STATE_GENERATION_CREDIT_COST } from "@/lib/generation/pricing";
 import type { GenerateUiFlowPayload, generateUiFlowTask } from "./generate-ui-flow";
 
@@ -62,7 +63,27 @@ export const generateProductFlowTask = task({
         return { completed: true };
       }
       const existingOutputs = state.scope.existingOutputs ?? [];
-      const batch = nextProductBatch(manifest, claims, 8, existingOutputs.map(output => output.item.stableKey), recreate);
+      const { data: project, error: projectError } = await admin.from("projects").select("project_charter, design_tokens")
+        .eq("id", payload.projectId).eq("owner_id", payload.ownerId).single();
+      if (projectError) throw projectError;
+      const { data: navigation, error: navigationError } = await admin.from("project_navigation").select("plan")
+        .eq("project_id", payload.projectId).maybeSingle();
+      if (navigationError) throw navigationError;
+      const fullBatch = nextProductBatch(manifest, claims, 8, existingOutputs.map(output => output.item.stableKey), recreate);
+      const warm = claims.length === 0 && fullBatch.length > 1 && !recreate
+        && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
+        ? await readScopePreparation(admin, payload.projectId, payload.ownerId,
+          scopePreparationKey(state, fullBatch.map(item => item.stableKey), {
+            designTokens: project.design_tokens ?? null, navigationPlan: navigation?.plan ?? null,
+            charter: project.project_charter ?? null,
+          })).catch(() => null)
+        : null;
+      // On an immediate Build before preparation finishes, plan and reveal the
+      // first screen without waiting for briefs and assets for the whole batch.
+      const batch = claims.length === 0 && fullBatch.length > 1 && !warm
+        && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
+        ? nextProductBatch(manifest, claims, 1, existingOutputs.map(output => output.item.stableKey), recreate)
+        : fullBatch;
       if (!batch.length) {
         await update("failed", "The remaining approved work is blocked by a failed prerequisite. Completed screens are preserved; retry the failed work to continue.");
         return { blocked: true };
@@ -84,10 +105,6 @@ export const generateProductFlowTask = task({
       const stateOnly = !recreate && batch.every(item => item.kind === "state");
       const parentId = claims.find(c => c.output_key === parent.stableKey)?.screen_id ?? existingOutputs.find(output => output.item.stableKey === parent.stableKey)?.screenId;
       if (stateOnly && !parentId) throw new Error("The approved state's parent is not ready.");
-      const { data: project, error: projectError } = await admin.from("projects").select("project_charter, design_tokens").eq("id", payload.projectId).eq("owner_id", payload.ownerId).single();
-      if (projectError) throw projectError;
-      const { data: navigation, error: navigationError } = await admin.from("project_navigation").select("plan").eq("project_id", payload.projectId).maybeSingle();
-      if (navigationError) throw navigationError;
       const executionKeys = batch.map(item => item.stableKey);
       const reusableOutputs = await reusableProductOutputs(admin, payload.projectId, payload.ownerId, batch, recreate);
       const child: GenerateUiFlowPayload = {

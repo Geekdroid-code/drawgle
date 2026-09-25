@@ -8,6 +8,7 @@ import { activeFacts, type ProductPlanning } from "./model";
 import { flowReviewSchema, validateJourneyCoverage, type FlowReview } from "./flow-review";
 import { planningReferenceContext } from "./reference-context";
 import type { FunctionalItem } from "./functional-plan";
+import { flowPreflight } from "./flow-preflight";
 const text = { type: Type.STRING };
 const keys = { type: Type.ARRAY, items: text };
 
@@ -18,6 +19,8 @@ export async function reviewProductReadiness(state: ProductPlanning, userMessage
 }): Promise<{ ready: boolean; issues: string[]; coverage?: FlowReview }> {
   if (planningReferenceContext(state).assessmentMode === "recreate") return { ready: true, issues: [] };
   const roadmap = context?.roadmap ?? state.scope?.manifest ?? [];
+  const graph = flowPreflight(state, roadmap);
+  if (state.designerVersion === 2 && graph.issues.length) return { ready: false, issues: graph.issues };
   const userMessages = [...(context?.history.filter(message => message.role === "user").map(message => message.content) ?? []), userMessage];
   const policy = geminiPolicyForTask("project_planning", {
     maxOutputTokens: 6000,
@@ -43,6 +46,7 @@ If insufficient, return actionable SCREEN or FLOW gaps the designer can resolve 
   });
   const response = await createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
     contents: [{ role: "user", parts: [{ text: JSON.stringify({ contentContract: compileProductContent(state), blueprint: activeFacts(state), currentDesignScope: state.scope,
+      flowGraph: graph,
       conversation: context?.history ?? [], userScopeEvidence: userMessages, wholeProductRoadmap: roadmap, functionalManifest: state.scope?.manifest, evidenceAssessment: state.evidenceAssessment, experience: state.experience, latestUserMessage: userMessage }) }] }],
   });
   const review = flowReviewSchema.parse(JSON.parse(response.text || "{}"));

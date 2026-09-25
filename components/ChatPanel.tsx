@@ -1060,6 +1060,20 @@ function buildConversationItems({
     }
   }
 
+  // Progress rows are updated in place, so their original timestamp can put
+  // the spinner above a later draft reply. Keep the one live status at the
+  // bottom of the current turn, where the next update is actually happening.
+  if (keptBusyAction || keptBusyJournal) {
+    const liveIndex = items.findIndex((item, index) => index > lastUserIndex && (
+      (item.kind === "action" && isBusyStepStatus(item.step.status)) ||
+      (item.kind === "generation_journal" && ["queued", "planning", "building"].includes(item.journal.status))
+    ));
+    if (liveIndex >= 0 && liveIndex < items.length - 1) {
+      const [liveItem] = items.splice(liveIndex, 1);
+      items.push(liveItem);
+    }
+  }
+
   return items;
 }
 
@@ -1150,6 +1164,8 @@ function AssistantMessage({ content, isError }: { content: string; isError?: boo
         <ReactMarkdown
           components={{
             p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+            ul: ({ children }) => <ul className="mb-2 list-disc space-y-1 pl-5">{children}</ul>,
+            ol: ({ children }) => <ol className="mb-2 list-decimal space-y-1 pl-5">{children}</ol>,
             strong: ({ children }) => <strong className="font-semibold text-slate-950">{children}</strong>,
           }}
         >
@@ -2398,6 +2414,7 @@ export function ChatPanel({
                       <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
                         <AssistantMessage content={item.content} isError={item.isError} />
                         {item.planningFailure?.retryable && item.messageId && <ProductPlanningRecovery
+                          failure={item.planningFailure}
                           active={!messages.slice(messages.findIndex(message => message.id === item.messageId) + 1).some(message => message.role === "user" || Boolean(message.metadata.productTurnComplete))}
                           disabled={disabled || isBusy || planningBusy || !onSubmit} onSubmit={handleSubmit}
                         />}

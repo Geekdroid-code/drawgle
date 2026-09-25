@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const experienceSchema = z.object({
+  provenance: z.enum(["user_upload", "curated", "prompt_synthesis"]).optional(),
   sourceFrames: z.array(z.object({ index: z.number().int().positive(),
     bounds: z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), width: z.number().positive().max(1), height: z.number().positive().max(1) }),
     sourceHash: z.string().length(64), path: z.string().min(1), hash: z.string().length(64), transformVersion: z.literal(1),

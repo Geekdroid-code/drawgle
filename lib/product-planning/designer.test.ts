@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProductPlanning } from "./model";
 vi.mock("server-only", () => ({}));
+vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn().mockResolvedValue({ id: "prepared" }) } }));
 vi.mock("@/lib/generation/message-memory", () => ({ persistProjectMessageMemoryPair: async () => true }));
 const mocks = vi.hoisted(() => ({ generate: vi.fn(), assess: vi.fn(), review: vi.fn(), loadReference: vi.fn(), snapshot: vi.fn(), state: null as ProductPlanning | null, messages: [] as Array<Record<string, unknown>>, save: vi.fn() }));
 vi.mock("./assess-evidence", () => ({ assessProductEvidence: mocks.assess }));
-vi.mock("./functional-store", () => ({ readFunctionalRoadmap: async () => [], updateFunctionalRoadmap: vi.fn(), snapshotFunctionalScope: mocks.snapshot }));
+vi.mock("./functional-store", () => ({ readFunctionalRoadmap: async () => [], updateFunctionalRoadmap: vi.fn(), snapshotFunctionalScope: mocks.snapshot,
+  saveProductPatchWithRoadmap: (...args: unknown[]) => mocks.save(...args) }));
 vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: mocks.generate } }) }));
 vi.mock("./store", async (original) => ({ ...await original<typeof import("./store")>(), loadProductPlanning: async () => structuredClone(mocks.state), saveProductPlanning: mocks.save }));
 vi.mock("./references", () => ({ loadPlanningReference: mocks.loadReference, storePlanningReference: async () => "owner/new.webp" }));
@@ -34,6 +36,7 @@ const options = { admin: {}, projectId: "project", ownerId: "owner", prompt: "De
 const functionResponse = (calls: Array<{ name: string; args: unknown }>) => ({ functionCalls: calls, candidates: [{ content: { role: "model", parts: calls.map((call) => ({ functionCall: call })) } }] });
 describe("product designer tool loop", () => {
   beforeEach(() => {
+    vi.stubEnv("DRAWGLE_PLANNING_REPAIR_ENABLED", "true");
     mocks.generate.mockReset().mockResolvedValue({ text: "Continue from saved decisions." });
     mocks.snapshot.mockReset().mockImplementation(async (_a, _p, _o, state: ProductPlanning) => ({ ...state, scope: { ...state.scope!, manifest: [functionalFixture()] } }));
     mocks.loadReference.mockReset().mockResolvedValue(null);
@@ -48,6 +51,7 @@ describe("product designer tool loop", () => {
       return structuredClone(mocks.state);
     });
   });
+  afterEach(() => vi.unstubAllEnvs());
   it("shows a prompt-grounded draft before the slower detailed planning rounds", async () => {
     mocks.assess.mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: true,
       experienceReady: true, gaps: [], recommendations: [], delegation: "", rationale: "Screens are clear",
@@ -58,7 +62,7 @@ describe("product designer tool loop", () => {
     });
     await runProductDesigner(options);
     const preview = mocks.messages.find(message => (message.metadata as Record<string, unknown>)?.action === "product_flow_preview");
-    expect(preview?.content).toContain("Today shows today's tasks");
+    expect(preview?.content).toContain("- Today shows today's tasks\n- Calendar opens the selected day");
     expect(preview?.metadata).not.toHaveProperty("productTurnComplete");
   });
   it("repairs a rejected scope internally before persisting or claiming approval", async () => {
@@ -78,6 +82,25 @@ describe("product designer tool loop", () => {
     expect(mocks.messages.at(-1)?.metadata).not.toHaveProperty("productPlanningFailure");
     expect(mocks.generate).toHaveBeenCalledTimes(3);
     expect(JSON.stringify(mocks.generate.mock.calls[2][0].contents)).toContain("state:welcome:complete");
+  });
+  it("resumes a failed flow review from its saved issues without repeating evidence assessment", async () => {
+    mocks.state = { ...productFixture(), experience: experienceFixture() };
+    mocks.state.input.imagePath = experienceFixture().referencePath;
+    mocks.loadReference.mockResolvedValue({ data: "pixels", mimeType: "image/webp" });
+    mocks.review.mockResolvedValueOnce({ ready: false, issues: ["The child tablet screen has no entry action."] })
+      .mockResolvedValueOnce({ ready: true, issues: [] });
+    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "propose_scope", args: {} }]))
+      .mockResolvedValueOnce({ text: "The entry needs repair." });
+    await runProductDesigner({ ...options, initialize: false });
+    expect(mocks.state?.scope?.reviewIssues).toContain("The child tablet screen has no entry action.");
+    expect(mocks.state?.scope?.reviewedContentRevision).toBe(mocks.state?.contentRevision);
+    const assessments = mocks.assess.mock.calls.length;
+    mocks.generate.mockReset().mockResolvedValueOnce(functionResponse([{ name: "propose_scope", args: {} }]));
+    await runProductDesigner({ ...options, initialize: false, resumeReview: true, clientTurnId: "resume-flow",
+      prompt: "Continue screen design" });
+    expect(mocks.assess.mock.calls.length).toBe(assessments);
+    expect(JSON.stringify(mocks.generate.mock.calls[0][0].contents)).toContain("child tablet screen has no entry action");
+    expect(mocks.state?.scope?.status).toBe("proposed");
   });
   it("bounds unsuccessful repair and saves a controlled diagnostic with a recovery action", async () => {
     mocks.state = { ...productFixture(), experience: experienceFixture() };

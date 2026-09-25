@@ -1012,6 +1012,7 @@ export async function POST(request: Request) {
           image: payload.image, imageReferenceMode: payload.imageReferenceMode,
           clientTurnId: payload.initializePlanning ? `initial:${project.id}` : payload.clientTurnId || crypto.randomUUID(),
           initialize: payload.initializePlanning,
+          resumeReview: payload.continueProductPlanning === true,
           productAnswers: payload.productAnswers,
         }));
       } catch (error) {

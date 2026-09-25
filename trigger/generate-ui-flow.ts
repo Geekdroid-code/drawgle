@@ -19,11 +19,14 @@ import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-in
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
 import { runRollingBuilds } from "@/lib/generation/build-scheduler";
+import { acceptedScreenFamily } from "@/lib/generation/accepted-screen-family";
+import { inspectScreenViewport } from "@/lib/generation/viewport-health";
 import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
 import { recreationFrameChrome } from "@/lib/product-planning/recreation-frames";
 import { preparedPlanKey, readPreparedPlan, savePreparedPlan } from "@/lib/product-planning/prepared-plans";
+import { readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
 import { scopedGenerationPrompt, productScopeContract, groundCharterInProduct } from "@/lib/product-planning/generation-context";
 import { compileProductContent } from "@/lib/product-planning/content-contract";
 import { approvedOutputKind, validateExecutionProduct } from "@/lib/product-planning/execution-contract";
@@ -119,7 +122,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan, TopChromeContinuityEvidence } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenFamilyContract, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan, TopChromeContinuityEvidence } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -177,6 +180,7 @@ type BuildScreenTaskPayload = {
   referenceScreenCount?: number | null;
   designStyleId?: string | null;
   designStyle?: DesignStylePack | null;
+  screenFamilyContract?: ScreenFamilyContract | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
@@ -281,7 +285,7 @@ const recordPerformanceAiUsage = (
 type GenerationAttemptDiagnostics = {
   attempt: number;
   task: "screen_build";
-  retryReason: "initial" | "completion_retry" | "structural_retry";
+  retryReason: "initial" | "completion_retry" | "structural_retry" | "viewport_repair";
   streamed: boolean;
   model: string;
   maxOutputTokens: number | null;
@@ -1090,6 +1094,7 @@ async function collectScreenBuild(
       screenPlan,
       designTokens: input.designTokens,
       designStyle: input.designStyle,
+      screenFamilyContract: input.screenFamilyContract,
       prompt: input.prompt,
       image: input.image,
       referenceScope: input.referenceScope,
@@ -1156,6 +1161,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     screenPlan,
     designTokens: input.designTokens,
     designStyle: input.designStyle,
+    screenFamilyContract: input.screenFamilyContract,
     prompt: input.prompt,
     image: input.image,
     referenceScope: input.referenceScope,
@@ -1627,11 +1633,11 @@ export const buildScreenTask = task({
       });
     }
 
-    const assetHydration = hydrateScreenAssetSlots({
+    let assetHydration = hydrateScreenAssetSlots({
       code: finalized.code,
       assetManifest: payload.assetManifest,
     });
-    const assetSanitization = sanitizeScreenAssetUsage({
+    let assetSanitization = sanitizeScreenAssetUsage({
       code: assetHydration.code,
       assetManifest: payload.assetManifest,
     });
@@ -1667,10 +1673,10 @@ export const buildScreenTask = task({
       });
     }
 
-    const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
-    const assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
+    let health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
+    let assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
     let blockIndex = indexScreenCode(code);
-    const screenStatus = screenStatusForHealth(health);
+    let screenStatus = screenStatusForHealth(health);
 
     logger.info("Screen generation diagnostics", {
       screenId: payload.screenId,
@@ -1734,6 +1740,65 @@ export const buildScreenTask = task({
           health,
         },
       });
+    }
+    if (process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true" && payload.referenceMode !== "user_recreate") {
+      const viewportInput = (candidate: string) => ({ code: candidate, tokens: payload.designTokens ?? null,
+        navigationPlan: payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId
+          ? payload.navigationPlan ?? null : null,
+        navigationItemId: payload.screenPlan.navigationItemId ?? null });
+      const sharedNavigationActive = Boolean(payload.navigationPlan?.enabled
+        && (payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId));
+      const viewportIssues = await inspectScreenViewport(viewportInput(code));
+      if (sharedNavigationActive && localNavigation.hasLocalNavigation) viewportIssues.push({
+        width: 390, height: 844, code: "duplicate_navigation",
+        detail: "The screen contains its own primary navigation as well as the shared shell.",
+      });
+      if (viewportIssues.length) {
+        let viewportAccepted = false;
+        const repairPlan: ScreenPlan = { ...payload.screenPlan, description: [payload.screenPlan.description,
+          "VIEWPORT GEOMETRY REPAIR ONLY: Preserve the same screen task, content, visual family, and asset slots. Fix these measured mobile defects at 390x844 and 320x640:",
+          JSON.stringify(viewportIssues),
+          "Return complete static HTML ending with <!-- DRAWGLE_GENERATION_COMPLETE -->. Correct the previous source rather than redesigning the screen:",
+          code,
+        ].join("\n\n") };
+        const repaired = await collectNonStreamingScreenBuild({ ...buildPayload, projectContext: null }, repairPlan);
+        const repairedCompletion = validateSourceCompletion({ code: repaired.extractedCode, requireSentinel: true,
+          finishReasons: repaired.finishReasons });
+        attempts.push(buildAttemptDiagnostics({ attempt: attempts.length + 1, retryReason: "viewport_repair",
+          streamed: false, build: repaired, completion: repairedCompletion }));
+        if (repairedCompletion.valid) {
+          const normalized = normalizeStaticDrawgleHtml(stripGenerationCompleteSentinel(repaired.extractedCode));
+          if (normalized.valid) {
+            const sanitized = sanitizeStaticDrawgleHtml(normalized.code);
+            const staticCheck = validateStaticDrawgleHtml({ code: sanitized.code, requireSingleScreenRoot: true });
+            const qualityCheck = validateGeneratedScreenCode({ code: sanitized.code, screenPlan: payload.screenPlan });
+            if (staticCheck.valid && qualityCheck.valid) {
+              const repairedCode = finalizeGeneratedCode(sanitized.code).code;
+              const repairedHydration = hydrateScreenAssetSlots({ code: repairedCode, assetManifest: payload.assetManifest });
+              const repairedAssets = sanitizeScreenAssetUsage({ code: repairedHydration.code, assetManifest: payload.assetManifest });
+              const repairedHealth = detectScreenHealth({ code: repairedAssets.code, screenPrompt: payload.screenPlan.description });
+              const repairedPolicy = validateScreenAssetPolicy({ code: repairedAssets.code, assetManifest: payload.assetManifest });
+              if (!isBlockingScreenHealthFailure(repairedHealth) && repairedPolicy.valid
+                && (!sharedNavigationActive || !detectLocalNavigationMarkup(repairedAssets.code).hasLocalNavigation)
+                && (await inspectScreenViewport(viewportInput(repairedAssets.code))).length === 0) {
+                code = repairedAssets.code;
+                assetHydration = repairedHydration;
+                assetSanitization = repairedAssets;
+                health = repairedHealth;
+                assetPolicy = repairedPolicy;
+                blockIndex = indexScreenCode(code);
+                screenStatus = screenStatusForHealth(health);
+                viewportAccepted = true;
+              }
+            }
+          }
+        }
+        if (!viewportAccepted) {
+          await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+          return failAfterSavingGeneratedCode({ error: "[screen_generation:viewport] Mobile layout failed a measured viewport check after one repair. Retry this screen; the previous accepted design is preserved.",
+            code, blockIndex, metadata: { attempts, viewportIssues } });
+        }
+      }
     }
     // Persist the final code directly so the parent only polls for status.
     const summary =
@@ -2109,6 +2174,23 @@ export const generateUiFlowTask = task({
       payload.requiresBottomNav = false;
     } else if (!designTokens && projectTokens) {
       designTokens = projectTokens;
+    }
+    const scopePreparation = !screenScoped && !exactRecreation && payload.productPlanning?.scope?.status === "approved"
+      && payload.productExecutionKeys?.length && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
+      ? await readScopePreparation(admin, payload.projectId, payload.ownerId,
+        scopePreparationKey(payload.productPlanning, payload.productExecutionKeys, {
+          designTokens: projectTokens ?? null, navigationPlan: payload.navigationPlan ?? null,
+          charter: existingCharter,
+        })).catch(() => null)
+      : null;
+    if (payload.productPlanning?.scope?.status === "approved" && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true") {
+      await mergeGenerationPerformance(admin, payload.generationRunId, {
+        preparation: scopePreparation ? "hit" : "miss",
+      });
+    }
+    if (scopePreparation && !designTokens) designTokens = scopePreparation.designTokens;
+    if (scopePreparation?.referenceAnalysis && !payload.referenceAnalysis) {
+      payload.referenceAnalysis = scopePreparation.referenceAnalysis;
     }
     if (localAttachment) {
       const { data: navigation, error: navigationError } = await admin.from("project_navigation").select("plan").eq("project_id", payload.projectId).maybeSingle();
@@ -2593,8 +2675,8 @@ export const generateUiFlowTask = task({
     const preparationRootId = payload.productExecutionKeys ? payload.retryContext?.sourceGenerationRunId : null;
     const preparationKey = payload.productPlanning && payload.productExecutionKeys
       ? preparedPlanKey(payload.productPlanning, payload.productExecutionKeys, { designTokens, navigationPlan: payload.navigationPlan ?? null, charter: payload.projectCharter ?? null }) : null;
-    const preparedPlan = preparationRootId && preparationKey
-      ? await readPreparedPlan(admin, preparationRootId, payload.ownerId, preparationKey) : null;
+    const preparedPlan = scopePreparation?.plan ?? (preparationRootId && preparationKey
+      ? await readPreparedPlan(admin, preparationRootId, payload.ownerId, preparationKey) : null);
     let plan = preparedPlan ?? (hasSeedScreens
       ? {
           requiresBottomNav: Boolean(payload.navigationPlan?.enabled),
@@ -3060,7 +3142,7 @@ export const generateUiFlowTask = task({
 
     const assetPlanningStartedAt = now();
     const assetPlanningStartedMs = Date.now();
-    const assetRequirements = retryOnlyStateVariants ? [] : await planVisualAssets({
+    const assetRequirements = retryOnlyStateVariants ? [] : scopePreparation?.assetRequirements ?? await planVisualAssets({
       prompt: payload.prompt,
       screens: plan.screens,
       charter: plan.charter,
@@ -3242,6 +3324,14 @@ export const generateUiFlowTask = task({
     const successfulRoadmapItemIds = new Set<string>();
     const readyParentScreenIds = new Map<string, string>();
     const runChromeEvidence: RunChromeEvidence = {};
+    let acceptedFamily: ScreenFamilyContract | null = null;
+    if (payload.productPlanning && payload.isNewProject !== true && referenceMode !== "user_recreate") {
+      const { data: anchor } = await admin.from("screens").select("name,code")
+        .eq("project_id", payload.projectId).eq("owner_id", payload.ownerId).eq("status", "ready")
+        .order("created_at", { ascending: true }).limit(1).maybeSingle();
+      if (anchor?.code) acceptedFamily = acceptedScreenFamily(anchor.code, anchor.name,
+        plan.screenFamilyContract ?? plan.charter.referenceDna?.screenFamilyContract ?? null);
+    }
     let settlementQueue: Promise<void> = Promise.resolve();
     let journalWriteQueue: Promise<void> = Promise.resolve();
     const postGenerationJournalSerial = () => {
@@ -3280,6 +3370,8 @@ export const generateUiFlowTask = task({
     }
 
     const screenEntries = screenPlans.map((screenPlan, index) => ({ screenPlan, index }));
+    const needsAcceptedAnchor = referenceMode !== "user_recreate" && payload.isNewProject === true;
+    let anchorAttempted = false;
     await runRollingBuilds(screenEntries, async ({ screenPlan, index }) => {
       const batchChromeEvidence: RunChromeEvidence = { ...runChromeEvidence };
       const parentRoadmapStableKey = screenPlan.roadmapStableKey ?? screenRoadmapKey(screenPlan.name);
@@ -3396,6 +3488,7 @@ export const generateUiFlowTask = task({
             referenceScreenCount: screenPlan.referenceScreenCount ?? referenceTargetCount,
             designStyleId: designStyle?.id ?? null,
             designStyle,
+            screenFamilyContract: acceptedFamily ?? plan.screenFamilyContract ?? plan.charter.referenceDna?.screenFamilyContract ?? null,
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,
@@ -3504,7 +3597,7 @@ export const generateUiFlowTask = task({
         if (result?.status === "COMPLETED") {
           const { data: completedScreen } = await admin
             .from("screens")
-            .select("status, error")
+            .select("status, error, code")
             .eq("id", screenId)
             .maybeSingle();
 
@@ -3578,6 +3671,10 @@ export const generateUiFlowTask = task({
           } else {
             successfulScreens += 1;
             capturedTopChromeEvidence = buildOutput?.topChromeEvidence ?? null;
+            if (!acceptedFamily && referenceMode !== "user_recreate" && typeof completedScreen.code === "string") {
+              acceptedFamily = acceptedScreenFamily(completedScreen.code, screenPlan.name,
+                plan.screenFamilyContract ?? plan.charter.referenceDna?.screenFamilyContract ?? null);
+            }
             if (index === 0) {
               await mergeGenerationPerformance(admin, payload.generationRunId, { firstReadyAt: now() });
             }
@@ -3751,8 +3848,10 @@ export const generateUiFlowTask = task({
         );
       }
       rememberFirstRunChromeEvidence(runChromeEvidence, capturedTopChromeEvidence);
-    }, { concurrency: 2, anchorFirst: referenceMode !== "user_recreate" && payload.isNewProject === true,
+      if (index === 0) anchorAttempted = true;
+    }, { concurrency: 2, anchorFirst: needsAcceptedAnchor,
       canStart: async () => {
+        if (needsAcceptedAnchor && anchorAttempted && !acceptedFamily) return false;
         const { data, error } = await admin.from("generation_runs").select("status").eq("id", payload.generationRunId).single();
         if (error) throw error;
         return data.status !== "canceled";

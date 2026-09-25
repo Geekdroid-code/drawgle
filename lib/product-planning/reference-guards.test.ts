@@ -8,6 +8,7 @@ import { inspectProductReference } from "./inspect-reference";
 import { designerFixture, experienceFixture } from "./test-fixtures";
 import { applyProductPatch, proposeProductScope, approveProductScope } from "./model";
 import { designRequirementsKey } from "./design-requirements";
+import { productReferenceExecution } from "./reference-execution";
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -15,13 +16,23 @@ beforeEach(() => {
   mocks.shortlist.mockResolvedValue([1, 2, 3, 4].map(index => ({ reference: { id: `candidate-${index}` }, catalogHash: "catalog" })));
   mocks.curated.mockResolvedValue({ data: "candidate", mimeType: "image/webp" });
 });
-it.each([false, undefined])("never persists rejected or unreviewed candidates: %s", async verdict => {
+it.each([false, undefined])("falls back to prompt direction after rejected or unreviewed optional candidates: %s", async verdict => {
   mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...experienceFixture(), compatibility: verdict === undefined ? undefined
     : { compatible: verdict, conflicts: ["Does not fit"], transfer: "", rationale: "Reject" } }) });
   const state = designerFixture(); state.input.imagePath = null;
-  await expect(inspectProductReference({}, "owner", state, "Keep the brief")).rejects.toMatchObject({ code: "NO_COMPATIBLE_REFERENCE" });
-  expect(mocks.generate).toHaveBeenCalledTimes(3);
+  const result = await inspectProductReference({}, "owner", state, "Keep the brief");
+  expect(result.experience).toMatchObject({ provenance: "prompt_synthesis", referencePath: null, referenceId: null });
+  expect(mocks.generate).toHaveBeenCalledTimes(4);
   expect(mocks.store).not.toHaveBeenCalled();
+});
+it("continues from the prompt when the optional curated search or image load fails", async () => {
+  const state = designerFixture(); state.input.imagePath = null;
+  mocks.shortlist.mockRejectedValueOnce(new Error("Curated search unavailable"));
+  mocks.generate.mockResolvedValue({ text: JSON.stringify(experienceFixture()) });
+  expect((await inspectProductReference({}, "owner", state, "Keep the brief")).experience.provenance).toBe("prompt_synthesis");
+  mocks.shortlist.mockResolvedValueOnce([{ reference: { id: "missing" }, catalogHash: "catalog" }]);
+  mocks.curated.mockRejectedValueOnce(new Error("Image unavailable"));
+  expect((await inspectProductReference({}, "owner", state, "Keep the brief")).experience.provenance).toBe("prompt_synthesis");
 });
 it("blocks stale requirements at proposal and final approval independently", () => {
   const state = designerFixture();
@@ -53,4 +64,18 @@ it("never replaces an incompatible user upload with library evidence", async () 
   mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...experienceFixture(), compatibility: { compatible: false, conflicts: ["Cannot transfer"], transfer: "", rationale: "Conflict" } }) });
   await expect(inspectProductReference({}, "owner", designerFixture(), "Preserve choices")).rejects.toMatchObject({ code: "USER_REFERENCE_CONFLICT" });
   expect(mocks.shortlist).not.toHaveBeenCalled();
+});
+it("approves an automatically prompt-derived direction without a permanent no-reference preference", () => {
+  const state = designerFixture();
+  state.input.imagePath = null;
+  state.input.referenceSource = "none";
+  state.experience = {
+    ...experienceFixture(), provenance: "prompt_synthesis", referencePath: null, referenceId: null, referenceHash: null,
+    requirementsKey: designRequirementsKey(state), compatibility: { compatible: true, conflicts: [], transfer: "Prompt", rationale: "No compatible curated image" },
+  };
+  expect(state.input.referencePreference).toBeUndefined();
+  const proposed = proposeProductScope(state);
+  const approved = approveProductScope(proposed, proposed.revision);
+  expect(productReferenceExecution(approved)).toMatchObject({ policy: "no_reference", imagePath: null });
+  expect(approved.input.referencePreference).toBeUndefined();
 });

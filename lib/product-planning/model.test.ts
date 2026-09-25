@@ -41,6 +41,18 @@ describe("durable product truth and scope", () => {
     expect(() => applyProductPatch(state, { operations: [{ op: "put_fact", fact: { ...state.blueprint.facts[0], source: "user", evidence: "" } }] }, messageId)).toThrow();
     expect(state).toEqual(before);
   });
+  it("treats identical retried facts and scope as no-ops, but identifies changed facts and broken links", () => {
+    const state = productFixture();
+    const existing = state.blueprint.facts[0];
+    expect(applyProductPatch(state, { operations: [{ op: "put_fact", fact: existing }] }, messageId)).toBe(state);
+    expect(applyProductPatch(state, { operations: [{ op: "set_scope", goal: state.scope!.goal,
+      surfaceIds: state.scope!.surfaceIds, outputKeys: state.scope!.outputKeys, rationale: state.scope!.rationale }] }, messageId)).toBe(state);
+    expect(() => applyProductPatch(state, { operations: [{ op: "put_fact", fact: { ...existing, detail: "Changed meaning" } }] }, messageId))
+      .toThrow(/already exists/);
+    expect(() => applyProductPatch(state, { operations: [{ op: "put_fact", fact: {
+      id: "broken", section: "decisions", label: "Broken", detail: "A linked decision", source: "assumption", evidence: "", links: ["missing"],
+    } }] }, messageId)).toThrow(/links to inactive or missing facts/);
+  });
   it("blocks only unresolved questions marked material to the current scope", () => {
     const state = applyProductPatch(productFixture(), { operations: [{ op: "put_fact", fact: { id: "personalization", section: "questions", label: "Onboarding screen", detail: "Which onboarding screen should be shown?", source: "assumption", evidence: "", blocking: true, designDecisionType: "screen_scope" } }] }, messageId);
     expect(() => proposeProductScope(state)).toThrow(/onboarding screen/);

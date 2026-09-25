@@ -43,4 +43,15 @@ describe("actual builder input contracts", () => {
       productContent: "Audience: everyday habit tracking. Use Add habit, Today, Weekly progress. No fabricated telemetry." });
     expect(JSON.stringify(mocks.stream.mock.calls.at(-1)![0].contents.parts)).toContain("No fabricated telemetry");
   });
+  it("sends the shared visual family to the actual style builder", async () => {
+    await buildScreenCode({ screenPlan: { name: "Calendar", type: "root", description: "Upcoming family events" },
+      prompt: "Family planner", referenceMode: "user_style", requiresBottomNav: false,
+      screenFamilyContract: {
+        summary: "Quiet purple family planner", surfaces: "One focal surface; lists can stay flat",
+        typography: "Compact headings", spacing: "Shared edge rail", navigation: "One shell",
+        imagery: "No arbitrary stock faces", consistencyRules: ["Keep one button geometry"],
+      } });
+    expect(mocks.stream.mock.calls.at(-1)![0].configOverride.systemInstruction)
+      .toContain("Quiet purple family planner");
+  });
 });

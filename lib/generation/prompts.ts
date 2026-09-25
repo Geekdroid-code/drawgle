@@ -4,6 +4,7 @@ import { formatDesignStyleContract } from "@/lib/generation/design-styles";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
+import { formatScreenFamilyContract } from "@/lib/generation/screen-family-contract";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan, NavigationPlan } from "@/lib/types";
 
@@ -1025,13 +1026,14 @@ const stripRendererOwnedNavigationFromBrief = (description: string) => {
 const buildScreenInstruction = ({
   designTokens,
   designStyle,
+  screenFamilyContract,
   screenPlan,
   prompt,
   requiresBottomNav,
   navigationArchitecture,
   navigationPlan,
   assetManifest,
-}: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: GenerationPromptMode) => {
+}: Pick<BuildScreenInput, "designTokens" | "designStyle" | "screenFamilyContract" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: GenerationPromptMode) => {
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
   const minTouch = resolveToken(designTokens, "sizing.min_touch_target", "48px");
@@ -1139,6 +1141,8 @@ ${buildStrictDesignContract(designTokens)}
 
 ${designStyleContract ? `STYLE CONTRACT:\n${designStyleContract}\n` : ""}
 
+${mode !== "recreate" && screenFamilyContract ? `SCREEN FAMILY CONTRACT (visual system only; the target screen's user task owns its composition):\n${formatScreenFamilyContract(screenFamilyContract)}\nDo not turn a surface cue into a card around every section. Reuse typography, spacing, color, edge, and control treatment across this family while keeping this screen's own hierarchy.\n` : ""}
+
 NAVIGATION ARCHITECTURE CONTRACT:
 ${mode === "recreate" && !navigationPlan?.enabled ? navigationInstruction : buildNavigationArchitectureContract({
         navigationArchitecture: resolvedNavigationArchitecture,
@@ -1178,10 +1182,10 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "recreate");
 
-export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "screenFamilyContract" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "style");
 
-export const buildPromptScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildPromptScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "screenFamilyContract" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "prompt");
 
 export const buildSystemInstruction = buildRecreateScreenInstruction;

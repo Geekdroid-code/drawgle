@@ -30,6 +30,13 @@ const requirement = (screenName: string, id: string, slotCount = 1): AssetRequir
 });
 
 describe("visual asset planning groups", () => {
+  it("uses an intentional avatar placeholder when no person's image was supplied", async () => {
+    const manifest = await resolveProjectAssets({ admin: {} as never, ownerId: "owner", projectId: "project",
+      generationRunId: "run", requirements: [{ ...requirement("Today", "leo-avatar"), role: "avatar",
+        subject: "Leo's profile portrait", semanticCategory: "person", semanticTags: ["child", "portrait"] }] });
+    expect(manifest.assetsByScreen.Today[0]).toMatchObject({ source: "placeholder", placeholder: true });
+    expect(manifest.diagnostics?.[0].rejectionCode).toBe("identity_requires_supplied_image");
+  });
   it("reports monotonic global resolution progress without changing requirement order", async () => {
     const requirements = [
       { ...requirement("Home", "home-photo"), sourcePreference: "user_upload" as const },

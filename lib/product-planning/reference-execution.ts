@@ -10,7 +10,7 @@ export function productReferenceExecution(state: ProductPlanning, includeScreenR
   if (includeScreenReference && state.phase === "canvas" && state.screenReference) return {
     policy: "user_upload", mode: "user_style", source: "user_upload", imagePath: state.screenReference.imagePath, referenceId: null, catalogHash: null,
   };
-  if (state.input.referencePreference?.mode === "none") return { policy: "no_reference", mode: "internal_style", source: null, imagePath: null, referenceId: null, catalogHash: null };
+  if (state.input.referencePreference?.mode === "none" || state.experience?.provenance === "prompt_synthesis") return { policy: "no_reference", mode: "internal_style", source: null, imagePath: null, referenceId: null, catalogHash: null };
   const context = planningReferenceContext(state);
   const curated = context.source === "curated";
   const inheritedUpload = state.phase === "canvas" && context.hasUserUpload;
