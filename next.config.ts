@@ -5,10 +5,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.resolve(__dirname),
   experimental: {
-    middlewareClientMaxBodySize: '16mb',
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
+    proxyClientMaxBodySize: '16mb',
   },
   typescript: {
     ignoreBuildErrors: false,

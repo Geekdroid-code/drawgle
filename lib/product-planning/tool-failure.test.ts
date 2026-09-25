@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import { z } from "zod";
-import { describeToolFailure } from "./tool-failure";
+import { describeToolFailure } from "./tool-failure-diagnostics";
 
 it("records safe validation paths without storing model-provided values", () => {
   const parsed = z.object({ fact: z.object({ section: z.enum(["surfaces"]) }) }).safeParse({ fact: { section: "private prompt text" } });

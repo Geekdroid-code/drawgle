@@ -12,7 +12,8 @@ import { referenceRecoveryQuestions, validateReferencePreference } from "./refer
 import { reviewFactEvidence } from "./review-fact-evidence";
 import { prepareDesignerPatch } from "./designer-patch";
 import { createDesignerFactIds } from "./designer-fact-ids";
-import { describeToolFailure, ProductToolError, type PlanningFailure } from "./tool-failure";
+import { ProductToolError, type PlanningFailure } from "./tool-failure";
+import { describeToolFailure } from "./tool-failure-diagnostics";
 import { activeFacts, applyProductPatch, blockingScreenQuestions, proposeProductScope, readinessIssues } from "./model";
 import { designerInstructions, designerToolDeclarations } from "./designer-tools";
 import { loadProductPlanning, saveProductPlanning, PlanningConflict, type PlanningStore } from "./store";
