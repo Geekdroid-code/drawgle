@@ -15,6 +15,7 @@ export async function assessProductEvidence(input: {
   history: Array<{ role: string; content: string }>;
   reference: PromptImagePayload | null;
   resolvedDecisionKeys?: string[];
+  onTrace?: (event: { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number }) => void;
 }) {
   const context = planningReferenceContext(input.state);
   const policy = geminiPolicyForTask("project_planning", {
@@ -65,10 +66,15 @@ Set ready flags false only for retained screen-specific gaps. When ready, give a
   let repair = "";
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let response: Awaited<ReturnType<typeof ai.models.generateContent>>;
+    const started = Date.now();
     try {
       response = await ai.models.generateContent({ model: policy.model, config: policy.config, contents: repair
         ? [...contents, { role: "user", parts: [{ text: repair }] }] : contents });
+      input.onTrace?.({ stage: attempt ? "evidence_repair" : "evidence_assessment",
+        elapsedMs: Date.now() - started, inputTokens: response.usageMetadata?.promptTokenCount,
+        outputTokens: response.usageMetadata?.candidatesTokenCount });
     } catch (error) {
+      input.onTrace?.({ stage: attempt ? "evidence_repair" : "evidence_assessment", elapsedMs: Date.now() - started });
       if (context.assessmentMode === "recreate") throw error;
       return optionalAssessmentFallback();
     }

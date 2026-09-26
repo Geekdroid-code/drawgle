@@ -29,7 +29,8 @@ function keepUnverifiedFactsTentative(prepared: ReturnType<typeof prepareDesigne
   return prepared;
 }
 
-export async function reviewFactEvidence(prepared: ReturnType<typeof prepareDesignerPatch>, history: Array<{ id: string; role: string; content: string }>) {
+export async function reviewFactEvidence(prepared: ReturnType<typeof prepareDesignerPatch>, history: Array<{ id: string; role: string; content: string }>,
+  onTrace?: (event: { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number }) => void) {
   const facts = prepared.patch.operations.flatMap(op => op.op === "put_fact" ? [op.fact] : op.op === "supersede_fact" && op.replacement ? [op.replacement] : []).filter(f => f.source === "user");
   if (!facts.length) return prepared;
   const policy = geminiPolicyForTask("project_planning", {
@@ -38,11 +39,16 @@ export async function reviewFactEvidence(prepared: ReturnType<typeof prepareDesi
     responseSchema: { type: Type.OBJECT, properties: { verdicts: { type: Type.ARRAY, items: { type: Type.OBJECT,
       properties: { id: { type: Type.STRING }, supported: { type: Type.BOOLEAN }, reason: { type: Type.STRING } }, required: ["id", "supported", "reason"] } } }, required: ["verdicts"] },
   });
+  const started = Date.now();
   try {
     const response = await createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
       contents: [{ role: "user", parts: [{ text: JSON.stringify({ facts, acceptedRecommendations: history.filter(message => facts.some(f => f.provenance?.recommendationMessageId === message.id)) }) }] }] });
+    onTrace?.({ stage: "fact_evidence", elapsedMs: Date.now() - started,
+      inputTokens: response.usageMetadata?.promptTokenCount,
+      outputTokens: response.usageMetadata?.candidatesTokenCount });
     return applyEvidenceVerdicts(prepared, JSON.parse(response.text || "{}"));
   } catch (error) {
+    onTrace?.({ stage: "fact_evidence_error", elapsedMs: Date.now() - started });
     if (!(error instanceof SyntaxError || error instanceof z.ZodError
       || (error instanceof Error && error.message.startsWith("Evidence review must cover")))) throw error;
     // Verification is allowed to withhold confirmation, never to erase the

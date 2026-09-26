@@ -17,7 +17,8 @@ import { ProductToolError } from "./tool-failure";
 import { experienceSchema } from "./experience";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 
-export async function inspectProductReference(admin: PlanningStore, ownerId: string, state: ProductPlanning, request: string) {
+export async function inspectProductReference(admin: PlanningStore, ownerId: string, state: ProductPlanning, request: string,
+  onTrace?: (event: { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number }) => void) {
   const recreation = state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
   const reqKey = designRequirementsKey(state);
   const explicitReqs = explicitDesignRequirements(state);
@@ -60,6 +61,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       request,
     ].filter(Boolean).join("\n\n");
 
+    const started = Date.now();
     const response = await createGeminiClient().models.generateContent({
       model: policy.model,
       config: {
@@ -68,6 +70,9 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       },
       contents: [{ role: "user", parts: [{ text: textPrompt }] }],
     });
+    onTrace?.({ stage: "reference_synthesis", elapsedMs: Date.now() - started,
+      inputTokens: response.usageMetadata?.promptTokenCount,
+      outputTokens: response.usageMetadata?.candidatesTokenCount });
 
     const parsed = JSON.parse(response.text || "{}");
     const experience = experienceSchema.parse({
@@ -123,6 +128,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       if (!candidateImage) continue;
 
       const candidateHash = createHash("sha256").update(candidateImage.data).digest("hex");
+      const started = Date.now();
       const response = await createGeminiClient().models.generateContent({
         model: policy.model, config: policy.config, contents: [{
           role: "user", parts: [
@@ -132,6 +138,9 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
         }],
       }).catch(() => null);
       if (!response) continue;
+      onTrace?.({ stage: "reference_candidate", elapsedMs: Date.now() - started,
+        inputTokens: response.usageMetadata?.promptTokenCount,
+        outputTokens: response.usageMetadata?.candidatesTokenCount });
 
       let parsed: unknown;
       try { parsed = JSON.parse(response.text || "{}"); } catch { continue; }
@@ -181,6 +190,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
         ...(state.input.recreationChanges ?? []).map(c => `Subsequent user request: ${c.request}`),
       ].filter(Boolean).join("\n\n")
     : request;
+  const started = Date.now();
   const response = await createGeminiClient().models.generateContent({
     model: policy.model, config: policy.config, contents: [{
       role: "user", parts: [
@@ -189,6 +199,9 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       ],
     }],
   });
+  onTrace?.({ stage: "reference_upload", elapsedMs: Date.now() - started,
+    inputTokens: response.usageMetadata?.promptTokenCount,
+    outputTokens: response.usageMetadata?.candidatesTokenCount });
 
   const parsed = JSON.parse(response.text || "{}");
   const sourceFrames = recreation ? await verifySourceDetails(admin, ownerId, image, parsed.frames) : undefined;

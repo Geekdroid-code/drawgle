@@ -52,6 +52,42 @@ describe("product designer tool loop", () => {
     });
   });
   afterEach(() => vi.unstubAllEnvs());
+  it("rejects a replay after a proposal write when its final message was not saved", async () => {
+    mocks.state!.lastProposalOperationId = options.clientTurnId;
+    await expect(runProductDesigner(options)).rejects.toThrow(/already saved design changes/);
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+  it("routes a marked new project through one candidate and the existing approval card", async () => {
+    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "proposal");
+    mocks.state!.planningProtocol = "proposal_v1";
+    mocks.state!.experience = { ...experienceFixture(), provenance: "prompt_synthesis",
+      referencePath: null, referenceHash: null, requirementsKey: "[]",
+      compatibility: { compatible: true, conflicts: [], transfer: "Prompt direction", rationale: "No image" } };
+    const facts = [
+      ["identity", "app", "Household planner"], ["actors", "parent", "Parents"],
+      ["jobs", "tasks", "Review today's tasks"], ["journeys", "daily", "Complete daily chores"],
+      ["surfaces", "today", "Today task view"],
+    ].map(([section, ref, detail]) => ({ section, ref, label: ref, detail, source: "assumption" }));
+    mocks.generate.mockResolvedValue({ text: JSON.stringify({ facts, outputs: [{ ref: "today", name: "Today",
+      description: "See family chores", surfaceRefs: ["today"], journeyRefs: ["daily"],
+      actions: [{ label: "Complete", destinationRef: null, outcome: "Show task completion inline" }],
+      information: "Chore list", entryCondition: "Parent opens the app", outcome: "Daily chores are visible" }],
+      scope: { goal: "Design daily chores", rationale: "The user requested daily tasks",
+        outputRefs: ["today"], surfaceRefs: ["today"] } }) });
+    let roadmap: Array<Record<string, unknown>> = [];
+    const query = { select: () => query, eq: () => query, neq: () => query,
+      then: (resolve: (value: unknown) => void) => resolve({ data: roadmap, error: null }) };
+    const admin = { from: () => query, rpc: async (_name: string, args: Record<string, unknown>) => {
+      const items = args.input_items as Array<Record<string, unknown>>;
+      roadmap = items.map(item => ({ metadata: { functional: item }, status: "planned", generated_screen_id: null }));
+      mocks.state = args.input_state as ProductPlanning;
+      return { error: null };
+    } };
+    await runProductDesigner({ ...options, admin: admin as never });
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(mocks.state?.scope?.status).toBe("proposed");
+    expect(mocks.messages.at(-1)?.metadata).toMatchObject({ productScopeProposal: { scope: { status: "proposed" } } });
+  });
   it("shows a prompt-grounded draft before the slower detailed planning rounds", async () => {
     mocks.assess.mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: true,
       experienceReady: true, gaps: [], recommendations: [], delegation: "", rationale: "Screens are clear",

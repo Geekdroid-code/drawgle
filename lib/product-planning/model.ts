@@ -53,6 +53,8 @@ export const designScopeSchema = z.object({
 export const productPlanningSchema = z.object({
   version: z.literal(1),
   designerVersion: z.literal(2).optional(),
+  planningProtocol: z.literal("proposal_v1").optional(),
+  lastProposalOperationId: z.string().max(160).optional(),
   contentRevision: z.number().int().nonnegative().optional(),
   evidenceAssessment: evidenceAssessmentSchema.nullable().optional(),
   resolvedDecisionKeys: z.array(z.string().max(100)).max(500).optional(),

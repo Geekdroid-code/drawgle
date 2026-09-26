@@ -30,6 +30,8 @@ import { assetsForScopePlan, projectScopePlanForKeys, readScopePreparation, scop
 import { earlyDesignMode, projectDesignPreparationKey,
   readProjectDesignPreparation } from "@/lib/product-planning/project-design-preparation";
 import { generateProjectDesign } from "@/lib/product-planning/generate-project-design";
+import { projectDesignTaskIdentity } from "@/lib/product-planning/project-design-task";
+import { prepareProjectDesignTask } from "./prepare-project-design";
 import { designRequirementsKey } from "@/lib/product-planning/design-requirements";
 import { scopedGenerationPrompt, productScopeContract, groundCharterInProduct } from "@/lib/product-planning/generation-context";
 import { compileProductContent } from "@/lib/product-planning/content-contract";
@@ -2527,8 +2529,21 @@ export const generateUiFlowTask = task({
       const currentState = readProductPlanning(existingProject?.product_planning);
       const matchesCurrent = !currentState
         || projectDesignPreparationKey(currentState, publishedStylePreset?.version ?? null) === key;
-      const prepared = matchesCurrent
+      let prepared = matchesCurrent
         ? await readProjectDesignPreparation(admin, payload.projectId, payload.ownerId, key).catch(() => null) : null;
+      if (!prepared && matchesCurrent) {
+        try {
+          const taskIdentity = await projectDesignTaskIdentity(productPlanning, payload.projectId,
+            publishedStylePreset?.version ?? null);
+          await prepareProjectDesignTask.triggerAndWait({ projectId: payload.projectId, ownerId: payload.ownerId,
+            queuedAt: new Date().toISOString() }, {
+            idempotencyKey: taskIdentity.idempotencyKey, idempotencyKeyTTL: "1d",
+          });
+        } catch {
+          // A failed speculative task falls through to the existing cold token path.
+        }
+        prepared = await readProjectDesignPreparation(admin, payload.projectId, payload.ownerId, key).catch(() => null);
+      }
       if (prepared && prepared.requirementsKey === designRequirementsKey(productPlanning)) {
         designTokens = prepared.designTokens;
         usedPreparedProjectTokens = true;

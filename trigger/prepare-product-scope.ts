@@ -18,6 +18,8 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { earlyDesignMode, projectDesignPreparationKey,
   readProjectDesignPreparation, saveProjectDesignPreparation } from "@/lib/product-planning/project-design-preparation";
 import { generateProjectDesign } from "@/lib/product-planning/generate-project-design";
+import { projectDesignTaskIdentity } from "@/lib/product-planning/project-design-task";
+import { prepareProjectDesignTask } from "./prepare-project-design";
 import type { DesignTokens, NavigationPlan, ProjectCharter } from "@/lib/types";
 
 /** Speculative, service-only planning after an approval card; no screen or credit writes. */
@@ -53,11 +55,20 @@ export const prepareProductScopeTask = task({
     const designStyle = preset?.stylePack ?? (!image ? getDesignStylePack(shared.charter?.designStyle?.id) : null);
     const analysis = await analyzeReferenceImageForScope({ prompt, image, referenceMode: reference.mode });
     const earlyDesign = earlyDesignMode() === "on" && !recreate && !shared.designTokens;
-    const designKey = earlyDesign ? projectDesignPreparationKey(state, preset?.version ?? null) : null;
-    const preparedDesign = designKey
+    const taskIdentity = earlyDesign ? await projectDesignTaskIdentity(state, projectId, preset?.version ?? null) : null;
+    const designKey = taskIdentity?.key ?? null;
+    let preparedDesign = designKey
       ? await readProjectDesignPreparation(admin, projectId, ownerId, designKey) : null;
     let tokens = shared.designTokens ?? preparedDesign?.designTokens ?? null;
+    if (!tokens && taskIdentity) {
+      await prepareProjectDesignTask.triggerAndWait({ projectId, ownerId, queuedAt }, {
+        idempotencyKey: taskIdentity.idempotencyKey, idempotencyKeyTTL: "1d",
+      }).catch(() => undefined);
+      preparedDesign = await readProjectDesignPreparation(admin, projectId, ownerId, designKey!);
+      tokens = preparedDesign?.designTokens ?? null;
+    }
     if (!tokens && earlyDesign) {
+      // Keep the same project-wide token policy if speculative preparation failed.
       const generated = await generateProjectDesign(state, { image, referenceMode: reference.mode,
         referenceId: reference.referenceId, designStyle });
       tokens = generated.designTokens;
@@ -76,6 +87,13 @@ export const prepareProductScopeTask = task({
         designRequirements: compileDesignRequirements(state, reference.mode) });
       if (!recreate) tokens = await reconcileTokensWithDesignRequirements(tokens, state);
     }
+    // An immediate Build owns its cold first-screen path. Do not start a
+    // duplicate full-batch planner if approval happened during token work.
+    const { data: latestBeforePlan, error: latestBeforePlanError } = await admin.from("projects")
+      .select("product_planning").eq("id", projectId).eq("owner_id", ownerId).maybeSingle();
+    if (latestBeforePlanError) throw latestBeforePlanError;
+    const latestState = readProductPlanning(latestBeforePlan?.product_planning);
+    if (latestState?.scope?.generationRunId) return { skipped: true, reason: "build_started" };
     const plan = await planUiFlow({ productPlanning: approved, productExecutionKeys: keys,
       prompt, image, referenceMode: reference.mode, referenceId: reference.referenceId,
       referenceCatalogHash: reference.catalogHash, designStyle, designTokens: tokens,

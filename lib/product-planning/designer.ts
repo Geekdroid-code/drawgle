@@ -14,7 +14,7 @@ import { prepareDesignerPatch } from "./designer-patch";
 import { createDesignerFactIds } from "./designer-fact-ids";
 import { ProductToolError, type PlanningFailure } from "./tool-failure";
 import { describeToolFailure } from "./tool-failure-diagnostics";
-import { activeFacts, applyProductPatch, blockingScreenQuestions, proposeProductScope, readinessIssues } from "./model";
+import { activeFacts, applyProductPatch, blockingScreenQuestions, proposeProductScope, readinessIssues, type ProductPlanning } from "./model";
 import { designerInstructions, designerToolDeclarations } from "./designer-tools";
 import { loadProductPlanning, saveProductPlanning, PlanningConflict, type PlanningStore } from "./store";
 import { loadPlanningReference, storePlanningReference } from "./references";
@@ -29,8 +29,12 @@ import { inspectProductReference } from "./inspect-reference";
 import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope, saveProductPatchWithRoadmap } from "./functional-store";
 import { reconstructionInstructions, reconstructionProductContext } from "./reconstruction";
 import { updateWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
-import { earlyDesignMode, mayPrepareProjectDesign, projectDesignPreparationKey } from "./project-design-preparation";
+import { earlyDesignMode, mayPrepareProjectDesign } from "./project-design-preparation";
 import { orderDesignerCalls } from "./designer-call-order";
+import { runProposalPlanner } from "./proposal-runner";
+import type { FunctionalItem } from "./functional-plan";
+import { projectDesignTaskIdentity } from "./project-design-task";
+import { enqueueScopePreparation } from "./scope-preparation-task";
 
 export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, resumeReview = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
   admin: PlanningStore; projectId: string; ownerId: string; prompt: string; originalPrompt?: string;
@@ -45,6 +49,9 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
   const history = await fetchProjectMessages(admin, projectId, 40);
   const completedTurn = history.find((message) => message.role === "model" && message.metadata.productTurnComplete === clientTurnId);
   if (completedTurn) return { intent: "product_planning", message: completedTurn.content };
+  if (state.lastProposalOperationId === clientTurnId) {
+    throw new PlanningConflict("This request already saved design changes. Refresh the current flow before retrying.");
+  }
   let resolvedAnswers: ReturnType<typeof resolveProductAnswers> | undefined;
   if (productAnswers) {
     try { resolvedAnswers = resolveProductAnswers(history, productAnswers, clientTurnId); }
@@ -60,20 +67,40 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     evidenceAssessment: resumeSavedReview ? state.evidenceAssessment : null,
     scope: state.scope?.status === "proposed" ? { ...state.scope, status: "draft" } : state.scope,
   });
-  const persist = async (next: typeof state, updateRoadmap = false) => {
+  const persist = async (next: ProductPlanning, updateRoadmap = false): Promise<ProductPlanning> => {
     const renewed = next?.lease?.id === clientTurnId
       ? { ...next, lease: { ...next.lease, expiresAt: new Date(Date.now() + 240_000).toISOString() } }
       : next!;
     state = updateRoadmap
       ? await saveProductPatchWithRoadmap(admin, projectId, ownerId, state!, renewed)
       : await saveProductPlanning(admin, projectId, ownerId, state!, renewed);
+    return state;
+  };
+  const commitCandidate = async (next: ProductPlanning, items: FunctionalItem[], removeKeys: string[]): Promise<ProductPlanning> => {
+    const current = state!;
+    const saved = { ...next, revision: current.revision + 1, lastProposalOperationId: clientTurnId,
+      lease: { id: clientTurnId, expiresAt: new Date(Date.now() + 240_000).toISOString() } };
+    const { error } = await admin.rpc("update_product_functional_plan", {
+      input_project_id: projectId, input_owner_id: ownerId, input_revision: current.revision,
+      input_state: saved, input_items: items, input_remove_keys: removeKeys,
+    });
+    if (error) {
+      if (error.code === "40001") throw new PlanningConflict("The product plan changed in another turn. Review the current flow.");
+      throw error;
+    }
+    state = saved;
+    return saved;
   };
   const enqueueProjectDesign = async () => {
     if (earlyDesignMode() === "off" || !state || !mayPrepareProjectDesign(state)) return;
-    const key = projectDesignPreparationKey(state, null);
-    await tasks.trigger("prepare-project-design", { projectId, ownerId, queuedAt: new Date().toISOString() }, {
-      idempotencyKey: `project-design:${projectId}:${key}`, idempotencyKeyTTL: "1d",
-    }).catch(() => undefined);
+    try {
+      const { idempotencyKey } = await projectDesignTaskIdentity(state, projectId);
+      await tasks.trigger("prepare-project-design", { projectId, ownerId, queuedAt: new Date().toISOString() }, {
+        idempotencyKey, idempotencyKeyTTL: "1d",
+      });
+    } catch {
+      // Speculative preparation never blocks the approval card or planning turn.
+    }
   };
   let progressMessageId: string | null = null;
   let workTrace: WorkTrace | null = null;
@@ -189,6 +216,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     const answeredKeys = [...new Set([...(state.resolvedDecisionKeys ?? []), ...resolvedDecisionKeys([
       ...history, ...(productAnswers ? [{ id: userMessageId, role: "user", metadata: { productAnswers } }] : []),
     ])])].slice(-500);
+    const assessmentTrace: Array<{ stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number }> = [];
     await reportProgress("Evaluating product scope", "Checking core capabilities, actors, and constraints...");
     const assessment = resumeSavedReview ? state.evidenceAssessment! : productAnswers
       ? {
@@ -208,6 +236,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           history: conversation,
           reference,
           resolvedDecisionKeys: answeredKeys,
+          onTrace: event => { assessmentTrace.push(event); onTrace?.(event); },
         });
     await persist({ ...state, designerVersion: 2, resolvedDecisionKeys: answeredKeys, evidenceAssessment: assessment });
     if (!assessment.productReady && assessment.gaps.length > 0) {
@@ -237,6 +266,32 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       });
     }
     const isReconstruction = state.phase !== "canvas" && state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
+    if (state.planningProtocol === "proposal_v1" && process.env.DRAWGLE_DESIGN_FLOW_PLANNER === "proposal"
+      && !isReconstruction && state.phase === "discovery") {
+      const result = await runProposalPlanner({
+        admin, projectId, ownerId, clientTurnId, userMessageId, prompt: effectivePrompt,
+        originalRequest, assessment, history, conversation, resumeSavedReview,
+        getState: () => state!, persist, commit: commitCandidate,
+        enqueueProjectDesign, progress: (title, detail) => reportProgress(title, detail), onTrace,
+      });
+      const modelMessage = await insertProjectMessage(admin, { projectId, ownerId, role: "model",
+        content: result.reply, metadata: { clientTurnId, userMessageId, productTurnComplete: clientTurnId,
+          ...(result.failure ? { productPlanningFailure: result.failure } : {}),
+          planningPerformanceV1: [...assessmentTrace, ...result.performance],
+          productScopeProposal: state.scope?.status === "proposed"
+            ? { scope: state.scope, revision: state.revision, surfaces: activeFacts(state, "surfaces") } : null,
+        } });
+      await persist({ ...state, initialTurnComplete: true, lease: null });
+      await enqueueProjectDesign();
+      await enqueueScopePreparation(admin, projectId, ownerId, state).catch(() => undefined);
+      await reportProgress(result.failure ? "Planning stopped" : "Product design ready", result.reply,
+        result.failure ? "failed" : "completed");
+      if (enqueueMemory) await persistProjectMessageMemoryPair({ admin, userMessageId,
+        userContent: effectivePrompt, modelMessageId: modelMessage.id,
+        modelContent: productMessageContext({ content: result.reply, metadata: {} }) })
+        .catch((error) => console.error("Could not enqueue product conversation memory", error));
+      return { intent: "product_planning", message: result.reply };
+    }
     const planningSnapshot = () => {
       const current = state!;
       return JSON.stringify({

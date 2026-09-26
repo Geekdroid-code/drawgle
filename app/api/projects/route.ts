@@ -25,6 +25,9 @@ export async function POST(request: Request) {
     if (existing) return NextResponse.json(existing.owner_id === user.id ? { projectId: existing.id } : { error: "Request already used." }, { status: existing.owner_id === user.id ? 200 : 409 });
     const imagePath = input.image ? await storePlanningReference(admin, user.id, input.image, input.imageReferenceMode) : null;
     const planning = createProductPlanning({ originalRequest: input.prompt, recreationRequest: input.image && input.imageReferenceMode === "recreate" ? input.prompt : undefined, imagePath, imageReferenceMode: input.imageReferenceMode, stylePresetSlug: input.stylePresetSlug ?? null });
+    if (process.env.DRAWGLE_DESIGN_FLOW_PLANNER === "proposal" && input.imageReferenceMode !== "recreate") {
+      planning.planningProtocol = "proposal_v1";
+    }
     const { data: projectId, error } = await admin.rpc("create_planning_project", {
       input_project_id: input.clientRequestId, input_owner_id: user.id,
       input_name: input.prompt.split(/\s+/).slice(0, 7).join(" ").slice(0, 100) || "New project",

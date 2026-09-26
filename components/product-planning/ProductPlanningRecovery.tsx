@@ -13,11 +13,12 @@ export function ProductPlanningRecovery({ active, disabled, onSubmit, modeError 
   const turnId = useRef<string | null>(null);
   const submitting = useRef(false);
   if (implementationQuestion && !active) return null;
+  const specificFlowFailure = failure && ["proposal", "screen_flow", "flow_review", "propose_scope"].includes(failure.stage);
   return <section className="mx-4 mb-4 rounded-xl border border-slate-950/10 p-3 text-xs leading-5 text-slate-500">
     <p>{modeError ? "That mode question was shown in error. Your project’s selected mode will be used."
       : implementationQuestion ? "Those questions are not needed for screen design. Continue without answering them."
-      : failure?.stage === "propose_scope" && failure.issues?.length
-        ? `I saved the screen plan. I’m checking this flow gap: ${failure.issues[0]}`
+      : specificFlowFailure
+        ? `Screen-flow review: ${failure.issues?.[0] ?? failure.summary}`
         : failure?.stage === "update_product"
           ? "A saved product fact needs a specific correction. Continue from the existing roadmap and decisions."
           : "Continue from the saved decisions and roadmap. You’ll review the scope before any generation starts."}</p>

@@ -16,6 +16,7 @@ const keys = { type: Type.ARRAY, items: text };
 // from being mistaken for sufficient product understanding. No industry rules or screen planner.
 export async function reviewProductReadiness(state: ProductPlanning, userMessage: string, context?: {
   history: Array<{ role: string; content: string }>; roadmap: FunctionalItem[];
+  onTrace?: (event: { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number }) => void;
 }): Promise<{ ready: boolean; issues: string[]; coverage?: FlowReview }> {
   if (planningReferenceContext(state).assessmentMode === "recreate") return { ready: true, issues: [] };
   const roadmap = context?.roadmap ?? state.scope?.manifest ?? [];
@@ -44,11 +45,15 @@ If insufficient, return actionable SCREEN or FLOW gaps the designer can resolve 
       }, required: ["journeyId", "actorId", "jobId", "outcome", "outputKeys", "entryKey", "completionKeys"] } },
     }, required: ["ready", "issues", "requestedScope", "scopeEvidence", "journeys"] },
   });
+  const started = Date.now();
   const response = await createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
     contents: [{ role: "user", parts: [{ text: JSON.stringify({ contentContract: compileProductContent(state), blueprint: activeFacts(state), currentDesignScope: state.scope,
       flowGraph: graph,
       conversation: context?.history ?? [], userScopeEvidence: userMessages, wholeProductRoadmap: roadmap, functionalManifest: state.scope?.manifest, evidenceAssessment: state.evidenceAssessment, experience: state.experience, latestUserMessage: userMessage }) }] }],
   });
+  context?.onTrace?.({ stage: "coverage_review", elapsedMs: Date.now() - started,
+    inputTokens: response.usageMetadata?.promptTokenCount,
+    outputTokens: response.usageMetadata?.candidatesTokenCount });
   const review = flowReviewSchema.parse(JSON.parse(response.text || "{}"));
   if (!review.ready && !review.issues.length) throw new Error("Product readiness review returned no explanation. Try the review again before proposing.");
   const issues = [...review.issues, ...validateJourneyCoverage(state, roadmap, review, userMessages)];

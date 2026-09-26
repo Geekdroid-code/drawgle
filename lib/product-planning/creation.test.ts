@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ existing: null as { id: string; owner_id: string } | null, rpc: vi.fn(), store: vi.fn(), user: { id: "owner" } as { id: string } | null }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: mocks.user } }) } }) }));
@@ -11,6 +11,16 @@ const projectId = "11111111-1111-4111-8111-111111111111";
 const request = (extra: Record<string, unknown> = {}) => new Request("http://localhost/api/projects", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientRequestId: projectId, prompt: "Tacozz T-shirts", stylePresetSlug: "minimal", ...extra }) });
 describe("real project creation before generation", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.existing = null; mocks.user = { id: "owner" }; mocks.rpc.mockResolvedValue({ data: projectId, error: null }); });
+  afterEach(() => vi.unstubAllEnvs());
+  it("marks only new standard projects for the proposal protocol", async () => {
+    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "proposal");
+    await POST(request());
+    expect(mocks.rpc.mock.calls[0][1].input_product_planning.planningProtocol).toBe("proposal_v1");
+    mocks.rpc.mockClear();
+    mocks.store.mockResolvedValueOnce("owner/prompt-images/upload.webp");
+    await POST(request({ image: { data: "pixels", mimeType: "image/png" }, imageReferenceMode: "recreate" }));
+    expect(mocks.rpc.mock.calls[0][1].input_product_planning.planningProtocol).toBeUndefined();
+  });
   it("atomically persists the initial prompt and planning state without requesting generation", async () => {
     const response = await POST(request());
     expect(response.status).toBe(201);
