@@ -29,6 +29,7 @@ import { inspectProductReference } from "./inspect-reference";
 import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope, saveProductPatchWithRoadmap } from "./functional-store";
 import { reconstructionInstructions, reconstructionProductContext } from "./reconstruction";
 import { updateWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
+import { earlyDesignMode, mayPrepareProjectDesign, projectDesignPreparationKey } from "./project-design-preparation";
 
 export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, resumeReview = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
   admin: PlanningStore; projectId: string; ownerId: string; prompt: string; originalPrompt?: string;
@@ -65,6 +66,13 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     state = updateRoadmap
       ? await saveProductPatchWithRoadmap(admin, projectId, ownerId, state!, renewed)
       : await saveProductPlanning(admin, projectId, ownerId, state!, renewed);
+  };
+  const enqueueProjectDesign = async () => {
+    if (earlyDesignMode() === "off" || !state || !mayPrepareProjectDesign(state)) return;
+    const key = projectDesignPreparationKey(state, null);
+    await tasks.trigger("prepare-project-design", { projectId, ownerId, queuedAt: new Date().toISOString() }, {
+      idempotencyKey: `project-design:${projectId}:${key}`, idempotencyKeyTTL: "1d",
+    }).catch(() => undefined);
   };
   let progressMessageId: string | null = null;
   let workTrace: WorkTrace | null = null;
@@ -340,6 +348,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
                 referenceSource: !inspected.experience.referencePath ? "none" : inspected.experience.referenceId || state.input.referenceSource === "curated" ? "curated" : "user",
                 imageReferenceMode: state.input.imagePath ? state.input.imageReferenceMode : "style" },
               scope: state.scope ? { ...state.scope, status: "draft" } : null });
+            await enqueueProjectDesign();
             result = { ok: true, experience: inspected.experience };
           } else if (call.name === "propose_scope") {
             if (!evidenceAllowsProposal(state.evidenceAssessment)) throw new Error("Discuss the evidence assessment's unresolved questions with the user first.");
@@ -418,9 +427,11 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       productScopeProposal: state.scope?.status === "proposed" ? { scope: state.scope, revision: state.revision, surfaces: activeFacts(state, "surfaces") } : null,
     } });
     await persist({ ...state, initialTurnComplete: true, lease: null });
+    await enqueueProjectDesign();
     if (state.scope?.status === "proposed" && state.phase === "discovery"
       && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true") {
-      await tasks.trigger("prepare-product-scope", { projectId, ownerId, contentRevision: state.contentRevision ?? 0 }, {
+      await tasks.trigger("prepare-product-scope", { projectId, ownerId, contentRevision: state.contentRevision ?? 0,
+        queuedAt: new Date().toISOString() }, {
         idempotencyKey: `scope-preparation:${projectId}:${state.contentRevision ?? 0}`,
         idempotencyKeyTTL: "1d",
       }).catch(() => undefined);

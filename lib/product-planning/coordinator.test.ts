@@ -107,6 +107,18 @@ describe("durable approved-flow coordinator", () => {
     expect(mocks.child).not.toHaveBeenCalled();
     expect(mocks.tables.generation_runs[0].status).toBe("failed");
   });
+  it("starts the first approved screen with a completed brief while assets are pending", async () => {
+    process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED = "true";
+    const input = payload();
+    const keys = input.productPlanning.scope!.manifest!.map(item => item.stableKey);
+    mocks.tables.product_scope_preparations = [{ project_id: project, owner_id: owner,
+      preparation_key: scopePreparationKey(input.productPlanning, keys, { designTokens: null, navigationPlan: null, charter: null }),
+      design_tokens: {}, plan: { screens: [], charter: {}, navigationPlan: {} }, asset_requirements: [], assets_ready: false,
+      expires_at: new Date(Date.now() + 60_000).toISOString() }];
+    expect(await invoke(input)).toEqual({ completed: true });
+    expect(mocks.child.mock.calls[0][1].productExecutionKeys).toEqual(["screen:0"]);
+    expect(mocks.child.mock.calls[0][1].productScopePreparationKeys).toEqual(keys);
+  });
   it("prepares the next batch selection without truncating a thirteen-screen approval", async () => {
     const input = payload();
     input.productPlanning.scope!.manifest = Array.from({ length: 13 }, (_, index) => functionalFixture(`screen:${index}`, `Screen ${index}`, index));

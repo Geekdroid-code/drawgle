@@ -26,7 +26,11 @@ import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
 import { recreationFrameChrome } from "@/lib/product-planning/recreation-frames";
 import { preparedPlanKey, readPreparedPlan, savePreparedPlan } from "@/lib/product-planning/prepared-plans";
-import { readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
+import { assetsForScopePlan, projectScopePlanForKeys, readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
+import { earlyDesignMode, projectDesignPreparationKey,
+  readProjectDesignPreparation } from "@/lib/product-planning/project-design-preparation";
+import { generateProjectDesign } from "@/lib/product-planning/generate-project-design";
+import { designRequirementsKey } from "@/lib/product-planning/design-requirements";
 import { scopedGenerationPrompt, productScopeContract, groundCharterInProduct } from "@/lib/product-planning/generation-context";
 import { compileProductContent } from "@/lib/product-planning/content-contract";
 import { approvedOutputKind, validateExecutionProduct } from "@/lib/product-planning/execution-contract";
@@ -147,6 +151,7 @@ export type GenerateUiFlowPayload = {
   productPlanning?: ProductPlanning | null;
   productContextSnapshot?: ProductPlanning | null;
   productExecutionKeys?: string[];
+  productScopePreparationKeys?: string[];
   productLookaheadKeys?: string[];
   productAttempt?: number;
   productContent?: string | null;
@@ -2172,20 +2177,25 @@ export const generateUiFlowTask = task({
       payload.navigationArchitecture = null;
       payload.navigationPlan = null;
       payload.requiresBottomNav = false;
-    } else if (!designTokens && projectTokens) {
+    } else if (projectTokens && (earlyDesignMode() === "on" || !designTokens)) {
+      // In the new path a saved user edit outranks a speculative token candidate.
       designTokens = projectTokens;
     }
+    const scopePreparationKeys = payload.productScopePreparationKeys ?? payload.productExecutionKeys;
     const scopePreparation = !screenScoped && !exactRecreation && payload.productPlanning?.scope?.status === "approved"
-      && payload.productExecutionKeys?.length && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
+      && scopePreparationKeys?.length && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
       ? await readScopePreparation(admin, payload.projectId, payload.ownerId,
-        scopePreparationKey(payload.productPlanning, payload.productExecutionKeys, {
+        scopePreparationKey(payload.productPlanning, scopePreparationKeys, {
           designTokens: projectTokens ?? null, navigationPlan: payload.navigationPlan ?? null,
           charter: existingCharter,
         })).catch(() => null)
       : null;
     if (payload.productPlanning?.scope?.status === "approved" && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true") {
       await mergeGenerationPerformance(admin, payload.generationRunId, {
-        preparation: scopePreparation ? "hit" : "miss",
+        preparation: scopePreparation ? (scopePreparation.assetsReady ? "complete" : "plan_ready") : "miss",
+        ...(scopePreparation ? { planReadyAt: scopePreparation.planReadyAt,
+          assetPlanReadyAt: scopePreparation.assetsReadyAt,
+          scopePreparationQueuedAt: scopePreparation.queuedAt } : { preparationMissReason: "no_matching_scope_snapshot" }),
       });
     }
     if (scopePreparation && !designTokens) designTokens = scopePreparation.designTokens;
@@ -2509,6 +2519,30 @@ export const generateUiFlowTask = task({
 
     const designStartedAt = now();
     const designStartedMs = Date.now();
+    const useProjectWideTokens = earlyDesignMode() === "on" && !screenScoped && !exactRecreation && Boolean(productPlanning);
+    let usedPreparedProjectTokens = false;
+    let skipPreparedTokenReview = Boolean(scopePreparation && !projectTokens && designTokens === scopePreparation.designTokens);
+    if (useProjectWideTokens && !designTokens && productPlanning) {
+      const key = projectDesignPreparationKey(productPlanning, publishedStylePreset?.version ?? null);
+      const currentState = readProductPlanning(existingProject?.product_planning);
+      const matchesCurrent = !currentState
+        || projectDesignPreparationKey(currentState, publishedStylePreset?.version ?? null) === key;
+      const prepared = matchesCurrent
+        ? await readProjectDesignPreparation(admin, payload.projectId, payload.ownerId, key).catch(() => null) : null;
+      if (prepared && prepared.requirementsKey === designRequirementsKey(productPlanning)) {
+        designTokens = prepared.designTokens;
+        usedPreparedProjectTokens = true;
+        skipPreparedTokenReview = true;
+        await mergeGenerationPerformance(admin, payload.generationRunId, {
+          designPreparation: "hit", tokenPreparedAt: prepared.preparedAt,
+          designPreparationQueuedAt: prepared.queuedAt,
+        });
+      } else {
+        await mergeGenerationPerformance(admin, payload.generationRunId, {
+          designPreparation: "miss", designPreparationMissReason: matchesCurrent ? "not_ready" : "visual_input_changed",
+        });
+      }
+    }
     if (!designTokens && screenScoped) throw new Error("Establish the project design system before generating additional screens. This attachment cannot replace project tokens.");
     if (!designTokens) {
       setJournalPhase(generationJournal, "design", "active", "Extracting the visual system and token direction.");
@@ -2526,16 +2560,22 @@ export const generateUiFlowTask = task({
         },
       );
 
-      designTokens = await generateDesignTokens({
-        prompt: payload.prompt,
-        image: promptImage,
-        referenceMode,
-        referenceId,
-        designStyle,
-        referenceAnalysis,
-        designRequirements: referenceMode === "user_recreate" ? null : compileDesignRequirements(productPlanning, referenceMode),
-        llmLog: llmLogFor("design"),
-      });
+      if (useProjectWideTokens && productPlanning) {
+        designTokens = (await generateProjectDesign(productPlanning, { image: promptImage,
+          referenceMode, referenceId, designStyle, llmLog: llmLogFor("design") })).designTokens;
+        skipPreparedTokenReview = true;
+      } else {
+        designTokens = await generateDesignTokens({
+          prompt: payload.prompt,
+          image: promptImage,
+          referenceMode,
+          referenceId,
+          designStyle,
+          referenceAnalysis,
+          designRequirements: referenceMode === "user_recreate" ? null : compileDesignRequirements(productPlanning, referenceMode),
+          llmLog: llmLogFor("design"),
+        });
+      }
 
       if (exactRecreation && currentSourceHash) {
         designTokens = {
@@ -2547,7 +2587,7 @@ export const generateUiFlowTask = task({
         };
       }
 
-      if (!screenScoped && productPlanning && referenceMode !== "user_recreate") {
+      if (!skipPreparedTokenReview && !screenScoped && productPlanning && referenceMode !== "user_recreate") {
         designTokens = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
       }
 
@@ -2573,7 +2613,8 @@ export const generateUiFlowTask = task({
       setJournalPhase(generationJournal, "design", "completed", "Design tokens are ready for the build.");
       await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
     } else {
-      if (!screenScoped && productPlanning && designTokens && referenceMode !== "user_recreate") {
+      if (usedPreparedProjectTokens) await saveGeneratedTokens(designTokens);
+      if (!skipPreparedTokenReview && !screenScoped && productPlanning && designTokens && referenceMode !== "user_recreate") {
         const reconciled = await reconcileTokensWithDesignRequirements(designTokens, productPlanning);
         if (reconciled !== designTokens) {
           designTokens = reconciled;
@@ -2675,7 +2716,10 @@ export const generateUiFlowTask = task({
     const preparationRootId = payload.productExecutionKeys ? payload.retryContext?.sourceGenerationRunId : null;
     const preparationKey = payload.productPlanning && payload.productExecutionKeys
       ? preparedPlanKey(payload.productPlanning, payload.productExecutionKeys, { designTokens, navigationPlan: payload.navigationPlan ?? null, charter: payload.projectCharter ?? null }) : null;
-    const preparedPlan = scopePreparation?.plan ?? (preparationRootId && preparationKey
+    const scopePlan = scopePreparation && payload.productPlanning && scopePreparationKeys && payload.productExecutionKeys
+      ? projectScopePlanForKeys(scopePreparation.plan, payload.productPlanning,
+        scopePreparationKeys, payload.productExecutionKeys, referenceMode) : null;
+    const preparedPlan = scopePlan ?? (preparationRootId && preparationKey
       ? await readPreparedPlan(admin, preparationRootId, payload.ownerId, preparationKey) : null);
     let plan = preparedPlan ?? (hasSeedScreens
       ? {
@@ -3142,7 +3186,12 @@ export const generateUiFlowTask = task({
 
     const assetPlanningStartedAt = now();
     const assetPlanningStartedMs = Date.now();
-    const assetRequirements = retryOnlyStateVariants ? [] : scopePreparation?.assetRequirements ?? await planVisualAssets({
+    // A plan may become fully prepared after the coordinator selected its
+    // first-screen fallback. Never resolve later screens' assets in that child.
+    const preparedAssetRequirements = scopePlan && scopePreparation?.assetRequirements
+      ? assetsForScopePlan(scopePlan, scopePreparation.plan, scopePreparation.assetRequirements)
+      : null;
+    const assetRequirements = retryOnlyStateVariants ? [] : preparedAssetRequirements ?? await planVisualAssets({
       prompt: payload.prompt,
       screens: plan.screens,
       charter: plan.charter,

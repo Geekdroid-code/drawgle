@@ -80,7 +80,7 @@ export const generateProductFlowTask = task({
         : null;
       // On an immediate Build before preparation finishes, plan and reveal the
       // first screen without waiting for briefs and assets for the whole batch.
-      const batch = claims.length === 0 && fullBatch.length > 1 && !warm
+      const batch = claims.length === 0 && fullBatch.length > 1 && !warm?.assetsReady
         && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
         ? nextProductBatch(manifest, claims, 1, existingOutputs.map(output => output.item.stableKey), recreate)
         : fullBatch;
@@ -109,6 +109,7 @@ export const generateProductFlowTask = task({
       const reusableOutputs = await reusableProductOutputs(admin, payload.projectId, payload.ownerId, batch, recreate);
       const child: GenerateUiFlowPayload = {
         ...payload, referenceScope: state.phase === "canvas" ? "screen" : "project", imageReferenceMode: recreate ? "recreate" : "style", imagePath: reference.imagePath, generationRunId: batchId, productPlanning: state, productExecutionKeys: executionKeys,
+        ...(warm && !warm.assetsReady ? { productScopePreparationKeys: fullBatch.map(item => item.stableKey) } : {}),
         productLookaheadKeys: nextProductBatch(manifest, [
           ...claims.filter(claim => !executionKeys.includes(claim.output_key)),
           ...batch.map(item => ({ output_key: item.stableKey, generation_run_id: batchId, status: "ready" as const, screen_id: null })),
