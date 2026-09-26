@@ -31,10 +31,29 @@ describe("evidence assessment boundary", () => {
     expect(assessment.gaps).toEqual([]);
     expect(evidenceAllowsProposal(assessment)).toBe(true);
   });
-  it("rejects fabricated delegation after one internal repair", async () => {
+  it("drops fabricated delegation after one internal repair without stopping prompt-only planning", async () => {
     mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, delegation: "Decide everything" }) });
-    await expect(assessProductEvidence({ state: designerFixture(), prompt: "Premium", turnId: "turn", history: [], reference: null })).rejects.toThrow(/validate/);
+    const result = await assessProductEvidence({ state: designerFixture(), prompt: "Premium", turnId: "turn", history: [], reference: null });
+    expect(result).toMatchObject({ productReady: true, gaps: [], delegation: "" });
     expect(mocks.generate).toHaveBeenCalledTimes(2);
+  });
+  it("never returns a blocking question without renderable choices", async () => {
+    mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, productReady: false, gaps: [{
+      area: "product", decisionKey: "home-entry", decisionType: "screen_flow", requiresUserInput: true,
+      whyUserMustDecide: "The entry changes", question: "Which screen should families see first?",
+      consequence: "Changes the visible flow",
+    }] }) });
+    const result = await assessProductEvidence({ state: designerFixture(), prompt: "Design a family app", turnId: "turn", history: [], reference: null });
+    expect(result).toMatchObject({ productReady: true, experienceReady: true, gaps: [] });
+    expect(mocks.generate).toHaveBeenCalledTimes(2);
+  });
+  it("keeps exact recreation strict when frame assessment cannot be validated", async () => {
+    const state = designerFixture();
+    state.input.imagePath = "owner/reference.png";
+    state.input.imageReferenceMode = "recreate";
+    mocks.generate.mockResolvedValue({ text: "{}" });
+    await expect(assessProductEvidence({ state, prompt: "Recreate these frames", turnId: "turn",
+      history: [], reference: { data: "pixels", mimeType: "image/png" } })).rejects.toThrow(/source-frame selection/);
   });
   it("does not ask about supplied screens for a legacy prompt-only project marked recreate", async () => {
     const state = designerFixture(); state.input.imagePath = null; state.input.imageReferenceMode = "recreate";

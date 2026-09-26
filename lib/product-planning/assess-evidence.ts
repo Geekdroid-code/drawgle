@@ -57,11 +57,21 @@ Set ready flags false only for retained screen-specific gaps. When ready, give a
   const ai = createGeminiClient();
   const normalize = (text: string) => text.toLowerCase().replace(/[“”‘’"']/g, "").replace(/\s+/g, " ").trim();
   const userMessages = [input.prompt, ...input.history.filter(message => message.role === "user").map(message => message.content)];
-  // Validate and repair once internally. Invalid application-state questions are never shown.
+  const optionalAssessmentFallback = () => evidenceAssessmentSchema.parse({ turnId: input.turnId, mode: context.assessmentMode,
+    modeChangeEvidence: "", productReady: true, experienceReady: true, gaps: [], recommendations: [],
+    screenFlowPreview: [], delegation: "", rationale: "Optional screen-question assessment unavailable; review the saved flow before approval." });
+  // Questions are optional assistance. Never let an unrenderable card become a
+  // mandatory planning state that the user has no way to answer.
   let repair = "";
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await ai.models.generateContent({ model: policy.model, config: policy.config, contents: repair
-      ? [...contents, { role: "user", parts: [{ text: repair }] }] : contents });
+    let response: Awaited<ReturnType<typeof ai.models.generateContent>>;
+    try {
+      response = await ai.models.generateContent({ model: policy.model, config: policy.config, contents: repair
+        ? [...contents, { role: "user", parts: [{ text: repair }] }] : contents });
+    } catch (error) {
+      if (context.assessmentMode === "recreate") throw error;
+      return optionalAssessmentFallback();
+    }
     try {
       const raw = JSON.parse(response.text || "{}");
       const result = evidenceAssessmentSchema.parse({ ...raw, mode: context.assessmentMode, modeChangeEvidence: "", turnId: input.turnId });
@@ -69,11 +79,18 @@ Set ready flags false only for retained screen-specific gaps. When ready, give a
       if (result.delegation && !userMessages.some(message => normalize(message).includes(normalize(result.delegation)))) {
         throw new Error("Delegation must quote an exact contiguous user statement. Leave it empty if none exists.");
       }
-      if (result.gaps.length && isObsoleteModeQuestion(productQuestionsSchema.parse(result.gaps))) throw new Error("Do not ask users to reconfirm the application mode.");
-      return resolveDiscoveryDecisions(result, input.resolvedDecisionKeys ?? []);
+      const resolved = resolveDiscoveryDecisions(result, input.resolvedDecisionKeys ?? []);
+      if (resolved.gaps.length) {
+        const cards = productQuestionsSchema.parse(resolved.gaps);
+        if (isObsoleteModeQuestion(cards)) throw new Error("Do not ask users to reconfirm the application mode.");
+      }
+      return resolved;
     } catch (error) {
       repair = `Reassess using authoritative referenceContext ${JSON.stringify(context)}. The previous response failed validation: ${error instanceof Error ? error.message : "Invalid assessment"}. Return valid JSON for product/experience readiness. Do not invent evidence or ask the user to resolve application state.`;
     }
   }
-  throw new Error("Drawgle couldn’t validate the screen-design questions. Your project is saved; please retry.");
+  if (context.assessmentMode === "recreate") throw new Error("Drawgle couldn’t validate the requested source-frame selection. Your project is saved; please retry.");
+  // The independent scope and flow review still runs before an approval card.
+  // Do not invent question choices or treat a malformed card as user intent.
+  return optionalAssessmentFallback();
 }

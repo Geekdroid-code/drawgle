@@ -4,6 +4,7 @@ import { type PlanningStore, PlanningConflict, saveProductPlanning } from "./sto
 import { activeFacts, type ProductPlanning } from "./model";
 import { ProductToolError } from "./tool-failure";
 import { outputRendering, validateNewOutputPolicy } from "./output-policy";
+import { reconcileFunctionalFactReferences } from "./functional-fact-references";
 
 export async function readFunctionalRoadmap(admin: PlanningStore, projectId: string, ownerId: string): Promise<FunctionalItem[]> {
   const { data, error } = await admin.from("project_screen_roadmap").select("metadata")
@@ -83,69 +84,7 @@ export async function updateFunctionalRoadmap(admin: PlanningStore, projectId: s
   validateNewOutputPolicy(delta.items, recreate);
   delta.items.forEach(item => { item.rendering = outputRendering(item, recreate); });
 
-  const humanizeLabel = (id: string) =>
-    id.replace(/^surface[-_:]?|^journey[-_:]?|^screen[-_:]?/i, "")
-      .replace(/[-_:]+/g, " ")
-      .replace(/\b\w/g, char => char.toUpperCase()).trim() || "Main";
-
-  const surfaces = new Set(activeFacts(state, "surfaces").map(f => f.id));
-  const journeys = new Set(activeFacts(state, "journeys").map(f => f.id));
-  const facts = new Set(activeFacts(state).map(f => f.id));
-
-  // Auto-provision missing surfaces and journeys so planning never deadlocks
-  for (const item of delta.items) {
-    if (!item.surfaceIds?.length) {
-      item.surfaceIds = surfaces.size ? [[...surfaces][0]] : ["surface-main"];
-    }
-    for (const surfaceId of item.surfaceIds) {
-      if (!surfaces.has(surfaceId)) {
-        const label = humanizeLabel(surfaceId);
-        state.blueprint.facts.push({
-          id: surfaceId,
-          section: "surfaces",
-          label,
-          detail: `${label} application surface`,
-          source: "assumption",
-          evidence: "",
-          provenance: { basis: "inferred", recommendationMessageId: null },
-          links: [],
-          blocking: false,
-          status: "active",
-          supersededBy: null,
-          messageId: null,
-        });
-        surfaces.add(surfaceId);
-        facts.add(surfaceId);
-      }
-    }
-
-    if (!item.journeyIds?.length) {
-      item.journeyIds = journeys.size ? [[...journeys][0]] : ["journey-main"];
-    }
-    for (const journeyId of item.journeyIds) {
-      if (!journeys.has(journeyId)) {
-        const label = humanizeLabel(journeyId);
-        state.blueprint.facts.push({
-          id: journeyId,
-          section: "journeys",
-          label,
-          detail: `User journey for ${label}`,
-          source: "assumption",
-          evidence: "",
-          provenance: { basis: "inferred", recommendationMessageId: null },
-          links: [],
-          blocking: false,
-          status: "active",
-          supersededBy: null,
-          messageId: null,
-        });
-        journeys.add(journeyId);
-        facts.add(journeyId);
-      }
-    }
-
-    item.decisionIds = (item.decisionIds ?? []).filter(id => facts.has(id));
-  }
+  const workingState = reconcileFunctionalFactReferences(state, delta.items);
 
   const current = await readFunctionalRoadmap(admin, projectId, ownerId);
   const byKey = new Map(current.map(item => [item.stableKey, item]));
@@ -156,7 +95,7 @@ export async function updateFunctionalRoadmap(admin: PlanningStore, projectId: s
   const healedMap = new Map(healedAll.map(item => [item.stableKey, item]));
   const itemsToSave = delta.items.map(item => healedMap.get(item.stableKey) ?? item);
 
-  const next = { ...state, revision: state.revision + 1, contentRevision: (state.contentRevision ?? 0) + 1, scope: state.scope ? { ...state.scope, status: "draft" as const, manifest: undefined, journeyCoverage: undefined, requestedScope: undefined, scopeEvidence: undefined, reviewIssues: undefined, approvedRevision: null } : null };
+  const next = { ...workingState, revision: state.revision + 1, contentRevision: (state.contentRevision ?? 0) + 1, scope: state.scope ? { ...state.scope, status: "draft" as const, manifest: undefined, journeyCoverage: undefined, requestedScope: undefined, scopeEvidence: undefined, reviewIssues: undefined, approvedRevision: null } : null };
   const { error } = await admin.rpc("update_product_functional_plan", {
     input_project_id: projectId, input_owner_id: ownerId, input_revision: state.revision,
     input_state: next, input_items: itemsToSave, input_remove_keys: delta.removeKeys,

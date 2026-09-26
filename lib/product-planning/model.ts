@@ -115,6 +115,10 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
   const comparableFact = (fact: ProductFact) => JSON.stringify({ section: fact.section, label: fact.label, detail: fact.detail,
     source: fact.source, evidence: fact.evidence, links: fact.links, blocking: fact.blocking,
     decisionKey: fact.decisionKey, designDecisionType: fact.designDecisionType, provenance: fact.provenance });
+  const sameDecision = (a: ProductFact, b: ProductFact) => JSON.stringify({ section: a.section, label: a.label, detail: a.detail,
+    source: a.source, links: a.links, blocking: a.blocking, decisionKey: a.decisionKey, designDecisionType: a.designDecisionType })
+    === JSON.stringify({ section: b.section, label: b.label, detail: b.detail,
+      source: b.source, links: b.links, blocking: b.blocking, decisionKey: b.decisionKey, designDecisionType: b.designDecisionType });
   for (const operation of operations) {
     if (operation.op === "set_reference_preference") {
       changed = true;
@@ -141,7 +145,26 @@ export function applyProductPatch(state: ProductPlanning, value: unknown, messag
     }
     if (operation.op === "supersede_fact") {
       const previous = next.blueprint.facts.find((fact) => fact.id === operation.id && fact.status === "active");
-      if (!previous) throw new ProductToolError(`Active fact ${operation.id} does not exist. Read current fact IDs before superseding.`, "FACT_NOT_ACTIVE", { factId: operation.id });
+      if (!previous) {
+        const retired = next.blueprint.facts.find(fact => fact.id === operation.id && fact.status === "superseded");
+        if (retired) {
+          // A model response can repeat an operation after its first write, or
+          // include the same supersession twice. Identical intent is a no-op,
+          // never another renamed copy of the decision.
+          if (!operation.replacement) continue;
+          const intended = productFactSchema.parse({ ...operation.replacement, status: "active", supersededBy: null, messageId });
+          let successor = retired.supersededBy ? next.blueprint.facts.find(fact => fact.id === retired.supersededBy) : null;
+          const seen = new Set([retired.id]);
+          while (successor?.status === "superseded" && successor.supersededBy && !seen.has(successor.id)) {
+            seen.add(successor.id);
+            successor = next.blueprint.facts.find(fact => fact.id === successor!.supersededBy);
+          }
+          if (successor?.status === "active" && sameDecision(successor, intended)) continue;
+          throw new ProductToolError(`Fact ${operation.id} was already superseded. Use the current active decision before changing its meaning.`,
+            "FACT_NOT_ACTIVE", { factId: operation.id, currentFactId: successor?.status === "active" ? successor.id : null });
+        }
+        throw new ProductToolError(`Active fact ${operation.id} does not exist. Read current fact IDs before superseding.`, "FACT_NOT_ACTIVE", { factId: operation.id });
+      }
       changed = true;
       previous.status = "superseded";
       previous.supersededBy = operation.replacement?.id ?? null;

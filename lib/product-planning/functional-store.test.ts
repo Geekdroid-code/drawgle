@@ -60,7 +60,7 @@ describe("functional roadmap scope snapshots", () => {
     expect(tables.project_screen_roadmap).toHaveLength(2);
     expect((tables.projects[0].product_planning as { revision: number }).revision).toBe(next.revision);
   });
-  it("auto-provisions missing surfaces and journeys when updating roadmap", async () => {
+  it("does not leak provisional facts from a failed roadmap update", async () => {
     const { state, tables, admin } = fixture();
     // Clear existing surfaces to simulate project 6fcd43ee-7f80-4e94-9d64-64c9a4a1605e
     state.blueprint.facts = state.blueprint.facts.filter(f => f.section !== "surfaces");
@@ -68,17 +68,32 @@ describe("functional roadmap scope snapshots", () => {
       ...functionalFixture("screen:passenger-home", "Passenger Home", 1),
       surfaceIds: ["surface-passenger-booking"],
       journeyIds: ["journey-priority-passenger-v1"],
-      decisionIds: ["nonexistent-or-superseded-decision-id"],
+      decisionIds: [],
       actions: [{ label: "Profile", destinationKey: "screen:profile-external", outcome: "View profile" }],
     };
+    const before = structuredClone(state);
     await expect(updateFunctionalRoadmap(admin, "project", "owner", state, { items: [item], removeKeys: [] }))
       .rejects.toThrow(/missing output screen:profile-external/);
+    expect(state).toEqual(before);
     expect(tables.project_screen_roadmap.some(r => r.stable_key === "screen:passenger-home")).toBe(false);
     const next = await updateFunctionalRoadmap(admin, "project", "owner", state,
       { items: [{ ...item, actions: [{ ...item.actions[0], destinationKey: null }] }], removeKeys: [] });
     expect(next.blueprint.facts.some(f => f.id === "surface-passenger-booking" && f.section === "surfaces")).toBe(true);
     expect(next.blueprint.facts.some(f => f.id === "journey-priority-passenger-v1" && f.section === "journeys")).toBe(true);
+    expect(next.blueprint.facts.find(f => f.id === "surface-passenger-booking")?.detail).toContain("Passenger Home");
+    expect(state).toEqual(before);
     expect(tables.project_screen_roadmap.some(r => r.stable_key === "screen:passenger-home")).toBe(true);
+  });
+  it("maps retired roadmap fact IDs to active successors instead of resurrecting them", async () => {
+    const { state, admin } = fixture();
+    const changed = applyProductPatch(state, { operations: [{ op: "supersede_fact", id: "purchase", replacement: {
+      id: "purchase-v2", section: "journeys", label: "Purchase", detail: "Browse and checkout", source: "assumption", evidence: "",
+    } }] }, "11111111-1111-4111-8111-111111111111");
+    const item = { ...functionalFixture("screen:shop", "Shop", 1), journeyIds: ["purchase"] };
+    const saved = await updateFunctionalRoadmap(admin, "project", "owner", changed, { items: [item], removeKeys: [] });
+    expect(saved.blueprint.facts.filter(f => f.id === "purchase")).toHaveLength(1);
+    expect(saved.blueprint.facts.find(f => f.id === "purchase")?.status).toBe("superseded");
+    expect(saved.scope?.status).toBe("draft");
   });
   it("normalizes kind state to screen in non-recreation mode without crashing", async () => {
     const { state, tables, admin } = fixture();

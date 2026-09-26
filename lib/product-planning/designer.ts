@@ -30,6 +30,7 @@ import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope
 import { reconstructionInstructions, reconstructionProductContext } from "./reconstruction";
 import { updateWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
 import { earlyDesignMode, mayPrepareProjectDesign, projectDesignPreparationKey } from "./project-design-preparation";
+import { orderDesignerCalls } from "./designer-call-order";
 
 export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, resumeReview = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
   admin: PlanningStore; projectId: string; ownerId: string; prompt: string; originalPrompt?: string;
@@ -236,11 +237,21 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       });
     }
     const isReconstruction = state.phase !== "canvas" && state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
-    const productContext = isReconstruction ? reconstructionProductContext(state) : { ...state, blueprint: { facts: activeFacts(state) } };
+    const planningSnapshot = () => {
+      const current = state!;
+      return JSON.stringify({
+        originalUserRequest: isReconstruction ? (current.input.recreationRequest || originalPrompt) : originalPrompt,
+        referenceContext: planningReferenceContext(current),
+        currentProduct: isReconstruction ? reconstructionProductContext(current) : { ...current, blueprint: { facts: activeFacts(current) } },
+        history: history.filter(message => message.metadata.action !== "product_flow_preview")
+          .map(message => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })),
+        userMessage: effectivePrompt,
+      });
+    };
     const screenReference = state.phase === "canvas" && state.screenReference
       ? await loadPlanningReference(admin, state.screenReference.imagePath, ownerId) : null;
     const contents: Content[] = [{ role: "user", parts: [
-      { text: JSON.stringify({ originalUserRequest: isReconstruction ? (state.input.recreationRequest || originalPrompt) : originalPrompt, referenceContext: planningReferenceContext(state), currentProduct: productContext, history: history.filter(message => message.metadata.action !== "product_flow_preview").map((message) => ({ id: message.id, role: message.role, content: productMessageContext(message).slice(0, 6000) })), userMessage: effectivePrompt }) },
+      { text: planningSnapshot() },
       { text: `Independent evidence assessment: ${JSON.stringify(assessment)}. ${resumeSavedReview ? `This turn resumes the saved flow review. Repair only these issues against the existing roadmap and facts: ${JSON.stringify(state.scope?.reviewIssues)}. Preserve valid output keys and reference evidence; do not restart discovery or add duplicate product facts.` : ""} These user-dependent gaps cannot be resolved by inventing facts this turn. The chat automatically renders the questions and choices as optional interactive cards. Do not repeat them or add prose questions. Update known product truth first. Save useful designer-owned recommendations as tentative preference facts, superseding any earlier conflicting recommendation; never treat them as user-confirmed or ask for cosmetic decisions. Do not present a final screen list or claim readiness while gaps remain.` },
       ...(screenReference ? [{ text: SCREEN_REFERENCE_INSTRUCTION }, { inlineData: { data: screenReference.data, mimeType: screenReference.mimeType } }, { text: "The following image, if present, is the established PROJECT reference, not the current attachment." }] : []),
       ...(reference ? [{ inlineData: { data: reference.data, mimeType: reference.mimeType } }] : []),
@@ -259,6 +270,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     let repairRequests = 0;
     let referenceRecovery = false;
     const factIds = createDesignerFactIds();
+    factIds.rememberActiveSuccessors(state);
     const toolProgressLabels: Record<string, { title: string; detail: string }> = {
       inspect_reference: { title: "Analyzing design reference", detail: "Observing layout hierarchy and visual language..." },
       update_product: { title: "Formulating product blueprint", detail: "Recording product capabilities and user jobs..." },
@@ -270,8 +282,13 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       read_product: { title: "Reading product specification", detail: "Checking blueprint architecture and facts..." },
     };
     for (let round = 0; round < 8; round += 1) {
-      const response = await ai.models.generateContent({ model: policy.model, config: policy.config, contents });
-      const calls = response.functionCalls ?? [];
+      const roundContents = round === 0 ? contents : [
+        { ...contents[0], parts: [{ text: planningSnapshot() }, ...contents[0].parts!.slice(1)] },
+        ...contents.slice(1),
+      ];
+      const response = await ai.models.generateContent({ model: policy.model, config: policy.config, contents: roundContents });
+      const requestedCalls = response.functionCalls ?? [];
+      const calls = orderDesignerCalls(requestedCalls);
       onTrace?.({ round, finishReason: response.candidates?.[0]?.finishReason, tools: calls.map((call) => call.name), hasReply: !calls.length && Boolean(response.text?.trim()) });
       if (!calls.length) {
         if (failures.size && !referenceRecovery && assessment.productReady && repairRequests < 2 && round < 7) {
@@ -324,6 +341,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
             }
             if (call.name === "set_design_scope") next = await snapshotFunctionalScope(admin, projectId, ownerId, next);
             await persist(next, call.name === "update_product");
+            factIds.rememberActiveSuccessors(state);
             result = { ok: true, revision: state.revision, facts: activeFacts(state), scope: state.scope,
               ...(assumptions.length ? { warning: "These facts were saved as assumptions because their cited evidence did not support the entire claim. Split supported requirements from speculative additions. Do not describe them as confirmed.", assumptionIds: assumptions } : {}),
             };
@@ -402,7 +420,10 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
         responses.push(createPartFromFunctionResponse(call.id ?? crypto.randomUUID(), call.name ?? "unknown", result));
         onTrace?.({ tool: call.name, ok: result.ok, error: result.error });
       }
-      contents.push({ role: "user", parts: responses });
+      // Execute in dependency order, but answer function-call IDs in the
+      // model's original order to preserve its tool-response protocol.
+      const responseByCall = new Map(calls.map((call, index) => [call, responses[index]]));
+      contents.push({ role: "user", parts: requestedCalls.map(call => responseByCall.get(call)!) });
       if (attemptedProposal && state.scope?.status === "proposed" && failures.size === 0) {
         // The approval card is the authoritative response. A further model
         // round only paraphrases that saved scope and delays the first reply.
@@ -436,7 +457,8 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
         idempotencyKeyTTL: "1d",
       }).catch(() => undefined);
     }
-    await reportProgress("Product design ready", reply, "completed");
+    await reportProgress(failure ? "Planning stopped" : "Product design ready",
+      failure ? failure.summary : reply, failure ? "failed" : "completed");
     if (enqueueMemory) await persistProjectMessageMemoryPair({ admin, userMessageId, userContent: effectivePrompt, modelMessageId: modelMessage.id, modelContent: productMessageContext({ content: reply, metadata: { productQuestions: questions } }) })
       .catch((error) => console.error("Could not enqueue product conversation memory", error));
     return { intent: "product_planning", message: reply };

@@ -65,6 +65,17 @@ describe("product designer tool loop", () => {
     expect(preview?.content).toContain("- Today shows today's tasks\n- Calendar opens the selected day");
     expect(preview?.metadata).not.toHaveProperty("productTurnComplete");
   });
+  it("gives each model round the current active facts after earlier tool writes", async () => {
+    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: {
+      facts: [{ id: "family-today", section: "surfaces", label: "Today", detail: "Shows family tasks",
+        source: "assumption", evidence: "" }], supersessions: [],
+    } }])).mockImplementationOnce(async (request) => {
+      const snapshot = JSON.parse(request.contents[0].parts[0].text);
+      expect(snapshot.currentProduct.blueprint.facts.map((fact: { id: string }) => fact.id)).toContain("family-today");
+      return { text: "The current screen direction is saved." };
+    });
+    await runProductDesigner(options);
+  });
   it("repairs a rejected scope internally before persisting or claiming approval", async () => {
     mocks.state = { ...productFixture(), experience: experienceFixture() };
     mocks.state.input.imagePath = experienceFixture().referencePath;
@@ -119,6 +130,8 @@ describe("product designer tool loop", () => {
     expect(JSON.stringify(metadata)).not.toContain("internal database detail");
     expect(mocks.state?.lease).toBeNull();
     expect(mocks.state?.phase).toBe("discovery");
+    const progress = mocks.messages.find(message => (message.metadata as Record<string, unknown>)?.action === "agent_turn_progress");
+    expect(progress?.metadata).toMatchObject({ agentStep: { title: "Planning stopped", status: "failed" } });
   });
   it("keeps the original request when recent history no longer contains the first prompt", async () => {
     mocks.generate.mockResolvedValueOnce({ text: "Continuing." });

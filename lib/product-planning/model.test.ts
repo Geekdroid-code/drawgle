@@ -34,6 +34,27 @@ describe("durable product truth and scope", () => {
     expect(formatProductTruth(state)).not.toContain("Mechanics create accounts");
     expect(formatProductTruth(state)).toContain("Shops onboard mechanics");
   });
+  it("treats repeated supersessions as one decision and protects a newer meaning", () => {
+    const original = productFixture();
+    const first = { op: "supersede_fact", id: "shop", replacement: {
+      id: "storefront", section: "surfaces", label: "Storefront", detail: "Browse the T-shirt catalog",
+      source: "assumption", evidence: "",
+    } };
+    const updated = applyProductPatch(original, { operations: [first, first] }, messageId);
+    expect(activeFacts(updated, "surfaces").filter(fact => fact.id === "storefront")).toHaveLength(1);
+    expect(applyProductPatch(updated, { operations: [first] }, messageId)).toBe(updated);
+    expect(applyProductPatch(updated, { operations: [{ ...first, replacement: {
+      ...first.replacement, id: "same-storefront", provenance: { basis: "inferred" },
+    } }] }, messageId)).toBe(updated);
+    expect(() => applyProductPatch(updated, { operations: [{ ...first, replacement: {
+      ...first.replacement, id: "different-storefront", detail: "An unrelated product",
+    } }] }, messageId)).toThrow(/current active decision/);
+    const latest = applyProductPatch(updated, { operations: [{ op: "supersede_fact", id: "storefront",
+      replacement: { ...first.replacement, id: "storefront-v2", detail: "Browse family T-shirts" } }] }, messageId);
+    expect(applyProductPatch(latest, { operations: [{ ...first, replacement: {
+      ...first.replacement, id: "stale-alias", detail: "Browse family T-shirts",
+    } }] }, messageId)).toBe(latest);
+  });
   it("rejects overwritten IDs, dangling scopes and unsubstantiated user facts atomically", () => {
     const state = productFixture();
     const before = structuredClone(state);
