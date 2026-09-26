@@ -34,6 +34,7 @@ import { readScreenPlanProposal, readScreenStateProposal, type AgentStepMetadata
 import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/screen-plan-approval";
 import { findExactPlannedStateCandidate } from "@/lib/agent/screen-state-proposal";
 import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
+import { updateWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
@@ -1185,6 +1186,7 @@ export async function POST(request: Request) {
       },
     });
     let progressStep: AgentStepMetadata | null = null;
+    let workTrace: WorkTrace | null = null;
     let progressMetadata: Record<string, unknown> = {
       ...turnBaseMetadata,
       userMessageId: userMessage.id,
@@ -1202,6 +1204,13 @@ export async function POST(request: Request) {
       messageType?: "chat" | "error";
     }) => {
       progressStep = step;
+      workTrace = updateWorkTrace(workTrace, {
+        turnId: clientTurnId, id: step.title.toLowerCase(), title: step.title,
+        detail: step.detail, kind: "stage",
+        stepStatus: step.status === "completed" || step.status === "failed" ? step.status : step.status === "queued" ? "completed" : "active",
+        ...(["completed", "failed", "queued"].includes(step.status)
+          ? { turnStatus: step.status === "failed" ? "failed" as const : "completed" as const } : {}),
+      });
       progressMetadata = {
         ...progressMetadata,
         ...metadata,
@@ -1209,6 +1218,7 @@ export async function POST(request: Request) {
         ui: { variant: "action_card" },
         userMessageId: userMessage.id,
         agentStep: progressStep,
+        workTrace,
       };
       progressMessage = progressMessage
         ? await updateProjectMessage(admin, {

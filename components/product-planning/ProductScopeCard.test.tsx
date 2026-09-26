@@ -34,7 +34,8 @@ describe("product scope approval card", () => {
     render(<ProductScopeCard state={proposeProductScope(state)} onApprove={vi.fn()} />);
     expect(screen.getByText(/7 screens \+ 4 states · 180 credits/)).toBeTruthy();
     expect(screen.getByText("Design direction & reference")).toBeTruthy();
-    expect(screen.getByText(/7\. Screen 5/)).toBeTruthy();
+    expect(screen.getByText("Screen 5")).toBeTruthy();
+    expect(screen.getByText("07")).toBeTruthy();
     expect(screen.getByText(/State 3: Change options/)).toBeTruthy();
   });
 });

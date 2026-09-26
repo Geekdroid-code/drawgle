@@ -28,7 +28,6 @@ export function PlanningConversation({ project, disabled }: { project: ProjectDa
   }, [initialize, state, planningBusy, project.id]);
   if (!state) return null;
   return <>
-    {(busy || (planningBusy && !state.initialTurnComplete)) && <p className="px-5 py-3 text-sm text-slate-500" role="status">Thinking through your product…</p>}
     {waitingForTurn && !busy && !planningBusy && !state.initialTurnComplete && <p className="px-5 py-3 text-sm text-slate-500" role="status">Waiting for the current product turn. <button type="button" className="underline" onClick={() => void initialize()}>Check again</button></p>}
     {error && <div role="alert" className="px-5 py-3 text-sm text-rose-600">{error} <button type="button" className="underline disabled:opacity-50" disabled={busy || planningBusy} onClick={() => void initialize()}>Retry</button></div>}
     <ProductScopeCard state={state} projectId={project.id} disabled={disabled || busy} onApprove={async (revision) => {

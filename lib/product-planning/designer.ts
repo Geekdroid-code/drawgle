@@ -28,6 +28,7 @@ import { evidenceAllowsProposal } from "./evidence";
 import { inspectProductReference } from "./inspect-reference";
 import { readFunctionalRoadmap, updateFunctionalRoadmap, snapshotFunctionalScope, saveProductPatchWithRoadmap } from "./functional-store";
 import { reconstructionInstructions, reconstructionProductContext } from "./reconstruction";
+import { updateWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
 
 export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, resumeReview = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
   admin: PlanningStore; projectId: string; ownerId: string; prompt: string; originalPrompt?: string;
@@ -66,18 +67,25 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       : await saveProductPlanning(admin, projectId, ownerId, state!, renewed);
   };
   let progressMessageId: string | null = null;
+  let workTrace: WorkTrace | null = null;
   let currentProgressUserMessageId = existingUserMessageId;
   const reportProgress = async (
     title: string,
     detail: string,
-    status: "thinking" | "completed" = "thinking",
+    status: "thinking" | "completed" | "failed" = "thinking",
   ) => {
     try {
+      workTrace = updateWorkTrace(workTrace, {
+        turnId: clientTurnId, id: title.toLowerCase(), title, detail,
+        stepStatus: status === "thinking" ? "active" : status,
+        ...(status !== "thinking" ? { turnStatus: status } : {}),
+      });
       const metadata = {
         action: "agent_turn_progress",
         ui: { variant: "action_card" },
         userMessageId: currentProgressUserMessageId,
         clientTurnId,
+        workTrace,
         agentStep: {
           kind: "system",
           status,
@@ -376,6 +384,12 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
           };
         }
         if (result.ok) failures.delete(call.name ?? "unknown");
+        const toolTitle = toolProgressLabels[call.name ?? ""]?.title ?? "Refining product plan";
+        workTrace = updateWorkTrace(workTrace, {
+          turnId: clientTurnId, id: toolTitle.toLowerCase(), title: toolTitle,
+          detail: result.ok ? "Completed." : failures.get(call.name ?? "unknown")?.summary ?? "Needs review.",
+          kind: "tool", stepStatus: result.ok ? "completed" : "failed",
+        });
         responses.push(createPartFromFunctionResponse(call.id ?? crypto.randomUUID(), call.name ?? "unknown", result));
         onTrace?.({ tool: call.name, ok: result.ok, error: result.error });
       }
@@ -415,10 +429,10 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     if (enqueueMemory) await persistProjectMessageMemoryPair({ admin, userMessageId, userContent: effectivePrompt, modelMessageId: modelMessage.id, modelContent: productMessageContext({ content: reply, metadata: { productQuestions: questions } }) })
       .catch((error) => console.error("Could not enqueue product conversation memory", error));
     return { intent: "product_planning", message: reply };
+  } catch (error) {
+    await reportProgress("Planning stopped", "Your saved decisions remain intact.", "failed");
+    throw error;
   } finally {
-    if (progressMessageId) {
-      await reportProgress("Turn complete", "", "completed").catch(() => undefined);
-    }
     if (state.lease?.id === clientTurnId) await persist({ ...state, lease: null }).catch(() => undefined);
   }
 }

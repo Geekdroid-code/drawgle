@@ -7,6 +7,8 @@ import { ProductQuestionCard } from "@/components/product-planning/ProductQuesti
 import { isObsoleteModeQuestion, isScreenDesignQuestionCard, readProductQuestions, type ProductQuestions, type ProductAnswers } from "@/lib/product-planning/questions";
 import { PlanningConversation } from "@/components/product-planning/PlanningConversation";
 import { ProductExecutionCard } from "@/components/product-planning/ProductExecutionCard";
+import { WorkTraceCard } from "@/components/chat/WorkTraceCard";
+import { GenerationJournalCard } from "@/components/chat/GenerationJournalCard";
 import { usePlanningLease } from "@/hooks/use-planning-lease";
 
 import Image from "next/image";
@@ -38,6 +40,7 @@ import { useProjectMessages } from "@/hooks/use-project-messages";
 import { hasApprovedDesignTokens } from "@/lib/design-tokens";
 import { cleanErrorMessage } from "@/lib/errors/user-facing";
 import { generationRunHasRetryableWork } from "@/lib/generation/retry-scope";
+import { readWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
 import {
   readAgentStep,
   readAgentUi,
@@ -100,8 +103,9 @@ type PendingTurn = {
 
 type ConversationItem =
   | { id: string; kind: "user"; content: string; image?: PromptImagePayload | null; timestamp?: string }
-  | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean; questions?: ProductQuestions | null; planningFailure?: PlanningFailure | null; messageId?: string }
+  | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean; questions?: ProductQuestions | null; planningFailure?: PlanningFailure | null; messageId?: string; turnId?: string | null; sourceAction?: string | null }
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
+  | { id: string; kind: "trace"; trace: WorkTrace; timestamp?: string }
   | { id: string; kind: "generation_journal"; journal: GenerationJournalMetadata; timestamp?: string }
   | { id: string; kind: "screen_suggestions"; recommendation: RoadmapBuildRecommendation; messageId: string; timestamp?: string }
   | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; stateProposal?: ScreenStateProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
@@ -479,6 +483,7 @@ const isBusyStepStatus = (status?: AgentStepMetadata["status"] | null) =>
 
 const conversationHasLiveWork = (items: ConversationItem[]) =>
   items.some((item) => {
+    if (item.kind === "trace") return item.trace.status === "active";
     if (item.kind === "action") return isBusyStepStatus(item.step.status);
     if (item.kind === "generation_journal") {
       return item.journal.status === "queued" || item.journal.status === "planning" || item.journal.status === "building";
@@ -640,6 +645,14 @@ function buildConversationItems({
         image: persistedImage ?? null,
       });
       continue;
+    }
+
+    if (action === "agent_turn_progress") {
+      const trace = readWorkTrace(message.metadata);
+      if (trace) {
+        items.push({ id: `trace-${message.id}`, kind: "trace", trace, timestamp: message.timestamp });
+        continue;
+      }
     }
 
     if (roadmapRecommendation) {
@@ -896,6 +909,8 @@ function buildConversationItems({
         questions: readProductQuestions(message.metadata),
         planningFailure: readPlanningFailure(message.metadata, message.content),
         messageId: message.id,
+        turnId: getMessageClientTurnId(message),
+        sourceAction: action,
         timestamp: message.timestamp,
         isError,
       });
@@ -1028,6 +1043,19 @@ function buildConversationItems({
     }
   }
 
+  // The early flow preview can arrive after the trace row was inserted. Keep
+  // its progress directly beneath that draft when the turn completes too.
+  for (let index = items.length - 1; index >= 0; index -= 1) {
+    const item = items[index];
+    if (item.kind !== "trace") continue;
+    const draftIndex = items.findIndex((candidate, candidateIndex) => candidateIndex > index &&
+      candidate.kind === "assistant" && candidate.sourceAction === "product_flow_preview" && candidate.turnId === item.trace.turnId);
+    if (draftIndex >= 0) {
+      items.splice(index, 1);
+      items.splice(draftIndex, 0, item);
+    }
+  }
+
   // Keep a single live status after the latest user turn (no stacked loaders).
   let lastUserIndex = -1;
   for (let index = items.length - 1; index >= 0; index -= 1) {
@@ -1038,12 +1066,18 @@ function buildConversationItems({
   }
   let keptBusyAction = false;
   let keptBusyJournal = false;
+  let keptBusyTrace = false;
   for (let index = items.length - 1; index > lastUserIndex; index -= 1) {
     const item = items[index];
+    if (item.kind === "trace" && item.trace.status === "active") {
+      if (keptBusyTrace || keptBusyAction || keptBusyJournal) items.splice(index, 1);
+      else keptBusyTrace = true;
+      continue;
+    }
     if (item.kind === "generation_journal") {
       const journalBusy = item.journal.status === "queued" || item.journal.status === "planning" || item.journal.status === "building";
       if (journalBusy) {
-        if (keptBusyJournal || keptBusyAction) {
+        if (keptBusyJournal || keptBusyAction || keptBusyTrace) {
           items.splice(index, 1);
         } else {
           keptBusyJournal = true;
@@ -1052,7 +1086,7 @@ function buildConversationItems({
       continue;
     }
     if (item.kind === "action" && isBusyStepStatus(item.step.status)) {
-      if (keptBusyAction || keptBusyJournal) {
+      if (keptBusyAction || keptBusyJournal || keptBusyTrace) {
         items.splice(index, 1);
       } else {
         keptBusyAction = true;
@@ -1063,8 +1097,9 @@ function buildConversationItems({
   // Progress rows are updated in place, so their original timestamp can put
   // the spinner above a later draft reply. Keep the one live status at the
   // bottom of the current turn, where the next update is actually happening.
-  if (keptBusyAction || keptBusyJournal) {
+  if (keptBusyAction || keptBusyJournal || keptBusyTrace) {
     const liveIndex = items.findIndex((item, index) => index > lastUserIndex && (
+      (item.kind === "trace" && item.trace.status === "active") ||
       (item.kind === "action" && isBusyStepStatus(item.step.status)) ||
       (item.kind === "generation_journal" && ["queued", "planning", "building"].includes(item.journal.status))
     ));
@@ -1153,9 +1188,14 @@ function AssistantMessage({ content, isError }: { content: string; isError?: boo
   const displayContent = isError ? cleanErrorMessage(content) : content;
 
   const handleCopy = async () => {
-    await navigator.clipboard?.writeText(displayContent).catch(() => undefined);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1200);
+    try {
+      if (!navigator.clipboard?.writeText) return;
+      await navigator.clipboard.writeText(displayContent);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
   };
 
   return (
@@ -1172,9 +1212,9 @@ function AssistantMessage({ content, isError }: { content: string; isError?: boo
           {displayContent}
         </ReactMarkdown>
       </div>
-      <div className="flex justify-start pt-3 opacity-0 transition group-hover:opacity-100">
+      <div className="flex justify-start pt-2 opacity-70 transition focus-within:opacity-100 md:opacity-0 md:group-hover:opacity-100">
         <div className="flex items-center gap-3 text-slate-400">
-          <button type="button" title="Copy message" onClick={handleCopy} className="hover:text-slate-700">
+          <button type="button" title="Copy message" aria-label={copied ? "Copied message" : "Copy message"} onClick={handleCopy} className="rounded p-1 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500">
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
 
@@ -1453,7 +1493,9 @@ function ActionCard({
     : step.title;
 
   return (
-    <div className="px-5 py-2.5 w-full min-w-0 overflow-hidden">
+    <div className={cn("min-w-0 overflow-hidden", pendingProposal || pendingStateProposal
+      ? "mx-4 my-2 w-[calc(100%-2rem)] rounded-[18px] bg-white p-4 shadow-[0_8px_28px_-20px_rgba(15,23,42,0.28)] ring-1 ring-slate-950/[0.08]"
+      : "w-full px-5 py-2.5")}>
       <div className="flex flex-col font-ui leading-normal min-w-0 w-full">
         <div className="flex flex-row items-center transition-colors rounded-lg duration-150 min-w-0 w-full">
           <div className="w-[20px] flex justify-center shrink-0">
@@ -1469,14 +1511,14 @@ function ActionCard({
           </div>
           <div className="flex-1 min-w-0 pl-2.5">
             {busy ? (
-              <div className="flex min-w-0 items-center gap-2 py-0.5">
+              <div className="min-w-0 py-0.5">
                 <AgentThinkingIndicator
                   label={`${liveTitle}...`}
-                  className="min-w-0 text-slate-700 font-semibold"
+                  className="min-w-0 text-slate-700 font-medium"
                   hideBall
                 />
                 {hasDistinctDetail ? (
-                  <span className="shrink-0 text-[11px] font-medium text-slate-400">{step.detail}</span>
+                  <p className="min-w-0 break-words pt-0.5 text-[11.5px] leading-5 text-slate-500">{step.detail}</p>
                 ) : null}
               </div>
             ) : (
@@ -1678,200 +1720,6 @@ function ActionCard({
             ) : null}
           </div>
         </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-const journalScreenStatusCopy = (status?: NonNullable<GenerationJournalMetadata["screens"]>[number]["status"]) => {
-  if (status === "briefing") return "Writing brief";
-  if (status === "preparing_assets") return "Preparing assets";
-  if (status === "ready") return "Ready";
-  if (status === "failed") return "Failed";
-  if (status === "building") return "Building";
-  if (status === "queued") return "Queued";
-  return "Planned";
-};
-
-const compactJournalDescription = (description?: string | null) => {
-  const clean = description?.replace(/\s+/g, " ").trim() ?? "";
-  if (!clean) return "Builder-ready screen brief prepared.";
-  return clean.length > 150 ? `${clean.slice(0, 147).trim()}...` : clean;
-};
-
-function JournalPhaseMark({ status }: { status: GenerationJournalMetadata["phases"][number]["status"] }) {
-  if (status === "failed") {
-    return <AlertCircle className="h-3.5 w-3.5 text-rose-600" />;
-  }
-
-  if (status === "active") {
-    return (
-      <div className="flex h-3.5 w-3.5 items-center justify-center">
-        <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
-      </div>
-    );
-  }
-
-  if (status === "completed") {
-    return <Check className="h-3.5 w-3.5 text-slate-700" />;
-  }
-
-  return <span className="h-1.5 w-1.5 rounded-full bg-slate-300" />;
-}
-
-function GenerationJournalCard({
-  journal,
-  screens = [],
-  retryDisabled,
-  onRetryGeneration,
-}: {
-  journal: GenerationJournalMetadata;
-  screens?: ScreenData[];
-  retryDisabled?: boolean;
-  onRetryGeneration?: (
-    run: GenerationRunData,
-    options?: { targetScreenNames?: string[]; targetScreenIds?: string[] },
-  ) => void;
-}) {
-  const [expanded, setExpanded] = useState(journal.status !== "completed");
-  const [expandedScreens, setExpandedScreens] = useState<Record<number, boolean>>({});
-  const busy = journal.status === "queued" || journal.status === "planning" || journal.status === "building";
-  const failed = journal.status === "failed";
-  const activePhase = journal.phases.find((phase) => phase.status === "active") ?? null;
-  const detail = activePhase?.detail ?? journal.detail ?? (busy ? "Working through the plan and build steps." : null);
-  const failedScreensForRun = useMemo(() => {
-    if (!journal.generationRunId) return [] as ScreenData[];
-    return screens.filter(
-      (screen) =>
-        screen.generationRunId === journal.generationRunId &&
-        screen.status === "failed" &&
-        !screen.parentScreenId,
-    );
-  }, [journal.generationRunId, screens]);
-  const canRetryJournal = Boolean(
-    journal.generationRunId &&
-      onRetryGeneration &&
-      !busy &&
-      (failed || failedScreensForRun.length > 0),
-  );
-  const retryRunStub = journal.generationRunId
-    ? ({
-        id: journal.generationRunId,
-        prompt: "Retry failed screens",
-      } as GenerationRunData)
-    : null;
-
-  return (
-    <div className="px-3 py-2">
-      <div className="overflow-hidden rounded-[18px] border border-slate-950/[0.1] bg-[#f6f6f7] text-slate-800">
-        <div className="p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <AgentBall className="h-4 w-4" active={busy} />
-                <h3 className="truncate text-[13px] font-semibold text-slate-950">{journal.title}</h3>
-              </div>
-              {detail ? (
-                <div className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-600">{detail}</div>
-              ) : null}
-            </div>
-            <div className="flex h-5 w-5 shrink-0 items-center justify-center">
-              <AgentMark busy={busy} failed={failed || failedScreensForRun.length > 0} />
-            </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-7 gap-1.5">
-            {journal.phases.map((phase) => (
-              <div
-                key={phase.id}
-                title={`${phase.label}${phase.detail ? ` - ${phase.detail}` : ""}`}
-                className={`h-1.5 rounded-full ${phase.status === "failed"
-                  ? "bg-rose-500"
-                  : phase.status === "completed"
-                    ? "bg-slate-950"
-                    : phase.status === "active"
-                      ? "bg-slate-500"
-                      : "bg-slate-950/[0.1]"
-                  }`}
-              />
-            ))}
-          </div>
-
-          <button
-            type="button"
-            className="mt-3 text-left text-[12px] font-medium underline text-slate-600 hover:text-slate-950"
-            onClick={() => setExpanded((value) => !value)}
-          >
-            {expanded ? "Hide plan" : "Show plan"}
-          </button>
-        </div>
-
-        {expanded ? (
-          <div className="border-t border-slate-950/[0.08] bg-white/60 px-4 py-3">
-            <div className="space-y-2">
-              {journal.phases.map((phase) => (
-                <div key={phase.id} className="flex items-start gap-2 text-[12px] leading-5">
-                  <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-                    <JournalPhaseMark status={phase.status} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-medium text-slate-800">{phase.label}</div>
-                    {phase.detail ? <div className="text-slate-500">{phase.detail}</div> : null}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {journal.screens?.length ? (
-              <div className="mt-4 space-y-2">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">Screen Briefs</div>
-                {journal.screens.map((screen, index) => {
-                  const isScreenExpanded = Boolean(expandedScreens[index]);
-                  return (
-                    <div
-                      key={`${screen.name}-${index}`}
-                      onClick={() => setExpandedScreens(prev => ({ ...prev, [index]: !prev[index] }))}
-                      className="rounded-[12px] border border-slate-950/[0.08] bg-white px-3 py-2 cursor-pointer transition hover:bg-slate-50"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-[12px] font-semibold text-slate-950">{screen.name}</div>
-                          <div className="mt-0.5 text-[11px] text-slate-500">
-                            {[screen.type, screen.chrome ? `${screen.chrome} chrome` : null, screen.assetNeedCount ? `${screen.assetNeedCount} asset need${screen.assetNeedCount === 1 ? "" : "s"}` : null]
-                              .filter(Boolean)
-                              .join(" · ")}
-                          </div>
-                        </div>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${screen.status === "failed"
-                          ? "bg-rose-50 text-rose-700"
-                          : screen.status === "ready"
-                            ? "bg-emerald-50 text-emerald-700"
-                            : screen.status === "building"
-                              ? "bg-slate-950 text-white"
-                              : "bg-slate-950/[0.06] text-slate-600"
-                          }`}>
-                          {journalScreenStatusCopy(screen.status)}
-                        </span>
-                      </div>
-                      <div className={`mt-2 text-[11px] leading-5 text-slate-600 transition-all ${isScreenExpanded ? "" : "line-clamp-2"}`}>
-                        {screen.description || "Builder-ready screen brief prepared."}
-                      </div>
-                      <div className="mt-1 flex justify-end text-[9px] font-semibold text-slate-400 hover:text-slate-600 select-none">
-                        {isScreenExpanded ? "Click to collapse" : "Click to see full plan"}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : null}
-
-            {journal.assetSummary ? (
-              <div className="mt-4 rounded-[12px] bg-slate-950/[0.04] px-3 py-2 text-[11px] leading-5 text-slate-600">
-                Assets: {journal.assetSummary.requested} requested, {journal.assetSummary.resolved} resolved, {journal.assetSummary.placeholders} placeholder{journal.assetSummary.placeholders === 1 ? "" : "s"}, {journal.assetSummary.failures ?? 0} failed.
-              </div>
-            ) : null}
-          </div>
         ) : null}
       </div>
     </div>
@@ -2139,11 +1987,13 @@ export function ChatPanel({
   );
 
   const hasLiveConversationWork = conversationHasLiveWork(conversationItems);
-  const showFooterBusy = isBusy && !hasLiveConversationWork;
+  const showFooterBusy = (isBusy || planningBusy) && !hasLiveConversationWork;
   const busyLabel = pendingTurn
     ? "Reading your prompt..."
     : screenPlan?.status === "planning"
       ? "Planning screens..."
+      : planningBusy
+        ? "Starting screen planning..."
       : isQueueing
         ? "Queueing..."
         : "Working...";
@@ -2259,11 +2109,15 @@ export function ChatPanel({
         ? (conversationItems[conversationItems.length - 1] as any).step?.status
         : conversationItems[conversationItems.length - 1].kind === "generation_journal"
           ? (conversationItems[conversationItems.length - 1] as any).journal?.status
+          : conversationItems[conversationItems.length - 1].kind === "trace"
+            ? (conversationItems[conversationItems.length - 1] as any).trace?.status
           : null,
       processCount: conversationItems[conversationItems.length - 1].kind === "action"
         ? ((conversationItems[conversationItems.length - 1] as any).step?.processLines?.length ?? 0)
         : conversationItems[conversationItems.length - 1].kind === "generation_journal"
           ? ((conversationItems[conversationItems.length - 1] as any).journal?.phases?.length ?? 0)
+          : conversationItems[conversationItems.length - 1].kind === "trace"
+            ? ((conversationItems[conversationItems.length - 1] as any).trace?.sequence ?? 0)
           : null,
       detail: conversationItems[conversationItems.length - 1].kind === "action"
         ? ((conversationItems[conversationItems.length - 1] as any).step?.detail ?? "")
@@ -2361,15 +2215,14 @@ export function ChatPanel({
                       );
                     }
 
+                    if (item.kind === "trace") {
+                      return <WorkTraceCard key={item.id} trace={item.trace} />;
+                    }
+
                     if (item.kind === "generation_journal") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                          <GenerationJournalCard
-                            journal={item.journal}
-                            screens={screens}
-                            retryDisabled={retryDisabled}
-                            onRetryGeneration={onRetryGeneration}
-                          />
+                          <GenerationJournalCard journal={item.journal} />
                         </motion.div>
                       );
                     }

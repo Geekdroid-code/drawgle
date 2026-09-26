@@ -105,11 +105,12 @@ export function ProductQuestionCard({ questions, messageId, active, disabled, on
   );
 
   return (
-    <section aria-label="Screen design questions" aria-busy={busy} className="mx-4 mb-4 rounded-2xl border border-slate-950/10 bg-white p-4 text-sm text-slate-950 shadow-sm">
+    <section aria-label="Screen design questions" aria-busy={busy} className="mx-4 mb-4 min-w-0 rounded-[20px] bg-white p-4 text-sm text-slate-950 shadow-[0_8px_28px_-18px_rgba(15,23,42,0.3)] ring-1 ring-slate-950/[0.09]">
       <div className="mb-1.5 flex items-center justify-between text-[11px] text-slate-500">
         <span>Shape your screens · Optional</span>
-        <span className="font-mono text-xs">{index + 1} / {questions.length}</span>
+        <span className="font-mono text-[11px] tabular-nums">{index + 1} / {questions.length}</span>
       </div>
+      <div className="mb-3 flex gap-1" aria-hidden="true">{questions.map((_, step) => <span key={step} className={`h-0.5 flex-1 rounded-full ${step <= index ? "bg-slate-900" : "bg-slate-200"}`} />)}</div>
       <div aria-live="polite" aria-atomic="true">
         <h3 className="text-sm font-semibold leading-5 text-slate-950">{question.question}</h3>
         {question.consequence ? (
@@ -117,14 +118,14 @@ export function ProductQuestionCard({ questions, messageId, active, disabled, on
         ) : null}
       </div>
 
-      <div className="mt-3.5 overflow-hidden rounded-xl border border-slate-950/10 bg-white shadow-sm divide-y divide-slate-950/10">
+      <div className="mt-3.5 overflow-hidden rounded-xl bg-slate-950/[0.025] ring-1 ring-slate-950/[0.06] divide-y divide-slate-950/[0.07]">
         {question.choices.map((choice, choiceIndex) => (
           <button
             key={`${index}-${choiceIndex}`}
             type="button"
             disabled={locked || error}
             onClick={() => choose({ kind: "choice", index: choiceIndex })}
-            className="group flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-slate-950/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50"
+            className="group flex w-full min-w-0 items-center justify-between gap-3 px-3.5 py-3 text-left transition-colors hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50 motion-reduce:transition-none"
           >
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -149,7 +150,7 @@ export function ProductQuestionCard({ questions, messageId, active, disabled, on
             disabled={locked || error}
             aria-expanded={custom}
             onClick={() => setCustom(true)}
-            className="group flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-xs transition-colors hover:bg-slate-950/5 dark:hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50"
+            className="group flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-xs transition-colors hover:bg-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 disabled:opacity-50 motion-reduce:transition-none"
           >
             <span className="font-medium text-slate-600 dark:text-slate-300">Write my own answer…</span>
             <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border border-slate-950/10 dark:border-white/15 bg-slate-950/5 dark:bg-white/10 text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400 group-hover:border-slate-950/20 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">
@@ -206,7 +207,7 @@ export function ProductQuestionCard({ questions, messageId, active, disabled, on
           type="button"
           disabled={locked || error}
           onClick={() => choose({ kind: "skip" })}
-          className="rounded-lg border border-slate-950/15 dark:border-white/15 bg-white dark:bg-white/5 px-3 py-1.5 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-950/5 dark:hover:bg-white/10 shadow-sm transition-colors disabled:opacity-50"
+          className="rounded-full px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-slate-950/5 hover:text-slate-800 transition-colors disabled:opacity-50 motion-reduce:transition-none"
         >
           Skip
         </button>

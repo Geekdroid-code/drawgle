@@ -49,7 +49,7 @@ describe("planning within the existing chat lifecycle", () => {
     const initial = project();
     initial.productPlanning = { ...initial.productPlanning!, lease: { id: "initial", expiresAt: new Date(Date.now() + 60_000).toISOString() } };
     const view = render(<PlanningConversation project={initial} />);
-    expect(screen.getByRole("status").textContent).toContain("Thinking through");
+    expect(screen.queryByText(/Thinking through your product/i)).toBeNull();
     expect(fetch).not.toHaveBeenCalled();
     view.rerender(<PlanningConversation project={{ ...initial, productPlanning: { ...initial.productPlanning, lease: null, initialTurnComplete: true } }} />);
     expect(fetch).not.toHaveBeenCalled();

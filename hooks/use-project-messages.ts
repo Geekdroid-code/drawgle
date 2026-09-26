@@ -8,6 +8,7 @@ import type { ProjectMessageRow } from "@/lib/supabase/database.types";
 import { mapProjectMessageRow } from "@/lib/supabase/mappers";
 import { fetchProjectMessages } from "@/lib/supabase/queries";
 import type { ProjectMessage } from "@/lib/types";
+import { preferNewerWorkTrace } from "@/lib/agent/work-trace";
 
 const sortMessages = (messages: ProjectMessage[]) =>
   [...messages].sort(
@@ -22,7 +23,7 @@ const upsertMessage = (messages: ProjectMessage[], message: ProjectMessage) => {
   }
 
   const nextMessages = [...messages];
-  nextMessages[existingIndex] = message;
+  nextMessages[existingIndex] = preferNewerWorkTrace(messages[existingIndex], message);
   return sortMessages(nextMessages);
 };
 
@@ -40,13 +41,33 @@ export function useProjectMessages(projectId: string) {
 
     const supabase = createClient();
     let cancelled = false;
+    let loadSequence = 0;
+    let realtimeSequence = 0;
+    const realtimeUpdates = new Map<string, number>();
+    const realtimeDeletes = new Map<string, number>();
 
     const loadMessages = async () => {
+      const sequence = ++loadSequence;
+      const startedAfterRealtime = realtimeSequence;
       try {
         // Preserve the visible conversation during background refreshes.
         const nextMessages = await fetchProjectMessages(supabase, projectId);
-        if (!cancelled) {
-          setMessages(nextMessages);
+        if (!cancelled && sequence === loadSequence) {
+          setMessages((currentMessages) => {
+            const byId = new Map(nextMessages.map(message => [message.id, message]));
+            for (const message of currentMessages) {
+              const realtimeUpdate = realtimeUpdates.get(message.id) ?? 0;
+              if (realtimeUpdate > startedAfterRealtime) {
+                byId.set(message.id, message);
+              } else if (byId.has(message.id)) {
+                byId.set(message.id, preferNewerWorkTrace(message, byId.get(message.id)!));
+              }
+            }
+            for (const [id, deletedAt] of realtimeDeletes) {
+              if (deletedAt > startedAfterRealtime) byId.delete(id);
+            }
+            return sortMessages([...byId.values()]).slice(-50);
+          });
         }
       } catch (error) {
         console.error("Failed to load project messages", error);
@@ -72,13 +93,16 @@ export function useProjectMessages(projectId: string) {
           filter: `project_id=eq.${projectId}`,
         },
         (payload) => {
+          realtimeSequence += 1;
           if (payload.eventType === "DELETE") {
+            realtimeDeletes.set(payload.old.id, realtimeSequence);
             setMessages((currentMessages) =>
               currentMessages.filter((message) => message.id !== payload.old.id),
             );
             return;
           }
 
+          realtimeUpdates.set(payload.new.id, realtimeSequence);
           setMessages((currentMessages) =>
             upsertMessage(
               currentMessages,
