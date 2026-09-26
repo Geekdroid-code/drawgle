@@ -24,3 +24,5 @@ alter table public.product_scope_preparations
   add column assets_ready boolean not null default true,
   add column assets_ready_at timestamptz,
   add column queued_at timestamptz;
+
+
