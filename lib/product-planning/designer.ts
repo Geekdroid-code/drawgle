@@ -44,6 +44,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
   onTrace?: (event: Record<string, unknown>) => void;
   enqueueMemory?: boolean;
 }) {
+  const turnStartedAt = Date.now();
   let state = await loadProductPlanning(admin, projectId, ownerId);
   if (!state) throw new Error("Product planning is not enabled for this project.");
   if (initialize && state.initialTurnComplete) return { intent: "product_planning", alreadyComplete: true };
@@ -271,16 +272,20 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     }
     const isReconstruction = state.phase !== "canvas" && state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
     if (proposalPlannerEnabled() && !isReconstruction && state.phase === "discovery") {
+      const proposalStartedAt = Date.now();
       const result = await runProposalPlanner({
         admin, projectId, ownerId, clientTurnId, userMessageId, prompt: effectivePrompt,
         originalRequest, assessment, history, conversation, resumeSavedReview,
         getState: () => state!, persist, commit: commitCandidate,
         enqueueProjectDesign, progress: (title, detail) => reportProgress(title, detail), onTrace,
       });
+      const proposalWallMs = Date.now() - proposalStartedAt;
       const modelMessage = await insertProjectMessage(admin, { projectId, ownerId, role: "model",
         content: result.reply, metadata: { clientTurnId, userMessageId, productTurnComplete: clientTurnId,
           ...(result.failure ? { productPlanningFailure: result.failure } : {}),
-          planningPerformanceV1: [...assessmentTrace, ...result.performance],
+          planningPerformanceV1: [...assessmentTrace, ...result.performance,
+            { stage: "proposal_wall", elapsedMs: proposalWallMs },
+            { stage: "planning_turn_wall", elapsedMs: Date.now() - turnStartedAt }],
           productScopeProposal: state.scope?.status === "proposed"
             ? { scope: state.scope, revision: state.revision, surfaces: activeFacts(state, "surfaces") } : null,
         } });

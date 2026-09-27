@@ -49,13 +49,14 @@ function harness() {
     state = { ...next, revision: state.revision + 1 };
     return state;
   });
-  const run = () => runProposalPlanner({ admin: admin as never, projectId, ownerId: "owner",
+  const enqueueProjectDesign = vi.fn(async (): Promise<void> => undefined);
+  const run = (resumeSavedReview = false) => runProposalPlanner({ admin: admin as never, projectId, ownerId: "owner",
     clientTurnId: "turn", userMessageId, prompt: "Design a family task planner",
     originalRequest: "Design a family task planner", assessment: state.evidenceAssessment!,
     history: [], conversation: [{ role: "user", content: "Design a family task planner" }],
-    resumeSavedReview: false, getState: () => state, persist, commit,
-    enqueueProjectDesign: vi.fn(async () => undefined), progress: vi.fn(async () => undefined) });
-  return { run, commit, persist, getState: () => state, getRows: () => rows };
+    resumeSavedReview, getState: () => state, persist, commit,
+    enqueueProjectDesign, progress: vi.fn(async () => undefined) });
+  return { run, commit, persist, enqueueProjectDesign, getState: () => state, getRows: () => rows };
 }
 
 describe("single-candidate proposal turn", () => {
@@ -90,6 +91,59 @@ describe("single-candidate proposal turn", () => {
     expect(mocks.review).not.toHaveBeenCalled();
   });
 
+  it("reviews the saved flow while speculative token preparation is still enqueueing", async () => {
+    const h = harness();
+    let releasePreparation: (() => void) | undefined;
+    h.enqueueProjectDesign.mockImplementationOnce(() => new Promise<void>(resolve => {
+      releasePreparation = resolve;
+    }));
+    const pending = h.run();
+    await vi.waitFor(() => expect(mocks.review).toHaveBeenCalledTimes(1));
+    expect(h.getState().scope?.status).toBe("draft");
+    releasePreparation?.();
+    expect((await pending).failure).toBeUndefined();
+    expect(h.getState().scope?.status).toBe("proposed");
+  });
+
+  it("keeps approval available if speculative token enqueue fails", async () => {
+    const h = harness();
+    h.enqueueProjectDesign.mockRejectedValueOnce(new Error("Background task unavailable"));
+    expect((await h.run()).failure).toBeUndefined();
+    expect(h.getState().scope?.status).toBe("proposed");
+  });
+
+  it("rechecks a saved review failure before rewriting an already valid flow", async () => {
+    const h = harness();
+    expect((await h.run()).failure).toBeUndefined();
+    const saved = h.getState();
+    await h.persist({ ...saved, scope: { ...saved.scope!, status: "draft",
+      reviewIssues: ["The reviewer omitted the saved entry screen."],
+      reviewedContentRevision: saved.contentRevision ?? 0 } });
+    mocks.generate.mockClear();
+    mocks.review.mockClear();
+
+    expect((await h.run(true)).failure).toBeUndefined();
+    expect(h.getState().scope?.status).toBe("proposed");
+    expect(h.getState().scope?.reviewIssues).toBeUndefined();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.review).toHaveBeenCalledTimes(1);
+    expect(h.commit).toHaveBeenCalledTimes(1);
+  });
+
+  it("records only a sanitized phase when a candidate needs structural repair", async () => {
+    const h = harness();
+    mocks.generate.mockResolvedValueOnce({ text: "{" })
+      .mockResolvedValueOnce({ text: JSON.stringify(candidate) });
+    const result = await h.run();
+    expect(result.failure).toBeUndefined();
+    expect(result.performance).toContainEqual(expect.objectContaining({
+      stage: "proposal_structure_rejection", errorCode: "JSON_PARSE",
+    }));
+    expect(result.performance.find(entry => entry.stage === "proposal_structure_rejection"))
+      .not.toHaveProperty("issues");
+    expect(mocks.review).toHaveBeenCalledTimes(1);
+  });
+
   it("repairs the cited coverage issue without re-running discovery", async () => {
     const h = harness();
     mocks.review.mockResolvedValueOnce({ ready: false, issues: ["The completion state is unclear."] })
@@ -99,6 +153,10 @@ describe("single-candidate proposal turn", () => {
         const current = JSON.parse(request.contents[0].parts[0].text);
         expect(current.repair.issues).toContain("The completion state is unclear.");
         const key = h.getRows()[0].item.stableKey;
+        expect(current.savedJourneyGraph.selectedKeys).toEqual([key]);
+        expect(current.savedJourneyGraph.journeys).toEqual([
+          expect.objectContaining({ outputKeys: [key], independentEntryCandidates: [key] }),
+        ]);
         return { text: JSON.stringify({ ...candidate,
           facts: candidate.facts.map(fact => fact.ref === "today"
             ? { ...fact, detail: "A renamed description of the same task view" } : fact),
@@ -114,5 +172,6 @@ describe("single-candidate proposal turn", () => {
     expect(h.getState().blueprint.facts.find(fact => fact.section === "surfaces")?.detail)
       .toBe("Today's task view");
     expect(mocks.review).toHaveBeenCalledTimes(2);
+    expect(mocks.inspect).toHaveBeenCalledTimes(1);
   });
 });

@@ -17,11 +17,11 @@ describe("saved flow graph preflight", () => {
       outputKeys: [parent.stableKey, child.stableKey], entryKey: parent.stableKey, completionKeys: [child.stableKey],
     }] };
     expect(validateJourneyCoverage(state, [parent, child], coverage, ["Design only onboarding."]))
-      .toContain("Journey purchase cannot reach screen:tablet-chores through its planned actions or state transitions.");
+      .toContain("Journey Purchase journey (purchase) cannot reach Child chores (screen:tablet-chores) through its planned actions or state transitions.");
     coverage.journeys[0].entryKey = child.stableKey;
     coverage.journeys[0].outputKeys = [child.stableKey];
     expect(validateJourneyCoverage(state, [parent, child], coverage, ["Design only onboarding."]))
-      .not.toContain("Journey purchase cannot reach screen:tablet-chores through its planned actions or state transitions.");
+      .not.toContain("cannot reach Child chores (screen:tablet-chores)");
   });
   it("reports an action pointing outside the roadmap before model review", () => {
     const state = designerFixture();

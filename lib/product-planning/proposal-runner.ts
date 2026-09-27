@@ -11,6 +11,7 @@ import { reviewFactEvidence } from "./review-fact-evidence";
 import { activeFacts, applyProductPatch, assertExperienceReady, blockingScreenQuestions, proposeProductScope, type ProductPlanning } from "./model";
 import { functionalItemSchema, type FunctionalItem } from "./functional-plan";
 import { flowPreflight } from "./flow-preflight";
+import { deriveJourneyGraph } from "./flow-review";
 import { inspectProductReference } from "./inspect-reference";
 import { reviewProductReadiness } from "./readiness";
 import { PlanningConflict, type PlanningStore } from "./store";
@@ -22,7 +23,7 @@ type Trace = { stage: string; elapsedMs: number; inputTokens?: number; outputTok
 
 const instructions = `You are Drawgle, a senior SCREEN and FLOW designer. Produce one JSON candidate for a user-facing app design.
 Map every named user task to visible screens, actions, destinations and outcomes. A full-app request needs the whole requested flow; a focused request stays focused. Describe useful information, entry conditions, result states and inline feedback. Use one screen for a coherent task; do not invent separate screens for every tiny state. One product surface may need several distinct task screens. Never target a fixed screen count. Do not ask about backend architecture, storage, codecs, APIs, cloud sync, model choice, or implementation policy.
-For each screen without an incoming action, give a credible independent entry condition for its actor, such as opening a separate child app. Otherwise connect it from a visible action on an appropriate screen. Do not invent a cross-actor link just to make the graph connected. Existing user-confirmed facts are authoritative; do not restate or rewrite them unless the latest user request actually corrects them.
+For each journey, trace its actual user path from an entry screen through action destinationRefs to the visible outcome. Every screen carrying that journeyRef must either be reachable along its actions or have a credible independent entry condition for its actor, such as opening a separate child app. If the journey has independent entry points, preserve them rather than inventing a cross-actor link. An entryCondition sentence or a generation dependencyRef does not create navigation: add the appropriate visible action when the user really moves between screens. Existing user-confirmed facts are authoritative; do not restate or rewrite them unless the latest user request actually corrects them.
 The server assigns identities. Each new fact and output needs a unique short lowercase ref. To change an active fact, set supersedesId to its current ID; never make a renamed copy. To edit an unbuilt screen, set existingKey. Ready or building outputs are historical context, not new scope selections; use a new ref for a redesign. Preserve all unaffected existing decisions and output keys. Existing fact IDs and output keys may be used directly in references. Only remove planned outputs when the user actually changed scope.
 Facts marked source=user must quote supporting user words in evidence. Designer choices are assumptions, not confirmed requirements. Preserve consistent audience language, entity names and plausible example content; visual references supply craft, not an unrelated domain or invented product promises. Refer to every selected output in scope.outputRefs. For an external action, use destinationRef=null and explain the handoff in outcome. Generation dependencyRefs are build prerequisites, not navigation order. Every output needs a real surface and journey fact. Give each main screen a task-specific information hierarchy; avoid generic repeated card stacks. Return JSON only with facts, removeFactIds, outputs, removeOutputKeys and scope.`;
 
@@ -43,7 +44,10 @@ const responseSchema = { type: Type.OBJECT, properties: {
     actions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {
       label: string, destinationRef: { type: Type.STRING, nullable: true }, outcome: string,
     }, required: ["label", "destinationRef", "outcome"] } },
-    information: string, entryCondition: string, outcome: string, inlineStates: strings,
+    information: string,
+    entryCondition: { type: Type.STRING, description: "How this screen is reached: name an incoming action or the actor's independent entry point." },
+    outcome: { type: Type.STRING, description: "The visible result of this screen's task, including an inline completion when no result screen is needed." },
+    inlineStates: strings,
     sequence: { type: Type.INTEGER },
   }, required: ["ref", "name", "description", "surfaceRefs", "journeyRefs", "actions",
     "information", "entryCondition", "outcome", "inlineStates"] } },
@@ -99,6 +103,38 @@ export async function runProposalPlanner(input: {
     ? { kind: "coverage", issues: input.getState().scope?.reviewIssues ?? [] } : null;
   let structureRepairs = 0;
   let coverageRepairs = 0;
+  // A saved review failure may have come from the reviewer's route bookkeeping,
+  // while the accepted screen actions are already sound. Recheck that saved
+  // graph before asking the proposal model to rewrite it.
+  if (input.resumeSavedReview) {
+    const saved = input.getState();
+    let proposed: ProductPlanning | null = null;
+    try { proposed = proposeProductScope(saved); } catch { /* A stale draft still needs a targeted proposal repair. */ }
+    if (proposed) {
+      await input.progress("Reviewing screen flow", "Checking the saved screen paths and outcomes...");
+      try {
+        const review = await reviewProductReadiness(proposed, input.prompt, {
+          history: input.conversation,
+          roadmap: await roadmapRows(admin, projectId, ownerId).then(rows => rows.map(row => row.item)),
+          onTrace: event => { performance.push(event); input.onTrace?.(event); },
+        });
+        if (review.ready) {
+          await input.persist({ ...proposed, scope: { ...proposed.scope!,
+            ...(review.coverage ? { journeyCoverage: review.coverage.journeys,
+              requestedScope: review.coverage.requestedScope, scopeEvidence: review.coverage.scopeEvidence } : {}),
+            reviewIssues: undefined } });
+          return { reply: "The screen flow is ready to review. Use the approval card to start generation.", performance };
+        }
+        repair = { kind: "coverage", issues: review.issues };
+        await input.persist({ ...saved, scope: { ...saved.scope!, status: "draft",
+          reviewIssues: review.issues.slice(0, 12), reviewedContentRevision: saved.contentRevision ?? 0 } });
+      } catch (error) {
+        if (error instanceof PlanningConflict) throw error;
+        const issue = "The saved screen flow could not be reviewed right now. Retry from the saved draft.";
+        return { reply: issue, failure: failure("flow_review", "REVIEW_UNAVAILABLE", issue), performance };
+      }
+    }
+  }
   for (let attempt = 0; attempt < 3; attempt++) {
     const before = input.getState();
     const current = await roadmapRows(admin, projectId, ownerId);
@@ -114,8 +150,9 @@ export async function runProposalPlanner(input: {
           evidenceAssessment: input.assessment,
           activeFacts: activeFacts(before), currentRoadmap: current.map(row => ({ ...row.item, status: row.status })),
           currentScope: before.scope, experience: before.experience,
+          savedJourneyGraph: repair ? deriveJourneyGraph(before, current.map(row => row.item)) : null,
           repair: repair ? { kind: repair.kind, issues: repair.issues,
-            instruction: "Patch only the cited issue. Keep unaffected identities and requested extent." } : null,
+            instruction: "Patch only the cited issue. Trace the saved journey memberships, entry points, and action destinations before changing screens. Keep unaffected identities and requested extent; do not invent cross-actor navigation." } : null,
         }) }] }],
       });
       performance.push({ stage: repair ? `proposal_${repair.kind}_repair` : "proposal", elapsedMs: Date.now() - started,
@@ -128,10 +165,13 @@ export async function runProposalPlanner(input: {
       input.onTrace?.({ stage: "proposal", attempt, elapsedMs: Date.now() - started, errorCode: "PROPOSAL_UNAVAILABLE" });
       return { reply: issue, failure: failure("proposal", "PROPOSAL_UNAVAILABLE", issue), performance };
     }
+    const validationStarted = Date.now();
     let candidate: ReturnType<typeof designFlowCandidateSchema.parse>;
     try {
       candidate = designFlowCandidateSchema.parse(JSON.parse(response.text || "{}"));
     } catch (error) {
+      performance.push({ stage: "proposal_structure_rejection", elapsedMs: Date.now() - validationStarted,
+        errorCode: error instanceof SyntaxError ? "JSON_PARSE" : "CANDIDATE_SCHEMA" });
       const issue = validationIssue(error);
       if (structureRepairs++ < 1) { repair = { kind: "structure", issues: [issue] }; continue; }
       return { reply: `I saved your decisions, but the screen-flow proposal needs correction: ${issue.slice(0, 300)}`,
@@ -139,6 +179,7 @@ export async function runProposalPlanner(input: {
     }
     let draft: ProductPlanning;
     let mapped: ReturnType<typeof candidateRoadmap>;
+    let validationPhase = "FACT_PATCH";
     try {
       const ids = candidateFactPatch(candidate, before, projectId, clientTurnId);
       const userEvidence = [input.originalRequest, ...input.history.filter(message => message.role === "user")
@@ -149,6 +190,7 @@ export async function runProposalPlanner(input: {
       const safe = reconcileCandidateFactEvidence(before, checked.patch, ids);
       const factState = safe.patch.operations.length
         ? applyProductPatch(before, safe.patch, userMessageId) : before;
+      validationPhase = "ROADMAP_MAPPING";
       mapped = candidateRoadmap(candidate, factState, current, safe.aliases, safe.superseded, projectId, clientTurnId);
       const oldScope = before.scope;
       const scopeChanged = !oldScope || JSON.stringify({ goal: oldScope.goal, rationale: oldScope.rationale,
@@ -159,10 +201,14 @@ export async function runProposalPlanner(input: {
         || mapped.removeKeys.length > 0 || scopeChanged;
       draft = { ...factState, contentRevision: (before.contentRevision ?? 0) + (contentChanged ? 1 : 0),
         scope: mapped.scope };
+      validationPhase = "FLOW_PREFLIGHT";
       const graph = flowPreflight(draft, mapped.roadmap);
       if (graph.issues.length) throw new Error(graph.issues.join(" "));
+      performance.push({ stage: "candidate_validation_wall", elapsedMs: Date.now() - validationStarted });
     } catch (error) {
       if (error instanceof PlanningConflict) throw error;
+      performance.push({ stage: "proposal_structure_rejection", elapsedMs: Date.now() - validationStarted,
+        errorCode: error instanceof ProductToolError ? error.code : validationPhase });
       const issue = validationIssue(error);
       if (structureRepairs++ < 1) { repair = { kind: "structure", issues: [issue] }; continue; }
       return { reply: `The screen flow still has a specific gap: ${issue.slice(0, 300)}`,
@@ -176,6 +222,7 @@ export async function runProposalPlanner(input: {
       return { reply: issue, failure: failure("screen_flow", "SAVE_FAILED", issue), performance };
     }
     let state = input.getState();
+    let designPreparation: Promise<void> | null = null;
     try {
       let inspectNeeded = false;
       try { assertExperienceReady(state); } catch { inspectNeeded = true; }
@@ -191,16 +238,21 @@ export async function runProposalPlanner(input: {
           input: { ...state.input, imagePath: inspected.experience.referencePath,
             referenceSource: !inspected.experience.referencePath ? "none"
               : inspected.experience.referenceId ? "curated" : "user" } });
-        await input.enqueueProjectDesign();
+        // Token preparation is speculative and does not feed the flow review.
+        // Start it now, then await it alongside the independent review.
+        designPreparation = input.enqueueProjectDesign().catch(() => undefined);
         state = input.getState();
       }
       if (blockingScreenQuestions(state).length) throw new Error("A saved screen-flow decision still needs the user's answer.");
       const proposed = proposeProductScope(state);
       await input.progress("Reviewing screen flow", "Checking the requested tasks, screen paths and outcomes...");
-      const review = await reviewProductReadiness(proposed, input.prompt, {
-        history: input.conversation, roadmap: await roadmapRows(admin, projectId, ownerId).then(rows => rows.map(row => row.item)),
-        onTrace: event => { performance.push(event); input.onTrace?.(event); },
-      });
+      const [review] = await Promise.all([
+        reviewProductReadiness(proposed, input.prompt, {
+          history: input.conversation, roadmap: await roadmapRows(admin, projectId, ownerId).then(rows => rows.map(row => row.item)),
+          onTrace: event => { performance.push(event); input.onTrace?.(event); },
+        }),
+        designPreparation ?? Promise.resolve(),
+      ]);
       if (!review.ready) {
         await input.persist({ ...state, scope: { ...state.scope!, status: "draft",
           reviewIssues: review.issues.slice(0, 12), reviewedContentRevision: state.contentRevision ?? 0 } });
@@ -222,6 +274,8 @@ export async function runProposalPlanner(input: {
         reviewIssues: [issue.slice(0, 1500)], reviewedContentRevision: input.getState().contentRevision ?? 0 } });
       return { reply: `Your saved design decisions are intact. ${issue.slice(0, 300)}`,
         failure: failure("flow_review", "REVIEW_UNAVAILABLE", issue, [issue]), performance };
+    } finally {
+      await designPreparation;
     }
   }
   return { reply: "The saved screen flow needs a targeted correction before approval.",

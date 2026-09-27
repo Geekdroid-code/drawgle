@@ -3,6 +3,7 @@ vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ generate: vi.fn() }));
 vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: mocks.generate } }) }));
 import { reviewProductReadiness } from "./readiness";
+import { appointmentFlow } from "./flow-test-fixtures";
 import { productFixture } from "./test-fixtures";
 
 describe("bounded product readiness review", () => {
@@ -31,5 +32,16 @@ describe("bounded product readiness review", () => {
   it("does not accept a contradictory ready flag alongside unresolved gaps", async () => {
     mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ requestedScope: "whole_product", scopeEvidence: "Start", journeys: [], ready: true, issues: ["A core journey has no outcome."] }) });
     expect((await reviewProductReadiness(productFixture(), "Start")).ready).toBe(false);
+  });
+  it("returns saved journey membership when the reviewer omits a completion from its key list", async () => {
+    const { state, roadmap, review } = appointmentFlow();
+    review.journeys[0].outputKeys = [roadmap[0].stableKey];
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify(review) });
+    const result = await reviewProductReadiness(state, review.scopeEvidence, {
+      history: [{ role: "user", content: review.scopeEvidence }], roadmap,
+    });
+    expect(result.ready).toBe(true);
+    expect(result.coverage?.journeys[0].outputKeys).toEqual(roadmap.map(item => item.stableKey));
+    expect(JSON.stringify(mocks.generate.mock.calls[0][0].contents)).toContain("savedJourneyGraph");
   });
 });

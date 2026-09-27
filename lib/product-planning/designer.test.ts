@@ -88,6 +88,10 @@ describe("product designer tool loop", () => {
     expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(mocks.state?.scope?.status).toBe("proposed");
     expect(mocks.messages.at(-1)?.metadata).toMatchObject({ productScopeProposal: { scope: { status: "proposed" } } });
+    const performance = (mocks.messages.at(-1)?.metadata as { planningPerformanceV1: Array<{ stage: string; elapsedMs: number }> })
+      .planningPerformanceV1;
+    expect(performance.map(entry => entry.stage)).toEqual(expect.arrayContaining(["proposal_wall", "planning_turn_wall"]));
+    expect(performance.every(entry => entry.elapsedMs >= 0)).toBe(true);
   });
   it("shows a prompt-grounded draft before the slower detailed planning rounds", async () => {
     mocks.assess.mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: true,
