@@ -18,8 +18,8 @@ function canonical(value: unknown): unknown {
 
 export type EarlyDesignMode = "off" | "shadow" | "on";
 export function earlyDesignMode(): EarlyDesignMode {
-  const value = process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE;
-  return value === "shadow" || value === "on" ? value : "off";
+  const value = process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE?.trim().toLowerCase();
+  return value === "off" || value === "shadow" ? value : "on";
 }
 
 export function mayPrepareProjectDesign(state: ProductPlanning | null | undefined) {

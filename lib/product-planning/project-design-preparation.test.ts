@@ -1,9 +1,23 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { designerFixture } from "./test-fixtures";
-import { mayPrepareProjectDesign, projectDesignPreparationKey, projectDesignPrompt } from "./project-design-preparation";
+import { earlyDesignMode, mayPrepareProjectDesign, projectDesignPreparationKey, projectDesignPrompt } from "./project-design-preparation";
 
 describe("project-wide design preparation", () => {
+  it("prepares by default while preserving explicit shadow and off modes", () => {
+    const previous = process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE;
+    try {
+      delete process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE;
+      expect(earlyDesignMode()).toBe("on");
+      process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = "shadow";
+      expect(earlyDesignMode()).toBe("shadow");
+      process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = "off";
+      expect(earlyDesignMode()).toBe("off");
+    } finally {
+      if (previous === undefined) delete process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE;
+      else process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = previous;
+    }
+  });
   it("uses project context without selecting an output batch", () => {
     const state = designerFixture();
     state.input.originalRequest = "A store for T-shirts";

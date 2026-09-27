@@ -8,7 +8,7 @@ import { enqueueScopePreparation } from "./scope-preparation-task";
 describe("scope preparation dispatch", () => {
   afterEach(() => vi.unstubAllEnvs());
   it("uses a global exact-snapshot key and changes it when shared design changes", async () => {
-    vi.stubEnv("DRAWGLE_PROGRESSIVE_GENERATION_ENABLED", "true");
+    vi.stubEnv("DRAWGLE_PROGRESSIVE_GENERATION_ENABLED", undefined);
     let tokens: unknown = null;
     const admin = { from: (table: string) => {
       const query = { select: () => query, eq: () => query,

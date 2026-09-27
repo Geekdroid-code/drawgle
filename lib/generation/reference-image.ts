@@ -7,18 +7,23 @@ import type { PromptImagePayload, ReferenceMode } from "@/lib/types";
 export const shouldAttachReferenceImage = ({
   engineVersion,
   screenGuidance = false,
+  familyAnchor = false,
   image,
   referenceMode,
 }: {
   engineVersion: "v1" | "v2";
   screenGuidance?: boolean;
+  familyAnchor?: boolean;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
 }) => {
-  void engineVersion;
-  // Style images are consumed by analysis/art direction/token stages. Sending
-  // them again to the final builder turns visual influence into layout copying.
-  return (referenceMode === "user_recreate" || screenGuidance) && Boolean(image);
+  // One first-screen style anchor lets the builder see the actual visual
+  // evidence. Later siblings use the accepted family, avoiding repeated image
+  // input and layout copying across the whole batch.
+  return (referenceMode === "user_recreate" || screenGuidance
+    || (familyAnchor && engineVersion === "v2"
+      && (referenceMode === "curated_style" || referenceMode === "user_style")))
+    && Boolean(image);
 };
 
 export async function normalizeReferenceImage(image: PromptImagePayload, mode: "style" | "recreate" = "style"): Promise<{

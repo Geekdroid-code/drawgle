@@ -35,6 +35,7 @@ import { runProposalPlanner } from "./proposal-runner";
 import type { FunctionalItem } from "./functional-plan";
 import { projectDesignTaskIdentity } from "./project-design-task";
 import { enqueueScopePreparation } from "./scope-preparation-task";
+import { progressiveGenerationEnabled } from "./generation-flags";
 import { proposalPlannerEnabled } from "./planner-mode";
 
 export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, resumeReview = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
@@ -103,8 +104,11 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       await tasks.trigger("prepare-project-design", { projectId, ownerId, queuedAt: new Date().toISOString() }, {
         idempotencyKey, idempotencyKeyTTL: "1d",
       });
-    } catch {
-      // Speculative preparation never blocks the approval card or planning turn.
+    } catch (error) {
+      // Preparation is optional, but a dispatch failure must be diagnosable.
+      console.warn("Project design preparation was not queued", {
+        projectId, reason: error instanceof Error ? error.name : "unknown",
+      });
     }
   };
   let progressMessageId: string | null = null;
@@ -291,7 +295,11 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
         } });
       await persist({ ...state, initialTurnComplete: true, lease: null });
       await enqueueProjectDesign();
-      await enqueueScopePreparation(admin, projectId, ownerId, state).catch(() => undefined);
+      await enqueueScopePreparation(admin, projectId, ownerId, state).catch(error => {
+        console.warn("Scope preparation was not queued", {
+          projectId, reason: error instanceof Error ? error.name : "unknown",
+        });
+      });
       await reportProgress(result.failure ? "Planning stopped" : "Product design ready", result.reply,
         result.failure ? "failed" : "completed");
       if (enqueueMemory) await persistProjectMessageMemoryPair({ admin, userMessageId,
@@ -513,12 +521,16 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     await persist({ ...state, initialTurnComplete: true, lease: null });
     await enqueueProjectDesign();
     if (state.scope?.status === "proposed" && state.phase === "discovery"
-      && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true") {
+      && progressiveGenerationEnabled()) {
       await tasks.trigger("prepare-product-scope", { projectId, ownerId, contentRevision: state.contentRevision ?? 0,
         queuedAt: new Date().toISOString() }, {
         idempotencyKey: `scope-preparation:${projectId}:${state.contentRevision ?? 0}`,
         idempotencyKeyTTL: "1d",
-      }).catch(() => undefined);
+      }).catch(error => {
+        console.warn("Scope preparation was not queued", {
+          projectId, reason: error instanceof Error ? error.name : "unknown",
+        });
+      });
     }
     await reportProgress(failure ? "Planning stopped" : "Product design ready",
       failure ? failure.summary : reply, failure ? "failed" : "completed");

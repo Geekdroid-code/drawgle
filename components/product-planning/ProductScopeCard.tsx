@@ -19,7 +19,7 @@ export function ProductScopeCard({ state, projectId, disabled, onApprove }: {
   const manifest = state.scope.manifest;
   const quote = scopeQuote(state);
   return (
-    <section className="mx-4 my-3 min-w-0 rounded-[20px] bg-white p-4 text-sm text-slate-800 shadow-[0_8px_28px_-18px_rgba(15,23,42,0.3)] ring-1 ring-slate-950/[0.09]" aria-label="Current design scope" aria-busy={busy}>
+    <section className="mx-4 my-3 min-w-0 rounded-[20px] bg-white p-4 text-sm text-slate-800 ring-1 ring-slate-950/[0.09]" aria-label="Current design scope" aria-busy={busy}>
       <p className="text-[11px] font-medium tracking-wide text-slate-500">Ready for your approval</p>
       <h3 className="mt-1 text-[15px] font-semibold leading-6 text-slate-950">{manifest ? "Your screen flow" : "Design first"}</h3>
       <p className="mt-1 text-[12px] leading-5 text-slate-600">{state.scope.goal}</p>

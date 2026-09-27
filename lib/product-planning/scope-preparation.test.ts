@@ -19,6 +19,16 @@ describe("approval-card preparation identity", () => {
     expect(scopePreparationKey({ ...approved, contentRevision: (approved.contentRevision ?? 0) + 1 }, keys, shared)).not.toBe(key);
     expect(scopePreparationKey({ ...approved, experience: { ...approved.experience!, referenceHash: "new-pixels" } }, keys, shared)).not.toBe(key);
     expect(scopePreparationKey(approved, keys, { ...shared, navigationPlan: { version: 2 } as never })).not.toBe(key);
+    const previous = process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE;
+    try {
+      process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = "on";
+      const projectWideKey = scopePreparationKey(proposed, keys, shared);
+      process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = "off";
+      expect(scopePreparationKey(proposed, keys, shared)).not.toBe(projectWideKey);
+    } finally {
+      if (previous === undefined) delete process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE;
+      else process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = previous;
+    }
   });
   it("distinguishes a saved plan from completed asset planning", async () => {
     const row = { design_tokens: {}, reference_analysis: null,
@@ -60,6 +70,8 @@ describe("approval-card preparation identity", () => {
     expect(projected?.screens[0].roadmapStableKey).toBe("screen:first");
     expect(projected?.navigationPlan).toBe(navigationPlan);
     expect(projected?.screenCountContract?.exactCount).toBe(1);
+    expect(projectScopePlanForKeys(plan, state, ["screen:first", "screen:second"], ["screen:second"], "internal_style")
+      ?.screens.map(screen => screen.name)).toEqual(["Second"]);
     expect(assetsForScopePlan(projected!, plan, [
       { id: "first-asset", screenName: "First" }, { id: "second-asset", screenName: "Second" },
     ] as never)?.map(asset => asset.id)).toEqual(["first-asset"]);

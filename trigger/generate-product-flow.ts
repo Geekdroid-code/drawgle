@@ -10,6 +10,7 @@ import { reusableProductOutputs } from "@/lib/product-planning/retry-outputs";
 import { functionalBrief, functionalStateVariant, functionalRoadmapItem } from "@/lib/product-planning/functional-plan";
 import { scopedGenerationPrompt, productScopeContract } from "@/lib/product-planning/generation-context";
 import { readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
+import { progressiveGenerationEnabled } from "@/lib/product-planning/generation-flags";
 import { SCREEN_GENERATION_CREDIT_COST, STATE_GENERATION_CREDIT_COST } from "@/lib/generation/pricing";
 import type { GenerateUiFlowPayload, generateUiFlowTask } from "./generate-ui-flow";
 
@@ -71,17 +72,16 @@ export const generateProductFlowTask = task({
       if (navigationError) throw navigationError;
       const fullBatch = nextProductBatch(manifest, claims, 8, existingOutputs.map(output => output.item.stableKey), recreate);
       const warm = claims.length === 0 && fullBatch.length > 1 && !recreate
-        && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
+        && progressiveGenerationEnabled()
         ? await readScopePreparation(admin, payload.projectId, payload.ownerId,
           scopePreparationKey(state, fullBatch.map(item => item.stableKey), {
             designTokens: project.design_tokens ?? null, navigationPlan: navigation?.plan ?? null,
             charter: project.project_charter ?? null,
           })).catch(() => null)
         : null;
-      // On an immediate Build before preparation finishes, plan and reveal the
-      // first screen without waiting for briefs and assets for the whole batch.
-      const batch = claims.length === 0 && fullBatch.length > 1 && !warm?.assetsReady
-        && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
+      // Prepared briefs accelerate the first screen; they never make its build
+      // wait behind the rest of the approved batch.
+      const batch = claims.length === 0 && fullBatch.length > 1 && progressiveGenerationEnabled()
         ? nextProductBatch(manifest, claims, 1, existingOutputs.map(output => output.item.stableKey), recreate)
         : fullBatch;
       if (!batch.length) {
@@ -109,7 +109,7 @@ export const generateProductFlowTask = task({
       const reusableOutputs = await reusableProductOutputs(admin, payload.projectId, payload.ownerId, batch, recreate);
       const child: GenerateUiFlowPayload = {
         ...payload, referenceScope: state.phase === "canvas" ? "screen" : "project", imageReferenceMode: recreate ? "recreate" : "style", imagePath: reference.imagePath, generationRunId: batchId, productPlanning: state, productExecutionKeys: executionKeys,
-        ...(warm && !warm.assetsReady ? { productScopePreparationKeys: fullBatch.map(item => item.stableKey) } : {}),
+        ...(warm ? { productScopePreparationKeys: fullBatch.map(item => item.stableKey) } : {}),
         productLookaheadKeys: nextProductBatch(manifest, [
           ...claims.filter(claim => !executionKeys.includes(claim.output_key)),
           ...batch.map(item => ({ output_key: item.stableKey, generation_run_id: batchId, status: "ready" as const, screen_id: null })),

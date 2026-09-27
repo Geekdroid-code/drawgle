@@ -1079,6 +1079,7 @@ const buildScreenInstruction = ({
         "MODE CONTRACT: STYLE_REFERENCE. The application has confirmed reusable visual evidence from an attached image, approved style contract, or project reference memory.",
         "Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
         "When a style reference image is attached, inspect it directly as visual evidence and preserve its material quality, shadows, radii, typography character, color rhythm, icon weight, navigation feel, component construction, density, and illustration character.",
+        "An inferred screen brief can describe a different page tint or decorative card border. Keep that screen's task and information hierarchy, but follow the actual reference and project tokens for the visual system. Do not add colored leading borders to ordinary cards or change the page background per route unless explicit user requirements or the reference support it.",
         "Use the written reference analysis as a construction contract, but prefer observable image evidence when prose is vague.",
         "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
       ].join(" ")

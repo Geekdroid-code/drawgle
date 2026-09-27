@@ -1,5 +1,7 @@
 # Planning and progressive-generation acceptance record
 
+The release defaults in this historical record were superseded by the [September 27 generation-path correction](./generation-path-correction-2026-09-27.md).
+
 ## Implemented locally
 
 - Saved scope-review issues and reviewed revision drive one targeted repair on unchanged-input resume. Structural preflight identifies missing output identities and destinations before readiness review; a changed request invalidates the saved repair. The recovery card names the failed stage and a specific saved issue when one exists.

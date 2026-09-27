@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { AssetRequirement, DesignTokens, NavigationPlan, PlannedUiFlow, ProjectCharter, ReferenceAnalysis } from "@/lib/types";
 import { designRequirementsKey } from "./design-requirements";
+import { earlyDesignMode } from "./project-design-preparation";
 import { productScopeContract } from "./generation-context";
 import { bindApprovedScreenPlans } from "./screen-plan-contract";
 import { scopeParents } from "./scope-outputs";
@@ -34,7 +35,7 @@ export function scopePreparationKey(state: ProductPlanning, keys: string[], shar
 }) {
   return createHash("sha256").update(JSON.stringify(canonical({
     // Approval changes discovery to canvas without changing this design.
-    version, tokenPolicy: process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE === "on" ? "project-wide-v1" : "screen-scoped-v1",
+    version, tokenPolicy: earlyDesignMode() === "on" ? "project-wide-v1" : "screen-scoped-v1",
     contentRevision: state.contentRevision ?? 0,
     manifest: state.scope?.manifest, keys, experience: state.experience,
     reference: { provenance: state.experience?.provenance, hash: state.experience?.referenceHash,

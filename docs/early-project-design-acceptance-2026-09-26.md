@@ -1,5 +1,7 @@
 # Early project design preparation — acceptance record
 
+The release defaults in this historical record were superseded by the [September 27 generation-path correction](./generation-path-correction-2026-09-27.md).
+
 ## Implemented
 
 - `DRAWGLE_EARLY_PROJECT_DESIGN_MODE=off|shadow|on` defaults to `off`. Shadow prepares project-wide tokens without Build reuse; on reuses a matching candidate. Saved/manual tokens take precedence. Exact recreation remains on its strict path.

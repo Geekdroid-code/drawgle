@@ -2,6 +2,7 @@ import "server-only";
 import { idempotencyKeys, tasks } from "@trigger.dev/sdk";
 import type { DesignTokens, NavigationPlan, ProjectCharter } from "@/lib/types";
 import { nextProductBatch } from "./execution";
+import { progressiveGenerationEnabled } from "./generation-flags";
 import { productReferenceExecution } from "./reference-execution";
 import { scopePreparationKey } from "./scope-preparation";
 import type { ProductPlanning } from "./model";
@@ -11,7 +12,7 @@ import type { PlanningStore } from "./store";
 export async function enqueueScopePreparation(admin: PlanningStore, projectId: string, ownerId: string,
   state: ProductPlanning) {
   if (state.scope?.status !== "proposed" || !state.scope.manifest?.length
-    || process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED !== "true") return;
+    || !progressiveGenerationEnabled()) return;
   const { data: project, error: projectError } = await admin.from("projects")
     .select("design_tokens,project_charter").eq("id", projectId).eq("owner_id", ownerId).maybeSingle();
   if (projectError) throw projectError;

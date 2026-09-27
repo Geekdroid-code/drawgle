@@ -89,7 +89,8 @@ import {
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
 import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
-import { shouldAttachReferenceImage } from "@/lib/generation/reference-image";
+import { normalizeReferenceImage, shouldAttachReferenceImage } from "@/lib/generation/reference-image";
+import { progressiveGenerationEnabled } from "@/lib/product-planning/generation-flags";
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
@@ -1748,7 +1749,7 @@ export const buildScreenTask = task({
         },
       });
     }
-    if (process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true" && payload.referenceMode !== "user_recreate") {
+    if (progressiveGenerationEnabled() && payload.referenceMode !== "user_recreate") {
       const viewportInput = (candidate: string) => ({ code: candidate, tokens: payload.designTokens ?? null,
         navigationPlan: payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId
           ? payload.navigationPlan ?? null : null,
@@ -2185,14 +2186,14 @@ export const generateUiFlowTask = task({
     }
     const scopePreparationKeys = payload.productScopePreparationKeys ?? payload.productExecutionKeys;
     const scopePreparation = !screenScoped && !exactRecreation && payload.productPlanning?.scope?.status === "approved"
-      && scopePreparationKeys?.length && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true"
+      && scopePreparationKeys?.length && progressiveGenerationEnabled()
       ? await readScopePreparation(admin, payload.projectId, payload.ownerId,
         scopePreparationKey(payload.productPlanning, scopePreparationKeys, {
           designTokens: projectTokens ?? null, navigationPlan: payload.navigationPlan ?? null,
           charter: existingCharter,
         })).catch(() => null)
       : null;
-    if (payload.productPlanning?.scope?.status === "approved" && process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED === "true") {
+    if (payload.productPlanning?.scope?.status === "approved" && progressiveGenerationEnabled()) {
       await mergeGenerationPerformance(admin, payload.generationRunId, {
         preparation: scopePreparation ? (scopePreparation.assetsReady ? "complete" : "plan_ready") : "miss",
         ...(scopePreparation ? { planReadyAt: scopePreparation.planReadyAt,
@@ -3284,14 +3285,17 @@ export const generateUiFlowTask = task({
           const shared = { designTokens, navigationPlan: plan.navigationPlan, charter: plan.charter };
           const key = preparedPlanKey(payload.productPlanning!, keys, shared);
           if (await readPreparedPlan(admin, preparationRootId, payload.ownerId, key)) return;
-          const nextPlan = await planUiFlow({ productPlanning: payload.productPlanning, productExecutionKeys: keys,
+          const nextScopePlan = scopePreparation && scopePreparationKeys
+            ? projectScopePlanForKeys(scopePreparation.plan, payload.productPlanning!, scopePreparationKeys,
+              keys, referenceMode) : null;
+          const nextPlan = nextScopePlan ?? await planUiFlow({ productPlanning: payload.productPlanning, productExecutionKeys: keys,
             prompt: [scopedGenerationPrompt(payload.productPlanning!, keys), screenScoped ? SCREEN_REFERENCE_INSTRUCTION : null].filter(Boolean).join("\n\n"), image: promptImage, referenceMode,
             referenceId, referenceCatalogHash, designStyle, designTokens,
             scopeContract: productScopeContract(payload.productPlanning!, referenceMode, keys), referenceAnalysis,
             referenceDna: plan.charter.referenceDna, screenFamilyContract: plan.screenFamilyContract,
             projectContext: planningContext, existingCharter: plan.charter, existingNavigationPlan: plan.navigationPlan,
             planningMode: "project", llmLog: llmLogFor("lookahead") });
-          if (referenceMode !== "user_recreate") {
+          if (!nextScopePlan && referenceMode !== "user_recreate") {
             const contentContract = compileProductContent(payload.productPlanning);
             if (contentContract) {
               nextPlan.screens = await reviewScreenContent(nextPlan.screens, contentContract);
@@ -3459,10 +3463,16 @@ export const generateUiFlowTask = task({
         if (currentRun.status === "canceled") return;
         const attachReferenceImage = shouldAttachReferenceImage({
           screenGuidance: screenScoped && referencePolicy === "user_upload",
+          familyAnchor: needsAcceptedAnchor && index === 0 && !screenScoped,
           engineVersion: generationEngineVersion,
           image: promptImage,
           referenceMode,
         });
+        const builderReferenceImage = attachReferenceImage && promptImage
+          ? needsAcceptedAnchor && index === 0 && referenceMode !== "user_recreate"
+            ? (await normalizeReferenceImage(promptImage, "style")).image
+            : promptImage
+          : null;
         generationJournal.screens = generationJournal.screens?.map((screen) =>
           screen.name === screenPlan.name ? { ...screen, status: "queued" } : screen,
         );
@@ -3542,7 +3552,7 @@ export const generateUiFlowTask = task({
             screenPlan,
             prompt: payload.prompt,
             designTokens,
-            image: attachReferenceImage ? promptImage : null,
+            image: builderReferenceImage,
             referenceScope,
             sourceDetail: !screenScoped && attachReferenceImage && promptImage ? await loadSourceDetail(admin, payload.ownerId, promptImage, productPlanning?.experience, screenPlan.referenceScreenIndex ?? index + 1) : null,
             referenceMode,

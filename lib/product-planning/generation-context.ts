@@ -13,7 +13,7 @@ export function formatProductTruth(state: ProductPlanning, includeScope = false)
     JSON.stringify(activeFacts(state)),
     compileProductContent(state),
     compileDesignRequirements(state),
-    state.experience ? `APPROVED EXPERIENCE DIRECTION: ${JSON.stringify(state.experience)}` : null,
+    state.experience ? `INFERRED EXPERIENCE DIRECTION (visual guidance, not a user-approved requirement; the reference image and explicit design requirements take precedence): ${JSON.stringify(state.experience)}` : null,
     includeScope && state.scope ? `APPROVED DESIGN SCOPE (generate the selected output manifest; existingOutputs are already built context and other product surfaces remain in the roadmap): ${JSON.stringify(state.scope)}` : null,
   ].filter(Boolean).join("\n");
 }

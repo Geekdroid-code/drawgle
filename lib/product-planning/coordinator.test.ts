@@ -30,7 +30,7 @@ const invoke = (payload: GenerateUiFlowPayload) => (generateProductFlowTask as u
 describe("durable approved-flow coordinator", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED;
+    process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED = "false";
     mocks.tables = { generation_runs: [{ id: rootId, status: "queued", metadata: {} }], product_output_fulfillments: [], projects: [{ id: project, owner_id: owner }], screens: [] };
     mocks.credits.mockResolvedValue({ hasCredits: true });
     mocks.rpc.mockImplementation(async (name, args) => {
@@ -88,7 +88,12 @@ describe("durable approved-flow coordinator", () => {
     expect(mocks.child.mock.calls[0][1].productPlanning.scope.manifest).toHaveLength(7);
     expect(mocks.tables.product_output_fulfillments).toHaveLength(7);
   });
-  it("uses the full first batch when its exact approved preparation is ready", async () => {
+  it("uses the first-screen path when the flag is unset", async () => {
+    delete process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED;
+    expect(await invoke(payload())).toEqual({ completed: true });
+    expect(mocks.child.mock.calls[0][1].productExecutionKeys).toEqual(["screen:0"]);
+  });
+  it("starts one screen even when its exact approved preparation is ready", async () => {
     process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED = "true";
     const input = payload();
     const keys = input.productPlanning.scope!.manifest!.map(item => item.stableKey);
@@ -97,8 +102,9 @@ describe("durable approved-flow coordinator", () => {
       design_tokens: {}, plan: { screens: [], charter: {}, navigationPlan: {} }, asset_requirements: [],
       expires_at: new Date(Date.now() + 60_000).toISOString() }];
     expect(await invoke(input)).toEqual({ completed: true });
-    expect(mocks.child.mock.calls[0][1].productExecutionKeys).toHaveLength(7);
-    expect(mocks.child).toHaveBeenCalledTimes(1);
+    expect(mocks.child.mock.calls[0][1].productExecutionKeys).toEqual(["screen:0"]);
+    expect(mocks.child.mock.calls[0][1].productScopePreparationKeys).toEqual(keys);
+    expect(mocks.child).toHaveBeenCalledTimes(2);
   });
   it("pauses before claiming or dispatching a batch with insufficient credit", async () => {
     mocks.credits.mockResolvedValue({ hasCredits: false });
