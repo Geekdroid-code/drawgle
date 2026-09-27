@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ generate: vi.fn() }));
 vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: mocks.generate } }) }));
@@ -11,7 +11,8 @@ import { appointmentFlow } from "./flow-test-fixtures";
 import { createProductPlanning, readProductPlanning } from "./model";
 import { experienceFixture } from "./test-fixtures";
 
-beforeEach(() => { mocks.generate.mockReset(); });
+beforeEach(() => { vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "legacy"); mocks.generate.mockReset(); });
+afterEach(() => vi.unstubAllEnvs());
 it("repairs failed inline-flow persistence through the real stores, assessment, scope snapshot and flow reviewer", async () => {
   const { state: mapped, roadmap, review } = appointmentFlow();
   // Ordinary confirmation is inline, not a paid state frame in a new scope.

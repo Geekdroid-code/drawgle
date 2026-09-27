@@ -12,13 +12,18 @@ const request = (extra: Record<string, unknown> = {}) => new Request("http://loc
 describe("real project creation before generation", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.existing = null; mocks.user = { id: "owner" }; mocks.rpc.mockResolvedValue({ data: projectId, error: null }); });
   afterEach(() => vi.unstubAllEnvs());
-  it("marks only new standard projects for the proposal protocol", async () => {
-    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "proposal");
+  it("uses the proposal protocol by default for new standard projects", async () => {
+    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "");
     await POST(request());
     expect(mocks.rpc.mock.calls[0][1].input_product_planning.planningProtocol).toBe("proposal_v1");
     mocks.rpc.mockClear();
     mocks.store.mockResolvedValueOnce("owner/prompt-images/upload.webp");
     await POST(request({ image: { data: "pixels", mimeType: "image/png" }, imageReferenceMode: "recreate" }));
+    expect(mocks.rpc.mock.calls[0][1].input_product_planning.planningProtocol).toBeUndefined();
+  });
+  it.each(["legacy", "off"])("allows an explicit %s rollback to the legacy planner", async mode => {
+    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", mode);
+    await POST(request());
     expect(mocks.rpc.mock.calls[0][1].input_product_planning.planningProtocol).toBeUndefined();
   });
   it("atomically persists the initial prompt and planning state without requesting generation", async () => {

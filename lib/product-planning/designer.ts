@@ -35,6 +35,7 @@ import { runProposalPlanner } from "./proposal-runner";
 import type { FunctionalItem } from "./functional-plan";
 import { projectDesignTaskIdentity } from "./project-design-task";
 import { enqueueScopePreparation } from "./scope-preparation-task";
+import { proposalPlannerEnabled } from "./planner-mode";
 
 export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, resumeReview = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
   admin: PlanningStore; projectId: string; ownerId: string; prompt: string; originalPrompt?: string;
@@ -58,7 +59,10 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     catch (error) { throw new PlanningConflict(error instanceof Error ? error.message : "These questions have changed."); }
     prompt = resolvedAnswers.content;
   }
-  const resumeSavedReview = process.env.DRAWGLE_PLANNING_REPAIR_ENABLED === "true" && resumeReview && !image && !productAnswers
+  const proposalDiscovery = proposalPlannerEnabled() && state.phase === "discovery"
+    && state.input.imageReferenceMode !== "recreate";
+  const resumeSavedReview = (proposalDiscovery || process.env.DRAWGLE_PLANNING_REPAIR_ENABLED === "true")
+    && resumeReview && !image && !productAnswers
     && Boolean(state.scope?.reviewIssues?.length && state.evidenceAssessment
       && state.scope.reviewedContentRevision === (state.contentRevision ?? 0));
   if (state.lease && Date.parse(state.lease.expiresAt) > Date.now()) throw new PlanningConflict("Drawgle is finishing the current product turn. Please try again shortly.");
@@ -266,8 +270,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
       });
     }
     const isReconstruction = state.phase !== "canvas" && state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
-    if (state.planningProtocol === "proposal_v1" && process.env.DRAWGLE_DESIGN_FLOW_PLANNER === "proposal"
-      && !isReconstruction && state.phase === "discovery") {
+    if (proposalPlannerEnabled() && !isReconstruction && state.phase === "discovery") {
       const result = await runProposalPlanner({
         admin, projectId, ownerId, clientTurnId, userMessageId, prompt: effectivePrompt,
         originalRequest, assessment, history, conversation, resumeSavedReview,

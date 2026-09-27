@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { functionalItemSchema, validateFunctionalPlan, type FunctionalItem } from "./functional-plan";
-import { activeFacts, productSectionSchema, type ProductPlanning } from "./model";
+import { activeFacts, productPatchSchema, productSectionSchema, type ProductPlanning } from "./model";
 import { outputRendering } from "./output-policy";
 
 const ref = z.string().regex(/^[a-z][a-z0-9_-]{0,79}$/);
@@ -41,21 +41,33 @@ const sameMeaning = (a: { section: string; label: string; detail: string; source
 export function candidateFactPatch(candidate: DesignFlowCandidate, state: ProductPlanning, projectId: string, turnId: string) {
   const aliases = new Map<string, string>();
   const active = activeFacts(state);
+  const replacements = new Map<string, string>();
   for (const item of candidate.facts) {
     if (aliases.has(item.ref)) throw new Error(`Fact alias ${item.ref} is repeated.`);
     const equal = active.find(existing => sameMeaning(existing, item));
     const sameLabel = active.find(existing => existing.section === item.section
       && existing.label.trim().toLowerCase() === item.label.trim().toLowerCase());
-    if (sameLabel && !equal && item.supersedesId !== sameLabel.id) {
-      throw new Error(`Changed fact ${item.label} must explicitly supersede ${sameLabel.id}.`);
-    }
-    if (item.supersedesId && !active.some(existing => existing.id === item.supersedesId)) {
+    const previous = item.supersedesId ? active.find(existing => existing.id === item.supersedesId) : null;
+    if (item.supersedesId && !previous) {
       throw new Error(`Fact ${item.ref} supersedes inactive or missing ${item.supersedesId}.`);
     }
-    if (equal && item.supersedesId && equal.id !== item.supersedesId) {
+    if (previous && previous.section !== item.section) {
+      throw new Error(`Fact ${item.ref} cannot change the section of ${previous.id}.`);
+    }
+    if (equal && previous && equal.id !== previous.id) {
       throw new Error(`Fact ${item.ref} repeats ${equal.id} while superseding a different fact.`);
     }
-    aliases.set(item.ref, equal && !item.supersedesId ? equal.id : stableId("f_", projectId, turnId, item.ref));
+    // A repair candidate can redescribe the same saved decision after review.
+    // Reuse its identity and meaning unless it explicitly and safely changes it.
+    // In particular, a model assumption must never replace a user-confirmed fact.
+    if (equal || (previous?.source === "user" && (item.source !== "user" || !item.evidence.trim()))
+      || (!previous && sameLabel)) {
+      aliases.set(item.ref, equal?.id ?? previous?.id ?? sameLabel!.id);
+      continue;
+    }
+    const id = stableId("f_", projectId, turnId, item.ref);
+    aliases.set(item.ref, id);
+    if (previous) replacements.set(previous.id, id);
   }
   const resolve = (value: string) => aliases.get(value) ?? (active.some(item => item.id === value) ? value : null);
   const facts = candidate.facts.flatMap(item => {
@@ -70,18 +82,61 @@ export function candidateFactPatch(candidate: DesignFlowCandidate, state: Produc
       evidence: item.evidence, links, blocking: item.blocking,
       provenance: { basis: item.source === "user" ? "direct" : "inferred", recommendationMessageId: null } }];
   });
-  const supersessions = candidate.facts.flatMap(item => item.supersedesId && aliases.get(item.ref) !== item.supersedesId
+  const supersessions = candidate.facts.flatMap(item => item.supersedesId && replacements.get(item.supersedesId) === aliases.get(item.ref)
     ? [{ id: item.supersedesId, replacement: facts.find(entry => entry.id === aliases.get(item.ref)) }]
     : []);
   for (const id of candidate.removeFactIds) {
-    if (!active.some(item => item.id === id)) throw new Error(`Cannot remove inactive or missing fact ${id}.`);
+    const previous = active.find(item => item.id === id);
+    if (!previous) throw new Error(`Cannot remove inactive or missing fact ${id}.`);
+    // Removal has no evidence field. Preserve confirmed user truth until an
+    // explicit replacement can be checked against the user's words.
+    if (previous.source === "user" || replacements.has(id) || supersessions.some(change => change.id === id)) continue;
     supersessions.push({ id, replacement: undefined });
   }
-  const superseded = new Map(candidate.facts.flatMap(item => item.supersedesId
-    ? [[item.supersedesId, aliases.get(item.ref)!] as const] : []));
+  const superseded = replacements;
   return { args: { facts: facts.filter(item => !supersessions.some(change => change.replacement?.id === item.id)),
     supersessions: supersessions.map(change => ({ id: change.id, replacement: change.replacement ?? null })) },
     aliases, superseded };
+}
+
+/** Evidence can demote a proposed correction after IDs were assigned. Keep confirmed truth and its references intact. */
+export function reconcileCandidateFactEvidence(state: ProductPlanning, patch: z.infer<typeof productPatchSchema>,
+  identities: Pick<ReturnType<typeof candidateFactPatch>, "aliases" | "superseded">) {
+  const active = new Map(activeFacts(state).map(fact => [fact.id, fact]));
+  const redirects = new Map<string, string>();
+  const retained = new Set<string>();
+  const operations = patch.operations.filter(operation => {
+    if (operation.op !== "supersede_fact" || active.get(operation.id)?.source !== "user") return true;
+    if (operation.replacement?.source === "user" && operation.replacement.evidence.trim()) return true;
+    retained.add(operation.id);
+    if (operation.replacement) redirects.set(operation.replacement.id, operation.id);
+    return false;
+  });
+  if (!retained.size) return { patch, ...identities };
+  const resolve = (id: string) => {
+    let current = id;
+    const seen = new Set<string>();
+    while (redirects.has(current) && !seen.has(current)) {
+      seen.add(current);
+      current = redirects.get(current)!;
+    }
+    return current;
+  };
+  const safePatch = { operations: operations.map(operation => {
+    if (operation.op === "put_fact") return { ...operation, fact: { ...operation.fact,
+      links: operation.fact.links.map(resolve) } };
+    if (operation.op === "supersede_fact") return { ...operation, replacement: operation.replacement
+      ? { ...operation.replacement, links: operation.replacement.links.map(resolve) } : null };
+    if (operation.op === "set_scope") return { ...operation, surfaceIds: operation.surfaceIds.map(resolve) };
+    return operation;
+  }) };
+  const aliases = new Map([...identities.aliases].map(([alias, id]) => [alias, resolve(id)]));
+  for (const [replacementId, originalId] of redirects) aliases.set(replacementId, originalId);
+  const superseded = new Map([...identities.superseded]
+    .filter(([id]) => !retained.has(id))
+    .map(([id, replacementId]) => [id, resolve(replacementId)] as const)
+    .filter(([id, replacementId]) => id !== replacementId));
+  return { patch: safePatch, aliases, superseded };
 }
 
 export function candidateRoadmap(candidate: DesignFlowCandidate, state: ProductPlanning,

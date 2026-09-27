@@ -36,6 +36,7 @@ const options = { admin: {}, projectId: "project", ownerId: "owner", prompt: "De
 const functionResponse = (calls: Array<{ name: string; args: unknown }>) => ({ functionCalls: calls, candidates: [{ content: { role: "model", parts: calls.map((call) => ({ functionCall: call })) } }] });
 describe("product designer tool loop", () => {
   beforeEach(() => {
+    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "legacy");
     vi.stubEnv("DRAWGLE_PLANNING_REPAIR_ENABLED", "true");
     mocks.generate.mockReset().mockResolvedValue({ text: "Continue from saved decisions." });
     mocks.snapshot.mockReset().mockImplementation(async (_a, _p, _o, state: ProductPlanning) => ({ ...state, scope: { ...state.scope!, manifest: [functionalFixture()] } }));
@@ -57,9 +58,9 @@ describe("product designer tool loop", () => {
     await expect(runProductDesigner(options)).rejects.toThrow(/already saved design changes/);
     expect(mocks.generate).not.toHaveBeenCalled();
   });
-  it("routes a marked new project through one candidate and the existing approval card", async () => {
+  it("routes an existing discovery project through one candidate and the existing approval card", async () => {
     vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "proposal");
-    mocks.state!.planningProtocol = "proposal_v1";
+    expect(mocks.state!.planningProtocol).toBeUndefined();
     mocks.state!.experience = { ...experienceFixture(), provenance: "prompt_synthesis",
       referencePath: null, referenceHash: null, requirementsKey: "[]",
       compatibility: { compatible: true, conflicts: [], transfer: "Prompt direction", rationale: "No image" } };
@@ -454,6 +455,7 @@ describe("product designer tool loop", () => {
     expect(mocks.state!.input.imageReferenceMode).toBe("recreate");
   });
   it("recreation uses the reconstruction-only runtime", async () => {
+    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "proposal");
     const { reconstructionInstructions } = await import("./reconstruction");
     mocks.state!.input.imagePath = "owner/prompt-images/source.webp";
     mocks.state!.input.imageReferenceMode = "recreate";

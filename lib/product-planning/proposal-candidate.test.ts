@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { applyProductPatch, createProductPlanning } from "./model";
-import { candidateFactPatch, candidateRoadmap, designFlowCandidateSchema } from "./proposal-candidate";
+import { applyProductPatch, createProductPlanning, productPatchSchema } from "./model";
+import { candidateFactPatch, candidateRoadmap, designFlowCandidateSchema, reconcileCandidateFactEvidence } from "./proposal-candidate";
 import { flowPreflight } from "./flow-preflight";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
@@ -55,13 +55,97 @@ describe("single-candidate screen-flow mapping", () => {
     expect(() => materialize(value)).toThrow(/missing output absent/);
   });
 
-  it("treats repeated facts as existing identities and requires explicit changed-fact supersession", () => {
+  it("keeps saved fact identities when a failed review's repair redescribes them", () => {
     const first = materialize();
     const repeated = candidateFactPatch(candidate({ outputs: candidate().outputs.map((item, index) =>
       ({ ...item, existingKey: first.mapped.roadmap[index].stableKey })) }), first.state, projectId, "next-turn");
     expect(repeated.args.facts).toEqual([]);
+    const saved = { ...first.state, scope: { ...first.state.scope!, reviewIssues: ["Add a child entry path"] } };
     const changed = candidate({ facts: [{ ref: "home", section: "surfaces", label: "home",
       detail: "A different task surface", source: "assumption" }] });
-    expect(() => candidateFactPatch(changed, first.state, projectId, "next-turn")).toThrow(/explicitly supersede/);
+    const reconciled = candidateFactPatch(changed, saved, projectId, "next-turn");
+    expect(reconciled.args).toEqual({ facts: [], supersessions: [] });
+    expect(reconciled.aliases.get("home")).toBe(first.ids.aliases.get("home"));
+  });
+
+  it("preserves a user-confirmed fact against tentative rewrites or unsupported removal", () => {
+    const confirmed = applyProductPatch(base(), { operations: [{ op: "put_fact", fact: {
+      id: "family-chores", section: "jobs", label: "Family chores", detail: "Parents track chores",
+      source: "user", evidence: "Parents track chores", links: [], blocking: false,
+    } }] }, messageId);
+    const revised = candidate({ facts: [{ ref: "chores", supersedesId: "family-chores", section: "jobs",
+      label: "Family chores", detail: "Children use cloud automation", source: "assumption" }],
+      removeFactIds: ["family-chores"] });
+    const patch = candidateFactPatch(revised, confirmed, projectId, "repair-turn");
+    expect(patch.args).toEqual({ facts: [], supersessions: [] });
+    expect(patch.aliases.get("chores")).toBe("family-chores");
+    expect(patch.superseded.size).toBe(0);
+  });
+
+  it("supersedes a confirmed fact with an explicit supported correction and rewires planned screens", () => {
+    const first = materialize();
+    const original = first.ids.aliases.get("home")!;
+    const confirmed = applyProductPatch(first.state, { operations: [{ op: "supersede_fact", id: original,
+      replacement: { id: "confirmed-home", section: "surfaces", label: "home",
+        detail: "Parents see family tasks", source: "user", evidence: "Parents see family tasks", links: [], blocking: false },
+    }] }, messageId);
+    const correction = candidate({ facts: [{ ref: "home", supersedesId: "confirmed-home", section: "surfaces",
+      label: "home", detail: "Parents see family tasks and pet care", source: "user",
+      evidence: "Parents see family tasks and pet care" }],
+      outputs: candidate().outputs.map((item, index) => ({ ...item,
+        existingKey: first.mapped.roadmap[index].stableKey,
+        surfaceRefs: ["confirmed-home"], journeyRefs: [first.ids.aliases.get("daily")!] })) });
+    const patch = candidateFactPatch(correction, confirmed, projectId, "correction-turn");
+    expect(patch.args.facts).toEqual([]);
+    expect(patch.args.supersessions).toHaveLength(1);
+    expect(patch.args.supersessions[0].id).toBe("confirmed-home");
+    expect(patch.args.supersessions[0].replacement?.source).toBe("user");
+    const next = applyProductPatch(confirmed, { operations: patch.args.supersessions.map(entry => ({
+      op: "supersede_fact", id: entry.id, replacement: entry.replacement,
+    })) }, messageId);
+    const newId = patch.aliases.get("home")!;
+    const rows = first.mapped.roadmap.map(item => ({ item: { ...item, surfaceIds: ["confirmed-home"] },
+      status: "planned", screenId: null }));
+    const mapped = candidateRoadmap(correction, next, rows, patch.aliases, patch.superseded, projectId, "correction-turn");
+    expect(newId).not.toBe("confirmed-home");
+    expect(mapped.scope.surfaceIds).toEqual([newId]);
+    expect(mapped.roadmap.map(item => item.surfaceIds)).toEqual([[newId], [newId]]);
+  });
+
+  it("retains confirmed truth and redirects links when evidence review demotes its replacement", () => {
+    const saved = applyProductPatch(base(), { operations: [
+      { op: "put_fact", fact: { id: "confirmed-home", section: "surfaces", label: "home",
+        detail: "Parents see family tasks", source: "user", evidence: "Parents see family tasks", links: [], blocking: false } },
+      { op: "put_fact", fact: { id: "saved-journey", section: "journeys", label: "daily",
+        detail: "Review today's tasks and a child's work", source: "assumption", links: [], blocking: false } },
+    ] }, messageId);
+    const revised = candidate({ facts: [
+      { ref: "home", supersedesId: "confirmed-home", section: "surfaces", label: "home",
+        detail: "Parents see cloud AI automation", source: "user", evidence: "Parents see cloud AI automation" },
+      { ref: "daily", section: "journeys", label: "daily",
+        detail: "Review today's tasks and a child's work", source: "assumption" },
+      { ref: "related", section: "capabilities", label: "Related feature",
+        detail: "A related screen capability", source: "assumption", links: ["home"] },
+    ] });
+    const ids = candidateFactPatch(revised, saved, projectId, "repair-turn");
+    const proposedId = ids.aliases.get("home")!;
+    const patch = productPatchSchema.parse({ operations: [
+      ...ids.args.facts.map(fact => ({ op: "put_fact", fact })),
+      ...ids.args.supersessions.map(entry => ({ op: "supersede_fact", ...entry })),
+    ] });
+    const correction = patch.operations.find(operation => operation.op === "supersede_fact");
+    if (!correction?.replacement) throw new Error("Expected a proposed correction");
+    correction.replacement.source = "assumption";
+    correction.replacement.evidence = "";
+    const safe = reconcileCandidateFactEvidence(saved, patch, ids);
+    expect(safe.patch.operations.map(operation => operation.op)).toEqual(["put_fact"]);
+    expect(safe.patch.operations[0].op === "put_fact" && safe.patch.operations[0].fact.links).toEqual(["confirmed-home"]);
+    expect(safe.aliases.get("home")).toBe("confirmed-home");
+    expect(safe.aliases.get(proposedId)).toBe("confirmed-home");
+    expect(safe.superseded.size).toBe(0);
+    const next = applyProductPatch(saved, safe.patch, messageId);
+    expect(next.blueprint.facts.find(fact => fact.id === "confirmed-home")?.status).toBe("active");
+    const mapped = candidateRoadmap(revised, next, [], safe.aliases, safe.superseded, projectId, "repair-turn");
+    expect(mapped.roadmap.map(item => item.surfaceIds)).toEqual([["confirmed-home"], ["confirmed-home"]]);
   });
 });

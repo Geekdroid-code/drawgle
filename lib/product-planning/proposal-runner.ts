@@ -4,7 +4,8 @@ import { z } from "zod";
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { confirmedMessageEvidence } from "./questions";
-import { candidateFactPatch, candidateRoadmap, designFlowCandidateSchema } from "./proposal-candidate";
+import { candidateFactPatch, candidateRoadmap, designFlowCandidateSchema,
+  reconcileCandidateFactEvidence } from "./proposal-candidate";
 import { prepareDesignerPatch } from "./designer-patch";
 import { reviewFactEvidence } from "./review-fact-evidence";
 import { activeFacts, applyProductPatch, assertExperienceReady, blockingScreenQuestions, proposeProductScope, type ProductPlanning } from "./model";
@@ -21,6 +22,7 @@ type Trace = { stage: string; elapsedMs: number; inputTokens?: number; outputTok
 
 const instructions = `You are Drawgle, a senior SCREEN and FLOW designer. Produce one JSON candidate for a user-facing app design.
 Map every named user task to visible screens, actions, destinations and outcomes. A full-app request needs the whole requested flow; a focused request stays focused. Describe useful information, entry conditions, result states and inline feedback. Use one screen for a coherent task; do not invent separate screens for every tiny state. One product surface may need several distinct task screens. Never target a fixed screen count. Do not ask about backend architecture, storage, codecs, APIs, cloud sync, model choice, or implementation policy.
+For each screen without an incoming action, give a credible independent entry condition for its actor, such as opening a separate child app. Otherwise connect it from a visible action on an appropriate screen. Do not invent a cross-actor link just to make the graph connected. Existing user-confirmed facts are authoritative; do not restate or rewrite them unless the latest user request actually corrects them.
 The server assigns identities. Each new fact and output needs a unique short lowercase ref. To change an active fact, set supersedesId to its current ID; never make a renamed copy. To edit an unbuilt screen, set existingKey. Ready or building outputs are historical context, not new scope selections; use a new ref for a redesign. Preserve all unaffected existing decisions and output keys. Existing fact IDs and output keys may be used directly in references. Only remove planned outputs when the user actually changed scope.
 Facts marked source=user must quote supporting user words in evidence. Designer choices are assumptions, not confirmed requirements. Preserve consistent audience language, entity names and plausible example content; visual references supply craft, not an unrelated domain or invented product promises. Refer to every selected output in scope.outputRefs. For an external action, use destinationRef=null and explain the handoff in outcome. Generation dependencyRefs are build prerequisites, not navigation order. Every output needs a real surface and journey fact. Give each main screen a task-specific information hierarchy; avoid generic repeated card stacks. Return JSON only with facts, removeFactIds, outputs, removeOutputKeys and scope.`;
 
@@ -144,9 +146,10 @@ export async function runProposalPlanner(input: {
       const prepared = prepareDesignerPatch("update_product", ids.args, userEvidence, input.history, input.assessment);
       const checked = prepared.patch.operations.length ? await reviewFactEvidence(prepared, input.history,
         event => { performance.push(event); input.onTrace?.(event); }) : prepared;
-      const factState = checked.patch.operations.length
-        ? applyProductPatch(before, checked.patch, userMessageId) : before;
-      mapped = candidateRoadmap(candidate, factState, current, ids.aliases, ids.superseded, projectId, clientTurnId);
+      const safe = reconcileCandidateFactEvidence(before, checked.patch, ids);
+      const factState = safe.patch.operations.length
+        ? applyProductPatch(before, safe.patch, userMessageId) : before;
+      mapped = candidateRoadmap(candidate, factState, current, safe.aliases, safe.superseded, projectId, clientTurnId);
       const oldScope = before.scope;
       const scopeChanged = !oldScope || JSON.stringify({ goal: oldScope.goal, rationale: oldScope.rationale,
         surfaceIds: oldScope.surfaceIds, outputKeys: oldScope.outputKeys, manifest: oldScope.manifest })

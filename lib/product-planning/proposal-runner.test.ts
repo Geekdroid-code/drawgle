@@ -99,7 +99,10 @@ describe("single-candidate proposal turn", () => {
         const current = JSON.parse(request.contents[0].parts[0].text);
         expect(current.repair.issues).toContain("The completion state is unclear.");
         const key = h.getRows()[0].item.stableKey;
-        return { text: JSON.stringify({ ...candidate, outputs: [{ ...candidate.outputs[0], existingKey: key,
+        return { text: JSON.stringify({ ...candidate,
+          facts: candidate.facts.map(fact => fact.ref === "today"
+            ? { ...fact, detail: "A renamed description of the same task view" } : fact),
+          outputs: [{ ...candidate.outputs[0], existingKey: key,
           inlineStates: ["Completed task appears checked with a timestamp"] }],
           scope: { ...candidate.scope, outputRefs: [key] } }) };
       });
@@ -107,6 +110,9 @@ describe("single-candidate proposal turn", () => {
     expect(result.failure).toBeUndefined();
     expect(h.getState().scope?.status).toBe("proposed");
     expect(h.getRows()).toHaveLength(1);
+    expect(h.getState().blueprint.facts.filter(fact => fact.section === "surfaces")).toHaveLength(1);
+    expect(h.getState().blueprint.facts.find(fact => fact.section === "surfaces")?.detail)
+      .toBe("Today's task view");
     expect(mocks.review).toHaveBeenCalledTimes(2);
   });
 });
