@@ -112,6 +112,47 @@ describe("single-candidate proposal turn", () => {
     expect(h.getState().scope?.status).toBe("proposed");
   });
 
+  it("does not label a reference outage as a gap in the screen graph", async () => {
+    const h = harness();
+    mocks.inspect.mockRejectedValueOnce(Object.assign(new Error("private provider response"), { status: 503 }));
+    const result = await h.run();
+    expect(result.failure).toMatchObject({ stage: "reference_inspection", code: "REFERENCE_INSPECTION_HTTP_503" });
+    expect(JSON.stringify(result)).not.toContain("private provider response");
+    expect(h.getState().scope?.status).toBe("draft");
+    expect(h.getState().scope?.reviewIssues).toBeUndefined();
+    expect(mocks.review).not.toHaveBeenCalled();
+    expect(mocks.generate).toHaveBeenCalledOnce();
+  });
+
+  it("does not regenerate a valid proposal when the reviewer returns malformed JSON", async () => {
+    const h = harness();
+    mocks.review.mockRejectedValueOnce(new SyntaxError("private malformed response"));
+    const result = await h.run();
+    expect(result.failure).toMatchObject({ stage: "flow_review", code: "FLOW_REVIEW_RESPONSE_JSON" });
+    expect(h.getState().scope?.reviewIssues).toBeUndefined();
+    expect(h.getRows()).toHaveLength(1);
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    expect(mocks.review).toHaveBeenCalledOnce();
+  });
+
+  it.each(["reference", "approval"])("reports the actual %s save failure without pretending review rejected it", async phase => {
+    const h = harness();
+    const save = h.persist.getMockImplementation()!;
+    h.persist.mockImplementation(async next => {
+      if ((phase === "reference" && next.experience) || (phase === "approval" && next.scope?.status === "proposed")) {
+        throw { code: "XX000", message: "private database detail" };
+      }
+      return save(next);
+    });
+    const result = await h.run();
+    expect(result.failure?.code).toBe(phase === "reference" ? "REFERENCE_SAVE_XX000" : "SCOPE_SAVE_XX000");
+    expect(JSON.stringify(result)).not.toContain("private database detail");
+    expect(h.getState().scope?.status).toBe("draft");
+    expect(h.getState().scope?.reviewIssues).toBeUndefined();
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    expect(h.persist).toHaveBeenCalledTimes(phase === "reference" ? 1 : 2);
+  });
+
   it("rechecks a saved review failure before rewriting an already valid flow", async () => {
     const h = harness();
     expect((await h.run()).failure).toBeUndefined();

@@ -21,6 +21,7 @@ export function ProductPlanningRecovery({ active, disabled, onSubmit, modeError 
         ? `Screen-flow review: ${failure.issues?.[0] ?? failure.summary}`
         : failure?.stage === "update_product"
           ? "A saved product fact needs a specific correction. Continue from the existing roadmap and decisions."
+          : failure ? failure.summary
           : "Continue from the saved decisions and roadmap. You’ll review the scope before any generation starts."}</p>
     {active && !done && <button type="button" disabled={disabled || busy} className="mt-2 rounded-lg bg-slate-950 px-3 py-2 text-white disabled:opacity-50" onClick={async () => {
       if (submitting.current) return;

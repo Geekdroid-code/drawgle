@@ -49,7 +49,7 @@ it("repairs failed inline-flow persistence through the real stores, assessment, 
   ];
   mocks.generate.mockImplementation(async ({ config }) => {
     if (config.responseSchema?.properties?.productReady) return { text: JSON.stringify({ productReady: true, experienceReady: true, gaps: [], recommendations: [], delegation: "", rationale: "The booking behavior is explicit" }) };
-    if (config.responseSchema?.properties?.requestedScope) return { text: JSON.stringify(review) };
+    if (config.responseSchema?.properties?.requestedScope) return { text: JSON.stringify({ ...review, scopeMessageIndex: 0 }) };
     return designerReplies.shift();
   });
   await runProductDesigner({ admin, projectId: "project", ownerId: "owner", prompt: review.scopeEvidence,

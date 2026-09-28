@@ -112,17 +112,8 @@ describe("explicit no-reference mode (Phase 4)", () => {
     expect(exec.referenceId).toBeNull();
   });
 
-  it("inspects reference in no-reference mode by synthesizing prompt-only experience without curated library", async () => {
-    mocks.generate.mockResolvedValueOnce({
-      text: JSON.stringify({
-        observations: "Clean typography and spacious grid layout tailored to shopping.",
-        direction: "Direct prompt-led minimal ecommerce.",
-        informationHierarchy: "Clear product hierarchy.",
-        navigation: "Bottom tab primary navigation.",
-        adaptations: "Preserve explicit user tokens.",
-      }),
-    });
-
+  it("uses saved prompt requirements directly in no-reference mode", async () => {
+    mocks.generate.mockClear();
     const base = createProductPlanning({
       imagePath: null,
       imageReferenceMode: "style",
@@ -157,7 +148,9 @@ describe("explicit no-reference mode (Phase 4)", () => {
     expect(inspected.experience.referencePath).toBeNull();
     expect(inspected.experience.referenceHash).toBeNull();
     expect(inspected.experience.compatibility?.compatible).toBe(true);
-    expect(inspected.experience.compatibility?.rationale).toContain("explicit no-reference mode");
+    expect(inspected.experience.provenance).toBe("prompt_synthesis");
+    expect(inspected.experience.direction).toContain("Cream background and no gradients");
+    expect(mocks.generate).not.toHaveBeenCalled();
   });
 
   it("proposes and approves scope with null referencePath in no-reference mode", () => {

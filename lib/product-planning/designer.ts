@@ -18,6 +18,7 @@ import { activeFacts, applyProductPatch, blockingScreenQuestions, proposeProduct
 import { designerInstructions, designerToolDeclarations } from "./designer-tools";
 import { loadProductPlanning, saveProductPlanning, PlanningConflict, type PlanningStore } from "./store";
 import { loadPlanningReference, storePlanningReference } from "./references";
+import { loadDesignReference } from "./load-design-reference";
 import { reviewProductReadiness } from "./readiness";
 import { persistProjectMessageMemoryPair } from "@/lib/generation/message-memory";
 import { assessProductEvidence } from "./assess-evidence";
@@ -220,8 +221,12 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
         scope: state.scope ? { ...state.scope, status: "draft" } : null,
       });
     }
-    const reference = (state.phase === "canvas" ? null : image) ?? await loadPlanningReference(admin, state.input.imagePath, ownerId);
-    if (state.input.imagePath && !reference) throw new Error("The saved reference could not be loaded. Retry or replace it using the image controls.");
+    const reference = (state.phase === "canvas" ? null : image) ?? await loadDesignReference(admin, ownerId, state, onTrace);
+    if (state.input.imagePath && !reference && state.experience) {
+      // A missing speculative curated source must be reselected/derived by the
+      // inspection stage, not reused solely because its old requirements match.
+      await persist({ ...state, experience: null });
+    }
     const answeredKeys = [...new Set([...(state.resolvedDecisionKeys ?? []), ...resolvedDecisionKeys([
       ...history, ...(productAnswers ? [{ id: userMessageId, role: "user", metadata: { productAnswers } }] : []),
     ])])].slice(-500);

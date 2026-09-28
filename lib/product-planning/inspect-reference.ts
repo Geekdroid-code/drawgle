@@ -16,17 +16,19 @@ import { verifySourceDetails } from "./source-detail";
 import { ProductToolError } from "./tool-failure";
 import { experienceSchema } from "./experience";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
+import { promptExperience } from "./prompt-experience";
+import { loadDesignReference } from "./load-design-reference";
 
 export async function inspectProductReference(admin: PlanningStore, ownerId: string, state: ProductPlanning, request: string,
-  onTrace?: (event: { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number }) => void) {
-  const recreation = state.input.imageReferenceMode === "recreate" && Boolean(state.input.imagePath);
+  onTrace?: (event: { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number; errorCode?: string }) => void) {
+  const referenceContext = planningReferenceContext(state);
+  const recreation = referenceContext.assessmentMode === "recreate";
   const reqKey = designRequirementsKey(state);
   const explicitReqs = explicitDesignRequirements(state);
   let referenceId: string | null = state.experience?.referencePath === state.input.imagePath ? state.experience.referenceId : null;
   let catalogHash: string | null = state.experience?.referencePath === state.input.imagePath ? state.experience.catalogHash ?? null : null;
   let referencePath = state.input.imagePath;
-  let image = state.input.referencePreference?.mode === "none" ? null : await loadPlanningReference(admin, referencePath, ownerId);
-  if (referencePath && !image && state.input.referencePreference?.mode !== "none") throw new Error("The supplied reference is unavailable. Restore or replace it before approving designs.");
+  let image = await loadDesignReference(admin, ownerId, state, onTrace);
 
   const fields = ["observations", "direction", "informationHierarchy", "navigation", "adaptations"];
   const policy = geminiPolicyForTask("project_planning", {
@@ -38,14 +40,15 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
         ...(recreation ? { frames: { type: Type.ARRAY, maxItems: 24, items: { type: Type.OBJECT, properties: {
           index: { type: Type.INTEGER }, bounds: { type: Type.OBJECT, properties: Object.fromEntries(["x", "y", "width", "height"].map(key => [key, { type: Type.NUMBER }])), required: ["x", "y", "width", "height"] },
         }, required: ["index", "bounds"] } } } : {}),
-        ...Object.fromEntries(fields.map(field => [field, { type: Type.STRING }])),
+        ...Object.fromEntries(fields.map(field => [field, { type: Type.STRING,
+          description: `Concise, non-empty ${field}; at most ${field === "informationHierarchy" || field === "navigation" ? 2400 : 4000} characters.` }])),
         compatibility: {
           type: Type.OBJECT,
           properties: {
             compatible: { type: Type.BOOLEAN },
-            conflicts: { type: Type.ARRAY, items: { type: Type.STRING } },
-            transfer: { type: Type.STRING },
-            rationale: { type: Type.STRING },
+            conflicts: { type: Type.ARRAY, maxItems: 20, items: { type: Type.STRING } },
+            transfer: { type: Type.STRING, description: "Transferable visual rules; at most 3000 characters." },
+            rationale: { type: Type.STRING, description: "Concise compatibility rationale; at most 2000 characters." },
           },
           required: ["compatible", "conflicts", "transfer", "rationale"],
         },
@@ -54,48 +57,11 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
     },
   });
 
-  const synthesizePromptDirection = async (reason: "explicit" | "no_compatible_reference") => {
-    const textPrompt = [
-      activeFacts(state).map(f => `${f.section}: ${f.label} - ${f.detail}`).join("\n"),
-      explicitReqs.length ? `Explicit design requirements:\n${JSON.stringify(explicitReqs)}` : null,
-      request,
-    ].filter(Boolean).join("\n\n");
-
-    const started = Date.now();
-    const response = await createGeminiClient().models.generateContent({
-      model: policy.model,
-      config: {
-        ...policy.config,
-        systemInstruction: "You are the visual/product designer establishing an experience direction derived entirely from the prompt and user design requirements, without external visual references. Synthesize the visual hierarchy, component density, navigation, and layout adaptations from the explicit requirements and domain needs. Return JSON only.",
-      },
-      contents: [{ role: "user", parts: [{ text: textPrompt }] }],
-    });
-    onTrace?.({ stage: "reference_synthesis", elapsedMs: Date.now() - started,
-      inputTokens: response.usageMetadata?.promptTokenCount,
-      outputTokens: response.usageMetadata?.candidatesTokenCount });
-
-    const parsed = JSON.parse(response.text || "{}");
-    const experience = experienceSchema.parse({
-      ...parsed,
-      referenceId: null,
-      referencePath: null,
-      referenceHash: null,
-      catalogHash: undefined,
-      requirementsKey: reqKey,
-      provenance: "prompt_synthesis" as const,
-      compatibility: {
-        compatible: true,
-        conflicts: [],
-        transfer: "Prompt-only design direction; strictly preserve explicit user requirements and standard platform ergonomics.",
-        rationale: reason === "explicit"
-          ? "User selected explicit no-reference mode."
-          : "No compatible optional curated reference was available; direction follows the prompt and explicit requirements.",
-      },
-    });
-
-    return { experience, image: null };
+  const buildPromptDirection = (reason: "explicit" | "optional_reference_unavailable") => {
+    onTrace?.({ stage: "reference_prompt_basis", elapsedMs: 0 });
+    return { experience: promptExperience(state, reason), image: null };
   };
-  if (state.input.referencePreference?.mode === "none") return synthesizePromptDirection("explicit");
+  if (state.input.referencePreference?.mode === "none") return buildPromptDirection("explicit");
 
   // A reference asset is reusable under the same confirmed requirements and
   // exact stored pixels. Stale/rejected candidates return to bounded selection.
@@ -137,7 +103,13 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
           ],
         }],
       }).catch(() => null);
-      if (!response) continue;
+      if (!response) {
+        // Candidate incompatibility can justify another image. A service
+        // failure does not: repeating it for each image only extends the wait.
+        onTrace?.({ stage: "reference_candidate", elapsedMs: Date.now() - started,
+          errorCode: "OPTIONAL_REFERENCE_INSPECTION_UNAVAILABLE" });
+        break;
+      }
       onTrace?.({ stage: "reference_candidate", elapsedMs: Date.now() - started,
         inputTokens: response.usageMetadata?.promptTokenCount,
         outputTokens: response.usageMetadata?.candidatesTokenCount });
@@ -162,14 +134,19 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
     }
 
     if (!chosenImage || !chosenExperience) {
-      return synthesizePromptDirection("no_compatible_reference");
+      return buildPromptDirection("optional_reference_unavailable");
     }
 
     referenceId = chosenCandidate.reference.id;
     catalogHash = chosenCandidate.catalogHash;
-    referencePath = await storePlanningReference(admin, ownerId, chosenImage);
-    image = await loadPlanningReference(admin, referencePath, ownerId);
-    if (!image) throw new Error("The persisted curated reference could not be read.");
+    try {
+      referencePath = await storePlanningReference(admin, ownerId, chosenImage);
+      image = await loadPlanningReference(admin, referencePath, ownerId);
+      if (!image) throw new Error("The persisted curated reference could not be read.");
+    } catch {
+      onTrace?.({ stage: "reference_optional_store", elapsedMs: 0, errorCode: "OPTIONAL_REFERENCE_UNAVAILABLE" });
+      return buildPromptDirection("optional_reference_unavailable");
+    }
 
     const referenceHash = createHash("sha256").update(image.data).digest("hex");
     const experience = experienceSchema.parse({

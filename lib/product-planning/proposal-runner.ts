@@ -17,6 +17,7 @@ import { reviewProductReadiness } from "./readiness";
 import { PlanningConflict, type PlanningStore } from "./store";
 import type { EvidenceAssessment } from "./evidence";
 import { ProductToolError, type PlanningFailure } from "./tool-failure";
+import { describeProposalFailure, type ProposalStage } from "./proposal-failure";
 
 type RoadmapRow = { item: FunctionalItem; status: string; screenId: string | null };
 type Trace = { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number; errorCode?: string };
@@ -94,6 +95,13 @@ export async function runProposalPlanner(input: {
 }): Promise<{ reply: string; failure?: PlanningFailure; performance: Trace[] }> {
   const { admin, projectId, ownerId, clientTurnId, userMessageId } = input;
   const performance: Trace[] = [];
+  const recordFailure = (stage: ProposalStage, error: unknown) => {
+    const diagnostic = describeProposalFailure(stage, error);
+    performance.push({ stage: `${stage}_failure`, elapsedMs: 0, errorCode: diagnostic.code });
+    input.onTrace?.({ stage: `${stage}_failure`, errorCode: diagnostic.code,
+      issuePaths: diagnostic.issuePaths, validationFingerprint: diagnostic.validationFingerprint });
+    return diagnostic;
+  };
   const ai = createGeminiClient();
   const policy = geminiPolicyForTask("project_planning", {
     responseMimeType: "application/json", responseSchema,
@@ -112,6 +120,7 @@ export async function runProposalPlanner(input: {
     try { proposed = proposeProductScope(saved); } catch { /* A stale draft still needs a targeted proposal repair. */ }
     if (proposed) {
       await input.progress("Reviewing screen flow", "Checking the saved screen paths and outcomes...");
+      let stage: ProposalStage = "flow_review";
       try {
         const review = await reviewProductReadiness(proposed, input.prompt, {
           history: input.conversation,
@@ -119,6 +128,7 @@ export async function runProposalPlanner(input: {
           onTrace: event => { performance.push(event); input.onTrace?.(event); },
         });
         if (review.ready) {
+          stage = "scope_save";
           await input.persist({ ...proposed, scope: { ...proposed.scope!,
             ...(review.coverage ? { journeyCoverage: review.coverage.journeys,
               requestedScope: review.coverage.requestedScope, scopeEvidence: review.coverage.scopeEvidence } : {}),
@@ -126,12 +136,13 @@ export async function runProposalPlanner(input: {
           return { reply: "The screen flow is ready to review. Use the approval card to start generation.", performance };
         }
         repair = { kind: "coverage", issues: review.issues };
+        stage = "scope_save";
         await input.persist({ ...saved, scope: { ...saved.scope!, status: "draft",
           reviewIssues: review.issues.slice(0, 12), reviewedContentRevision: saved.contentRevision ?? 0 } });
       } catch (error) {
         if (error instanceof PlanningConflict) throw error;
-        const issue = "The saved screen flow could not be reviewed right now. Retry from the saved draft.";
-        return { reply: issue, failure: failure("flow_review", "REVIEW_UNAVAILABLE", issue), performance };
+        const diagnostic = recordFailure(stage, error);
+        return { reply: diagnostic.summary, failure: diagnostic, performance };
       }
     }
   }
@@ -223,6 +234,7 @@ export async function runProposalPlanner(input: {
     }
     let state = input.getState();
     let designPreparation: Promise<void> | null = null;
+    let stage: ProposalStage = "reference_inspection";
     try {
       let inspectNeeded = false;
       try { assertExperienceReady(state); } catch { inspectNeeded = true; }
@@ -233,6 +245,7 @@ export async function runProposalPlanner(input: {
           [input.originalRequest, input.prompt].filter(Boolean).join("\n\n"),
           event => { performance.push(event); input.onTrace?.(event); });
         performance.push({ stage: "reference", elapsedMs: Date.now() - startedReference });
+        stage = "reference_save";
         await input.persist({ ...state, contentRevision: (state.contentRevision ?? 0) + 1,
           experience: inspected.experience,
           input: { ...state.input, imagePath: inspected.experience.referencePath,
@@ -243,9 +256,11 @@ export async function runProposalPlanner(input: {
         designPreparation = input.enqueueProjectDesign().catch(() => undefined);
         state = input.getState();
       }
+      stage = "scope_validation";
       if (blockingScreenQuestions(state).length) throw new Error("A saved screen-flow decision still needs the user's answer.");
       const proposed = proposeProductScope(state);
       await input.progress("Reviewing screen flow", "Checking the requested tasks, screen paths and outcomes...");
+      stage = "flow_review";
       const [review] = await Promise.all([
         reviewProductReadiness(proposed, input.prompt, {
           history: input.conversation, roadmap: await roadmapRows(admin, projectId, ownerId).then(rows => rows.map(row => row.item)),
@@ -254,6 +269,7 @@ export async function runProposalPlanner(input: {
         designPreparation ?? Promise.resolve(),
       ]);
       if (!review.ready) {
+        stage = "scope_save";
         await input.persist({ ...state, scope: { ...state.scope!, status: "draft",
           reviewIssues: review.issues.slice(0, 12), reviewedContentRevision: state.contentRevision ?? 0 } });
         if (coverageRepairs++ < 1) { repair = { kind: "coverage", issues: review.issues }; continue; }
@@ -261,6 +277,7 @@ export async function runProposalPlanner(input: {
         return { reply: `The saved screen flow needs this correction: ${summary}`,
           failure: failure("flow_review", "FLOW_REVIEW_FAILED", summary, review.issues), performance };
       }
+      stage = "scope_save";
       await input.persist({ ...proposed, scope: { ...proposed.scope!,
         ...(review.coverage ? { journeyCoverage: review.coverage.journeys,
           requestedScope: review.coverage.requestedScope, scopeEvidence: review.coverage.scopeEvidence } : {}),
@@ -268,12 +285,17 @@ export async function runProposalPlanner(input: {
       return { reply: "The screen flow is ready to review. Use the approval card to start generation.", performance };
     } catch (error) {
       if (error instanceof PlanningConflict) throw error;
-      const issue = error instanceof ProductToolError ? error.message.slice(0, 500)
-        : "The saved screen flow could not be reviewed right now. Retry from the saved draft.";
-      await input.persist({ ...input.getState(), scope: { ...input.getState().scope!, status: "draft",
-        reviewIssues: [issue.slice(0, 1500)], reviewedContentRevision: input.getState().contentRevision ?? 0 } });
-      return { reply: `Your saved design decisions are intact. ${issue.slice(0, 300)}`,
-        failure: failure("flow_review", "REVIEW_UNAVAILABLE", issue, [issue]), performance };
+      let diagnostic = recordFailure(stage, error);
+      if (stage !== "reference_save" && stage !== "scope_save") {
+        try {
+          await input.persist({ ...input.getState(), scope: { ...input.getState().scope!, status: "draft",
+            reviewedContentRevision: input.getState().contentRevision ?? 0 } });
+        } catch (saveError) {
+          if (saveError instanceof PlanningConflict) throw saveError;
+          diagnostic = recordFailure("scope_save", saveError);
+        }
+      }
+      return { reply: diagnostic.summary, failure: diagnostic, performance };
     } finally {
       await designPreparation;
     }

@@ -9,7 +9,7 @@ import { productFixture } from "./test-fixtures";
 describe("bounded product readiness review", () => {
   beforeEach(() => mocks.generate.mockReset());
   it("assesses product completeness independently of visual scope preferences", async () => {
-    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ requestedScope: "focused", scopeEvidence: "Only onboarding for now", journeys: [], ready: false, issues: ["The purchase journey ends at browsing; map how a shopper completes a purchase even if it will be designed later."] }) });
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ready: false, issues: ["The purchase journey ends at browsing; map how a shopper completes a purchase even if it will be designed later."] }) });
     const result = await reviewProductReadiness(productFixture(), "Only onboarding for now");
     expect(result.ready).toBe(false);
     const request = mocks.generate.mock.calls[0][0];
@@ -33,15 +33,34 @@ describe("bounded product readiness review", () => {
     mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ requestedScope: "whole_product", scopeEvidence: "Start", journeys: [], ready: true, issues: ["A core journey has no outcome."] }) });
     expect((await reviewProductReadiness(productFixture(), "Start")).ready).toBe(false);
   });
-  it("returns saved journey membership when the reviewer omits a completion from its key list", async () => {
+  it("derives membership and exact evidence without asking the reviewer to copy either", async () => {
     const { state, roadmap, review } = appointmentFlow();
-    review.journeys[0].outputKeys = [roadmap[0].stableKey];
-    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify(review) });
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ready: true, issues: [],
+      requestedScope: review.requestedScope, scopeMessageIndex: 0,
+      journeys: review.journeys.map(({ outputKeys: _keys, ...journey }) => journey) }) });
     const result = await reviewProductReadiness(state, review.scopeEvidence, {
       history: [{ role: "user", content: review.scopeEvidence }], roadmap,
     });
     expect(result.ready).toBe(true);
     expect(result.coverage?.journeys[0].outputKeys).toEqual(roadmap.map(item => item.stableKey));
+    expect(result.coverage?.scopeEvidence).toBe(review.scopeEvidence);
     expect(JSON.stringify(mocks.generate.mock.calls[0][0].contents)).toContain("savedJourneyGraph");
+    const schema = mocks.generate.mock.calls[0][0].config.responseSchema;
+    expect(schema.properties).not.toHaveProperty("scopeEvidence");
+    expect(schema.properties.journeys.items.properties).not.toHaveProperty("outputKeys");
+    expect(schema.properties.journeys.items.properties.entryKey.enum).toEqual(roadmap.map(item => item.stableKey));
+  });
+  it("rejects approval without a semantic journey decision", async () => {
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ready: true, issues: [] }) });
+    await expect(reviewProductReadiness(productFixture(), "Start")).rejects.toThrow();
+  });
+  it("still detects a missing transition rather than manufacturing an edge", async () => {
+    const { state, roadmap, review } = appointmentFlow();
+    roadmap[0].actions = [];
+    roadmap[1] = { ...roadmap[1], parentStableKey: null, triggerLabel: "" };
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ...review, scopeMessageIndex: 0 }) });
+    const result = await reviewProductReadiness(state, review.scopeEvidence, { history: [], roadmap });
+    expect(result.ready).toBe(false);
+    expect(result.issues.join(" ")).toContain("cannot reach");
   });
 });

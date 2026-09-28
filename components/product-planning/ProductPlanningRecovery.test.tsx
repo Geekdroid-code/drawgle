@@ -4,6 +4,15 @@ import { ProductPlanningRecovery } from "./ProductPlanningRecovery";
 import { readPlanningFailure } from "@/lib/product-planning/tool-failure";
 afterEach(cleanup);
 
+it("shows a reference service failure without calling it a broken screen flow", () => {
+  render(<ProductPlanningRecovery active onSubmit={vi.fn()} failure={{
+    stage: "reference_inspection", code: "REFERENCE_INSPECTION_HTTP_503", retryable: true,
+    summary: "The supplied visual reference could not be inspected.",
+  }} />);
+  expect(screen.getByText("The supplied visual reference could not be inspected.")).toBeTruthy();
+  expect(screen.queryByText(/Screen-flow review:/)).toBeNull();
+});
+
 it("resumes explicitly without generation approval or automatic requests", async () => {
   const onSubmit = vi.fn(async (_input: unknown) => false);
   const view = render(<ProductPlanningRecovery active onSubmit={onSubmit} />);

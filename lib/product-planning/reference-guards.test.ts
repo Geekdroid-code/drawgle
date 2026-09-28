@@ -22,7 +22,7 @@ it.each([false, undefined])("falls back to prompt direction after rejected or un
   const state = designerFixture(); state.input.imagePath = null;
   const result = await inspectProductReference({}, "owner", state, "Keep the brief");
   expect(result.experience).toMatchObject({ provenance: "prompt_synthesis", referencePath: null, referenceId: null });
-  expect(mocks.generate).toHaveBeenCalledTimes(4);
+  expect(mocks.generate).toHaveBeenCalledTimes(3);
   expect(mocks.store).not.toHaveBeenCalled();
 });
 it("continues from the prompt when the optional curated search or image load fails", async () => {
@@ -33,6 +33,64 @@ it("continues from the prompt when the optional curated search or image load fai
   mocks.shortlist.mockResolvedValueOnce([{ reference: { id: "missing" }, catalogHash: "catalog" }]);
   mocks.curated.mockRejectedValueOnce(new Error("Image unavailable"));
   expect((await inspectProductReference({}, "owner", state, "Keep the brief")).experience.provenance).toBe("prompt_synthesis");
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+it("does not repeat an unavailable inspection service for every candidate", async () => {
+  const state = designerFixture(); state.input.imagePath = null;
+  mocks.generate.mockRejectedValue(new Error("private provider failure"));
+  const trace = vi.fn();
+  const result = await inspectProductReference({}, "owner", state, "Keep the brief", trace);
+  expect(result.experience.provenance).toBe("prompt_synthesis");
+  expect(mocks.generate).toHaveBeenCalledOnce();
+  expect(mocks.curated).toHaveBeenCalledOnce();
+  expect(mocks.store).not.toHaveBeenCalled();
+  expect(trace).toHaveBeenCalledWith(expect.objectContaining({ errorCode: "OPTIONAL_REFERENCE_INSPECTION_UNAVAILABLE" }));
+  expect(JSON.stringify(trace.mock.calls)).not.toContain("private provider failure");
+});
+it("uses explicit prompt requirements directly without another synthesis request", async () => {
+  const state = applyProductPatch(designerFixture(), { operations: [{ op: "put_fact", fact: {
+    id: "cream", section: "preferences", label: "Palette", detail: "Warm cream, no gradients",
+    source: "user", evidence: "Warm cream, no gradients",
+  } }] }, "11111111-1111-4111-8111-111111111111");
+  state.input.referencePreference = { mode: "none", evidence: "Don't use a reference", messageId: "user-message" };
+  const result = await inspectProductReference({}, "owner", state, "Design my app");
+  expect(result.experience.direction).toContain("Warm cream, no gradients");
+  expect(result.experience.requirementsKey).toBe(designRequirementsKey(state));
+  expect(mocks.load).not.toHaveBeenCalled();
+  expect(mocks.shortlist).not.toHaveBeenCalled();
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+it.each(["write", "read"])("keeps prompt-only planning usable after optional reference storage %s fails", async failure => {
+  const state = designerFixture(); state.input.imagePath = null;
+  const original = structuredClone(state);
+  mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...experienceFixture(),
+    compatibility: { compatible: true, conflicts: [], transfer: "Craft", rationale: "Fits" } }) });
+  if (failure === "write") mocks.store.mockRejectedValueOnce(new Error("storage unavailable"));
+  else {
+    mocks.store.mockResolvedValueOnce("owner/prompt-images/reference.webp");
+    mocks.load.mockResolvedValueOnce(null).mockRejectedValueOnce(new Error("read unavailable"));
+  }
+  const result = await inspectProductReference({}, "owner", state, "Design my app");
+  expect(result.experience.provenance).toBe("prompt_synthesis");
+  expect(result.image).toBeNull();
+  expect(mocks.generate).toHaveBeenCalledOnce();
+  expect(state).toEqual(original);
+  expect(state.input.referencePreference).toBeUndefined();
+});
+it("handles an unavailable saved curated image but does not hide a supplied-image failure", async () => {
+  const state = designerFixture(); state.input.referenceSource = "curated";
+  mocks.load.mockRejectedValue(new Error("storage unavailable"));
+  mocks.shortlist.mockResolvedValue([]);
+  expect((await inspectProductReference({}, "owner", state, "Design my app")).experience.provenance).toBe("prompt_synthesis");
+  expect(mocks.generate).not.toHaveBeenCalled();
+  await expect(inspectProductReference({}, "owner", designerFixture(), "Use my image")).rejects.toThrow("storage unavailable");
+});
+it("does not replace an established project's reference during a storage outage", async () => {
+  const state = designerFixture(); state.input.referenceSource = "curated"; state.phase = "canvas";
+  mocks.load.mockRejectedValueOnce(new Error("storage unavailable"));
+  await expect(inspectProductReference({}, "owner", state, "Add another screen")).rejects.toThrow("storage unavailable");
+  expect(mocks.shortlist).not.toHaveBeenCalled();
+  expect(mocks.generate).not.toHaveBeenCalled();
 });
 it("blocks stale requirements at proposal and final approval independently", () => {
   const state = designerFixture();
