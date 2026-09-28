@@ -5,7 +5,6 @@ import { Challenge } from "@/components/marketing/home/Challenge";
 import { CtaBanner } from "@/components/marketing/home/CtaBanner";
 import { Faq } from "@/components/marketing/home/Faq";
 import { Features } from "@/components/marketing/home/Features";
-import { Handoff } from "@/components/marketing/home/Handoff";
 import { Hero } from "@/components/marketing/home/Hero";
 import { HowItWorks } from "@/components/marketing/home/HowItWorks";
 import { Pricing } from "@/components/marketing/home/Pricing";
@@ -42,9 +41,8 @@ export default function Home() {
         <Hero />
         <Challenge />
         <HowItWorks />
-        <Features />
-        <Handoff />
         <Showcase />
+        <Features />
         <Reviews />
         <Pricing />
         <Faq items={homeFaqs} />
