@@ -87,39 +87,41 @@ export function VirtualizedScreen({
 
   return (
     <article ref={observerRef} className="min-w-0">
-      <div
-        ref={previewRef}
-        className="relative aspect-[390/844] w-full overflow-hidden rounded-[clamp(10px,1.4vw,18px)] border border-black/[0.12] bg-[#ececea] shadow-[0_18px_42px_-36px_rgba(0,0,0,0.6)]"
-      >
-        {!loaded && (
-          <div className="absolute inset-0 animate-pulse bg-[#eeeeeb] p-[8%]">
-            <div className="h-[4%] w-[34%] rounded-full bg-black/[0.08]" />
-            <div className="mt-[12%] h-[25%] rounded-[18px] bg-black/[0.06]" />
-            <div className="mt-[7%] grid grid-cols-2 gap-[6%]">
-              <div className="aspect-square rounded-[16px] bg-black/[0.055]" />
-              <div className="aspect-square rounded-[16px] bg-black/[0.055]" />
+      <div className="rounded-[clamp(13px,1.9vw,24px)] bg-gradient-to-b from-[#f4f4f5] to-[#dcdde1] p-[clamp(2px,0.35vw,4px)] shadow-[0_24px_50px_-30px_rgba(15,23,42,0.5)] ring-1 ring-black/[0.08]">
+        <div
+          ref={previewRef}
+          className="relative aspect-[390/844] w-full overflow-hidden rounded-[clamp(11px,1.6vw,21px)] bg-[#ececea]"
+        >
+          {!loaded && (
+            <div className="absolute inset-0 animate-pulse bg-[#eeeeeb] p-[8%]">
+              <div className="h-[4%] w-[34%] rounded-full bg-black/[0.08]" />
+              <div className="mt-[12%] h-[25%] rounded-[18px] bg-black/[0.06]" />
+              <div className="mt-[7%] grid grid-cols-2 gap-[6%]">
+                <div className="aspect-square rounded-[16px] bg-black/[0.055]" />
+                <div className="aspect-square rounded-[16px] bg-black/[0.055]" />
+              </div>
+              <div className="mt-[8%] h-[18%] rounded-[18px] bg-black/[0.05]" />
             </div>
-            <div className="mt-[8%] h-[18%] rounded-[18px] bg-black/[0.05]" />
-          </div>
-        )}
+          )}
 
-        {nearViewport && screenDocument && scale > 0 && (
-          <iframe
-            srcDoc={screenDocument}
-            title={`${collectionName} ${screen.label} interactive mobile UI`}
-            sandbox="allow-scripts"
-            loading="lazy"
-            onLoad={() => setLoaded(true)}
-            className={`absolute left-0 top-0 h-[844px] w-[390px] origin-top-left border-0 transition-opacity duration-300 ${
-              loaded ? "opacity-100" : "opacity-0"
-            }`}
-            style={{ transform: `scale(${scale})` }}
-          />
-        )}
+          {nearViewport && screenDocument && scale > 0 && (
+            <iframe
+              srcDoc={screenDocument}
+              title={`${collectionName} ${screen.label} interactive mobile UI`}
+              sandbox="allow-scripts"
+              loading="lazy"
+              onLoad={() => setLoaded(true)}
+              className={`absolute left-0 top-0 h-[844px] w-[390px] origin-top-left border-0 transition-opacity duration-300 ${
+                loaded ? "opacity-100" : "opacity-0"
+              }`}
+              style={{ transform: `scale(${scale})` }}
+            />
+          )}
+        </div>
       </div>
-      <div className="mt-2 text-center">
-        <div className="truncate text-[10px] font-semibold tracking-tight text-black sm:text-xs">{screen.label}</div>
-        <div className="mt-0.5 hidden truncate text-[10px] text-black/40 sm:block">{screen.role}</div>
+      <div className="mt-2.5 text-center">
+        <div className="truncate text-[10px] font-semibold tracking-tight text-mk-ink sm:text-xs">{screen.label}</div>
+        <div className="mt-0.5 hidden truncate text-[10px] text-neutral-400 sm:block">{screen.role}</div>
       </div>
     </article>
   );

@@ -120,7 +120,7 @@ const sections: LegalSection[] = [
         <p>
           You may delete projects through available product controls. To request account deletion or
           deletion of data not available through the product, contact{" "}
-          <a className="font-medium text-[#1b7fcc]" href="mailto:support@drawgle.com">support@drawgle.com</a>.
+          <a className="font-medium text-mk-accent" href="mailto:support@drawgle.com">support@drawgle.com</a>.
           Deletion from backups and downstream systems may take additional time.
         </p>
       </>
@@ -149,7 +149,7 @@ const sections: LegalSection[] = [
         </p>
         <p>
           Submit requests to{" "}
-          <a className="font-medium text-[#1b7fcc]" href="mailto:support@drawgle.com">support@drawgle.com</a>.
+          <a className="font-medium text-mk-accent" href="mailto:support@drawgle.com">support@drawgle.com</a>.
           We may need to verify your identity before completing a request.
         </p>
       </>
@@ -183,7 +183,7 @@ const sections: LegalSection[] = [
         </p>
         <p>
           Contact us at{" "}
-          <a className="font-medium text-[#1b7fcc]" href="mailto:support@drawgle.com">support@drawgle.com</a>.
+          <a className="font-medium text-mk-accent" href="mailto:support@drawgle.com">support@drawgle.com</a>.
           Use of Drawgle is also governed by our <LegalLink href="/terms">Terms of Service</LegalLink>.
         </p>
       </>

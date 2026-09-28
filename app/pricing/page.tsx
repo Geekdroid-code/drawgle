@@ -1,43 +1,33 @@
 import React from "react";
 import type { Metadata } from "next";
-import PublicHeader from "@/components/landing/Header";
-import PricingCards from "@/components/landing/pricing-cards";
-import Footer from "@/components/landing/MainFooter";
-import { Check, Shield, X, Plus, ArrowUpRight } from "lucide-react";
+import { Check, X } from "lucide-react";
+
+import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { Reveal, SectionHeader } from "@/components/marketing/Reveal";
+import { CtaBanner } from "@/components/marketing/home/CtaBanner";
+import { Faq } from "@/components/marketing/home/Faq";
+import { Pricing } from "@/components/marketing/home/Pricing";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { siteConfig } from "@/lib/seo/config";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { breadcrumbListSchema, faqPageSchema, offerCatalogSchema, webPageSchema } from "@/lib/seo/schema";
 
-function FAQItem({
-  question,
-  answer,
-  index,
-}: {
-  question: string;
-  answer: string;
-  index: number;
-}) {
-  return (
-    <details className="faq-disclosure group border-b border-black/[0.09]">
-      <summary className="flex cursor-pointer list-none items-center gap-4 py-5 text-left marker:content-none sm:py-6">
-        <span className="w-6 shrink-0 font-mono text-[9px] tracking-[0.12em] text-black/30">
-          {String(index + 1).padStart(2, "0")}
-        </span>
-        <span className="flex-1 text-[15px] font-semibold tracking-[-0.015em] text-black sm:text-base">
-          {question}
-        </span>
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-black/[0.1] bg-white text-black/45 transition-all duration-300 group-open:rotate-45 group-open:border-[#1b7fcc]/30 group-open:text-[#1b7fcc]">
-          <Plus className="h-3.5 w-3.5" strokeWidth={1.8} />
-        </span>
-      </summary>
-      <div className="overflow-hidden">
-        <p className="max-w-2xl pb-6 pl-10 pr-10 text-sm leading-6 text-black/55 sm:pb-7 sm:text-[15px]">
-          {answer}
-        </p>
-      </div>
-    </details>
+type PlanValue = string | boolean;
+
+function PlanCell({ value, highlight = false }: { value: PlanValue; highlight?: boolean }) {
+  if (typeof value === "string") {
+    return <span className={highlight ? "font-semibold text-mk-ink" : "font-medium text-mk-body"}>{value}</span>;
+  }
+  return value ? (
+    <Check className="mx-auto size-5 text-mk-accent" strokeWidth={2.5} aria-label="Included" />
+  ) : (
+    <X className="mx-auto size-5 text-neutral-300" strokeWidth={2} aria-label="Not included" />
   );
+}
+
+function MobileValue({ value }: { value: PlanValue }) {
+  if (typeof value === "string") return <>{value}</>;
+  return value ? <>Yes</> : <>No</>;
 }
 
 const pricingRoute = siteConfig.publicRoutes[1];
@@ -107,7 +97,7 @@ const faqs = [
 
 export default function PricingPage() {
   return (
-    <div className="min-h-screen bg-[#F7F5F3]">
+    <MarketingShell>
       <JsonLd
         data={[
           webPageSchema({
@@ -123,123 +113,82 @@ export default function PricingPage() {
           offerCatalogSchema(),
         ]}
       />
-      <PublicHeader />
 
-      <main className="pt-24">
-        {/* Main pricing cards section */}
-        <PricingCards />
+      <main>
+        <Pricing as="h1" className="pt-32 sm:pt-40" />
 
-        {/* Comparison Grid Section */}
-        <section className="py-16 sm:py-24 border-t border-gray-200/80 bg-white">
-          <div className="max-w-6xl mx-auto px-4">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-5xl font-bold tracking-tight font-pixel-square text-gray-900 mb-4">
-                Compare Plan Features
-              </h2>
-              <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                Choose the right level of output and capabilities for your design and development workflow.
-              </p>
-            </div>
+        <section className="bg-white py-16 sm:py-24">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <SectionHeader
+              kicker="Compare plans"
+              lead="The same workflow on every plan."
+              emphasis="Only the capacity changes."
+              breakBeforeEmphasis
+              description="Choose the monthly credit capacity that fits your design and development workflow."
+            />
 
-            {/* Desktop Table View */}
-            <div className="hidden md:block overflow-hidden border border-gray-200/70 rounded-3xl shadow-xs">
-              <table className="w-full text-left border-collapse bg-white">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="py-5 px-6 text-sm font-bold text-gray-400 uppercase tracking-wider w-[40%]">Features</th>
-                    <th className="py-5 px-6 text-sm font-bold text-gray-900 uppercase tracking-wider text-center w-[20%]">Starter</th>
-                    <th className="py-5 px-6 text-sm font-bold text-gray-900 uppercase tracking-wider text-center w-[20%]">Pro</th>
-                    <th className="py-5 px-6 text-sm font-bold text-gray-900 uppercase tracking-wider text-center w-[20%]">Studio</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {comparisonFeatures.map((group) => (
-                    <React.Fragment key={group.category}>
-                      <tr className="bg-white">
-                        <td colSpan={4} className="py-4 px-6 text-xs font-extrabold uppercase tracking-widest text-[#1b7fcc] bg-gray-50/50">
-                          {group.category}
-                        </td>
-                      </tr>
-                      {group.items.map((item) => (
-                        <tr key={item.name} className="hover:bg-gray-50/30 transition-colors">
-                          <td className="py-4 px-6 text-sm font-semibold text-gray-700">{item.name}</td>
-                          <td className="py-4 px-6 text-sm text-center text-gray-600">
-                            {typeof item.starter === "boolean" ? (
-                              item.starter ? (
-                                <Check className="h-5 w-5 mx-auto text-emerald-500 stroke-[2.5]" />
-                              ) : (
-                                <X className="h-5 w-5 mx-auto text-gray-300 stroke-[2]" />
-                              )
-                            ) : (
-                              <span className="font-medium">{item.starter}</span>
-                            )}
-                          </td>
-                          <td className="py-4 px-6 text-sm text-center text-gray-600 font-medium">
-                            {typeof item.pro === "boolean" ? (
-                              item.pro ? (
-                                <Check className="h-5 w-5 mx-auto text-emerald-500 stroke-[2.5]" />
-                              ) : (
-                                <X className="h-5 w-5 mx-auto text-gray-300 stroke-[2]" />
-                              )
-                            ) : (
-                              <span>{item.pro}</span>
-                            )}
-                          </td>
-                          <td className="py-4 px-6 text-sm text-center text-gray-600 font-medium">
-                            {typeof item.studio === "boolean" ? (
-                              item.studio ? (
-                                <Check className="h-5 w-5 mx-auto text-emerald-500 stroke-[2.5]" />
-                              ) : (
-                                <X className="h-5 w-5 mx-auto text-gray-300 stroke-[2]" />
-                              )
-                            ) : (
-                              <span>{item.studio}</span>
-                            )}
+            <Reveal y={24} className="mk-surface hidden rounded-[30px] p-2 md:block">
+              <div className="overflow-hidden rounded-[24px] bg-white">
+                <table className="w-full border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-black/[0.06]">
+                      <th className="w-[40%] px-6 py-5 text-[11px] font-bold uppercase tracking-wider text-neutral-400">Features</th>
+                      {["Starter", "Pro", "Studio"].map((plan) => (
+                        <th
+                          key={plan}
+                          className={`w-[20%] px-6 py-5 text-center text-[13px] font-bold tracking-tight ${plan === "Pro" ? "text-mk-accent" : "text-mk-ink"}`}
+                        >
+                          {plan}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {comparisonFeatures.map((group) => (
+                      <React.Fragment key={group.category}>
+                        <tr>
+                          <td colSpan={4} className="bg-neutral-50/80 px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-neutral-500">
+                            {group.category}
                           </td>
                         </tr>
-                      ))}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                        {group.items.map((item) => (
+                          <tr key={item.name} className="border-t border-black/[0.04] transition-colors hover:bg-neutral-50/50">
+                            <td className="px-6 py-4 text-sm font-medium text-mk-ink">{item.name}</td>
+                            <td className="px-6 py-4 text-center text-sm">
+                              <PlanCell value={item.starter} />
+                            </td>
+                            <td className="bg-mk-accent/[0.025] px-6 py-4 text-center text-sm">
+                              <PlanCell value={item.pro} highlight />
+                            </td>
+                            <td className="px-6 py-4 text-center text-sm">
+                              <PlanCell value={item.studio} />
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Reveal>
 
-            {/* Mobile Cards View */}
-            <div className="grid grid-cols-1 gap-6 md:hidden">
+            <div className="grid grid-cols-1 gap-4 md:hidden">
               {comparisonFeatures.map((group) => (
-                <div key={group.category} className="border border-gray-200/70 bg-white rounded-2xl overflow-hidden p-5 shadow-xs">
-                  <h3 className="text-xs font-extrabold uppercase tracking-widest text-[#1b7fcc] mb-4 border-b border-gray-100 pb-2">
-                    {group.category}
-                  </h3>
-                  <div className="space-y-4 divide-y divide-gray-50">
-                    {group.items.map((item, idx) => (
-                      <div key={item.name} className={`flex flex-col gap-2 ${idx > 0 ? "pt-3" : ""}`}>
-                        <span className="text-sm font-semibold text-gray-800">{item.name}</span>
-                        <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-medium text-gray-500">
-                          <div className="bg-gray-50 py-1.5 rounded-md">
-                            <span className="block text-[9px] text-gray-400 uppercase font-bold mb-0.5">Starter</span>
-                            {typeof item.starter === "boolean" ? (
-                              item.starter ? "Yes" : "No"
-                            ) : (
-                              item.starter
-                            )}
-                          </div>
-                          <div className="bg-gray-50 py-1.5 rounded-md border border-[#1b7fcc]/20">
-                            <span className="block text-[9px] text-[#1b7fcc] uppercase font-bold mb-0.5">Pro</span>
-                            {typeof item.pro === "boolean" ? (
-                              item.pro ? "Yes" : "No"
-                            ) : (
-                              item.pro
-                            )}
-                          </div>
-                          <div className="bg-gray-50 py-1.5 rounded-md">
-                            <span className="block text-[9px] text-gray-400 uppercase font-bold mb-0.5">Studio</span>
-                            {typeof item.studio === "boolean" ? (
-                              item.studio ? "Yes" : "No"
-                            ) : (
-                              item.studio
-                            )}
-                          </div>
+                <div key={group.category} className="mk-surface rounded-[26px] p-5">
+                  <h3 className="mb-4 text-[11px] font-bold uppercase tracking-widest text-neutral-500">{group.category}</h3>
+                  <div className="space-y-4">
+                    {group.items.map((item) => (
+                      <div key={item.name} className="flex flex-col gap-2">
+                        <span className="text-sm font-semibold text-mk-ink">{item.name}</span>
+                        <div className="grid grid-cols-3 gap-2 text-center text-[11px] font-medium text-mk-body">
+                          {(["starter", "pro", "studio"] as const).map((plan) => (
+                            <div key={plan} className={`rounded-xl bg-white py-1.5 ${plan === "pro" ? "ring-1 ring-mk-accent/25" : ""}`}>
+                              <span className={`mb-0.5 block text-[9px] font-bold uppercase ${plan === "pro" ? "text-mk-accent" : "text-neutral-400"}`}>
+                                {plan}
+                              </span>
+                              <MobileValue value={item[plan]} />
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
@@ -250,65 +199,10 @@ export default function PricingPage() {
           </div>
         </section>
 
-        {/* Pricing FAQs Accordion */}
-        <section className="relative overflow-hidden border-y border-black/[0.07] bg-[#f8f8f6] px-4 py-20 sm:px-6 sm:py-28">
-          <div className="relative mx-auto max-w-6xl">
-            <div className="grid gap-10 border-b border-black/[0.09] pb-12 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-end lg:gap-16 lg:pb-14">
-              <div>
-                <div className="mb-4 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-[#1b7fcc]" />
-                  Pricing Questions
-                </div>
-                <h2 className="max-w-xl font-pixel-square text-[34px] font-semibold leading-[1.05] tracking-tight text-black sm:text-5xl">
-                  Billing & Credits
-                  <span className="block text-[#1b7fcc]">FAQ</span>
-                </h2>
-              </div>
+        <Faq items={faqs} kicker="Pricing questions" lead="Billing and credits," emphasis="answered." id="pricing-faqs" />
 
-              <div className="max-w-xl lg:justify-self-end">
-                <p className="text-sm leading-6 text-black/55 sm:text-base sm:leading-7">
-                  Honest answers about credit limits, editable mobile UI, Tailwind HTML, Agent Pack exports, billing, and commercial use.
-                </p>
-                <a
-                  href="mailto:support@drawgle.com"
-                  className="group mt-5 inline-flex items-center gap-2 text-sm font-semibold text-black transition-colors hover:text-[#1b7fcc]"
-                >
-                  Still have a question?
-                  <ArrowUpRight className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                </a>
-              </div>
-            </div>
-
-            <div className="grid lg:grid-cols-2 lg:gap-x-14">
-              <div>
-                {faqs.slice(0, 3).map((faq, index) => (
-                  <FAQItem key={faq.question} {...faq} index={index} />
-                ))}
-              </div>
-              <div>
-                {faqs.slice(3).map((faq, index) => (
-                  <FAQItem key={faq.question} {...faq} index={index + 3} />
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Secure Checkout Banner */}
-        <section className="py-12 border-t border-gray-200/80 bg-white">
-          <div className="max-w-4xl mx-auto px-4 text-center">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 text-emerald-800 text-xs font-semibold mb-4 border border-emerald-100">
-              <Shield className="h-4 w-4 shrink-0 text-emerald-600" />
-              Secure checkout via Dodo Payments
-            </div>
-            <p className="text-sm text-gray-500 max-w-md mx-auto leading-relaxed">
-              Subscription payments are processed by Dodo Payments. You can cancel or change your plan from your account.
-            </p>
-          </div>
-        </section>
+        <CtaBanner secondary={{ label: "Explore the showcase", href: "/showcase" }} />
       </main>
-
-      <Footer />
-    </div>
+    </MarketingShell>
   );
 }

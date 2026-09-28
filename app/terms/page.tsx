@@ -214,7 +214,7 @@ const sections: LegalSection[] = [
         </p>
         <p>
           Questions about these terms may be sent to{" "}
-          <a className="font-medium text-[#1b7fcc]" href="mailto:support@drawgle.com">support@drawgle.com</a>.
+          <a className="font-medium text-mk-accent" href="mailto:support@drawgle.com">support@drawgle.com</a>.
           Our <LegalLink href="/privacy-policy">Privacy Policy</LegalLink> explains how we handle personal data.
         </p>
       </>

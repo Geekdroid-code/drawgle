@@ -891,3 +891,174 @@ html[data-drawgle-theme-vt="active"]::view-transition-old(root) {
     opacity: 1;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+   Marketing site design language (public pages)
+   Light, glass surfaces, Inter Tight, one blue accent.
+   ───────────────────────────────────────────────────────────── */
+@theme {
+  --color-mk-accent: #305dde;
+  --color-mk-accent-strong: #254cc4;
+  --color-mk-ink: #141414;
+  --color-mk-heading: #1e1e1e;
+  --color-mk-body: #454545;
+  --color-mk-glass: rgb(237 237 237 / 0.64);
+  --font-marketing: var(--font-inter-tight), "Inter Tight", ui-sans-serif, system-ui, sans-serif;
+  --font-hand: var(--font-caveat), "Caveat", cursive;
+  --ease-mk: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html:has(.mk-root) {
+  scroll-behavior: smooth;
+  scroll-padding-top: 96px;
+}
+
+/* Frosted surface for elements that float over moving content (nav, overlays). */
+@utility mk-glass {
+  background-color: var(--color-mk-glass);
+  -webkit-backdrop-filter: blur(48px);
+  backdrop-filter: blur(48px);
+}
+
+/* Same tone as mk-glass without the blur cost, for cards that sit on plain white. */
+@utility mk-surface {
+  background-color: var(--color-mk-glass);
+}
+
+@utility mk-hide-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes mk-marquee-x {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes mk-marquee-y {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -50%, 0); }
+}
+
+@keyframes mk-caret {
+  0%, 45% { opacity: 1; }
+  50%, 95% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes mk-sheen {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(220%); }
+}
+
+@keyframes mk-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes mk-feature-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+@layer components {
+  .mk-root {
+    /* GeistMono's own fallback list reaches Courier New first on Windows; prefer Consolas while it loads. */
+    --font-mono: "GeistMono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    min-height: 100vh;
+    background: #ffffff;
+    color: var(--color-mk-ink);
+    font-family: var(--font-marketing);
+    font-feature-settings: "kern" 1, "liga" 1, "cv11" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .mk-root ::selection {
+    background: rgb(48 93 222 / 0.16);
+    color: #1f44b8;
+  }
+
+  .mk-marquee-x {
+    animation: mk-marquee-x var(--mk-marquee-duration, 60s) linear infinite;
+  }
+
+  .mk-marquee-y {
+    animation: mk-marquee-y var(--mk-marquee-duration, 40s) linear infinite;
+  }
+
+  .mk-marquee-reverse {
+    animation-direction: reverse;
+  }
+
+  .mk-marquee-pause:hover .mk-marquee-x,
+  .mk-marquee-pause:hover .mk-marquee-y,
+  .mk-marquee-paused .mk-marquee-x,
+  .mk-marquee-paused .mk-marquee-y {
+    animation-play-state: paused;
+  }
+
+  .mk-caret {
+    animation: mk-caret 1.05s steps(1) infinite;
+  }
+
+  .mk-skeleton {
+    overflow: hidden;
+    background: rgb(15 23 42 / 0.065);
+  }
+
+  /* Only while a block is building, so finished blocks cost nothing. */
+  .mk-skeleton-sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.75) 50%, transparent 80%);
+    animation: mk-sheen 1.4s var(--ease-mk) infinite;
+  }
+
+  .mk-spin {
+    animation: mk-spin 2.4s linear infinite;
+  }
+
+  .mk-mask-y {
+    -webkit-mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, #000 14%, #000 86%, transparent);
+  }
+
+  .mk-mask-x {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+    mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:has(.mk-root) {
+    scroll-behavior: auto;
+  }
+
+  .mk-marquee-x,
+  .mk-marquee-y,
+  .mk-caret,
+  .mk-skeleton-sheen::after,
+  .mk-spin {
+    animation: none;
+  }
+}
+
+/* Demo app used inside the marketing motion graphics. Token changes animate. */
+@layer components {
+  .mk-app,
+  .mk-app * {
+    transition-property: background-color, border-color, color, fill, stroke, border-radius, box-shadow, width;
+    transition-duration: 700ms;
+    transition-timing-function: var(--ease-mk);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-app,
+  .mk-app * {
+    transition-duration: 0ms;
+  }
+}

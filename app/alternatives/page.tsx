@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, GitCompareArrows } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
-import Footer from "@/components/landing/MainFooter";
-import PublicHeader from "@/components/landing/Header";
+import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { Reveal, SectionHeader } from "@/components/marketing/Reveal";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { publishedComparisonPages } from "@/lib/compare/pages";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -21,7 +21,7 @@ export const metadata: Metadata = buildMetadata({
 
 export default function AlternativesIndexPage() {
   return (
-    <div className="min-h-screen bg-[#f7f5f3]">
+    <MarketingShell>
       <JsonLd
         data={[
           webPageSchema({
@@ -40,46 +40,38 @@ export default function AlternativesIndexPage() {
           }),
         ]}
       />
-      <PublicHeader />
       <main className="px-4 pb-24 pt-32 sm:px-6 sm:pt-40">
-        <section className="mx-auto max-w-5xl text-center">
-          <div className="mb-5 inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
-            <GitCompareArrows className="h-4 w-4" />
-            Drawgle Alternatives
-          </div>
-          <h1 className="font-pixel-square text-[42px] font-semibold leading-[1.04] tracking-tight text-black sm:text-6xl">
-            Mobile UI design alternatives, compared honestly.
-          </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-black/55 sm:text-base">
-            Compare AI UI generators, design platforms, wireframing tools, app builders, and prototyping software by the job each product actually does best.
-          </p>
-        </section>
+        <SectionHeader
+          as="h1"
+          kicker="Drawgle alternatives"
+          lead="Mobile UI design alternatives,"
+          emphasis="compared honestly."
+          breakBeforeEmphasis
+          description="Compare AI UI generators, design platforms, wireframing tools, app builders, and prototyping software by the job each product actually does best."
+          className="mx-auto mb-14 max-w-4xl text-center"
+        />
 
-        <section className="mx-auto mt-14 grid max-w-5xl gap-5 md:grid-cols-2">
-          {publishedComparisonPages.map((page) => (
-            <Link
-              key={page.slug}
-              href={`/alternatives/${page.slug}`}
-              className="group rounded-[22px] border border-black/[0.08] bg-white p-6 shadow-[0_18px_60px_-32px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 hover:border-[#1b7fcc]/30"
-            >
-              <div className="mb-4 text-[10px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
-                Best {page.competitor.name} alternative
-              </div>
-              <h2 className="font-pixel-square text-3xl font-semibold leading-tight text-black">
-                {page.competitor.name} Alternative
-              </h2>
-              <p className="mt-4 text-sm leading-6 text-black/55">
-                {page.sonicBoomSummary}
-              </p>
-              <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-[#1b7fcc]">
-                View comparison
-                <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-              </span>
-            </Link>
+        <section className="mx-auto grid max-w-5xl gap-5 md:grid-cols-2">
+          {publishedComparisonPages.map((page, index) => (
+            <Reveal key={page.slug} delay={(index % 2) * 0.08} y={24} className="h-full">
+              <Link
+                href={`/alternatives/${page.slug}`}
+                className="mk-surface group flex h-full flex-col rounded-[30px] p-6 transition-all duration-300 hover:-translate-y-0.5 hover:bg-[rgb(233_233_233/0.8)] sm:p-7"
+              >
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">
+                  Best {page.competitor.name} alternative
+                </span>
+                <h2 className="mt-3 text-2xl font-semibold tracking-tight text-mk-ink">{page.competitor.name} alternative</h2>
+                <p className="mt-3 flex-1 text-sm leading-relaxed text-mk-body">{page.sonicBoomSummary}</p>
+                <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-mk-accent">
+                  View comparison
+                  <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+                </span>
+              </Link>
+            </Reveal>
           ))}
         </section>
       </main>
-      <Footer />
-    </div>
+    </MarketingShell>
   );
 }

@@ -2,8 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ComparisonPage } from "@/components/compare/ComparisonPage";
-import Footer from "@/components/landing/MainFooter";
-import PublicHeader from "@/components/landing/Header";
+import { MarketingShell } from "@/components/marketing/MarketingShell";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getComparisonPage, publishedComparisonPages } from "@/lib/compare/pages";
 import { buildMetadata } from "@/lib/seo/metadata";
@@ -58,7 +57,7 @@ export default async function CompetitorComparisonPage({ params }: PageProps) {
   const path = `/alternatives/${page.slug}`;
 
   return (
-    <>
+    <MarketingShell>
       <JsonLd
         data={[
           webPageSchema({
@@ -86,9 +85,7 @@ export default async function CompetitorComparisonPage({ params }: PageProps) {
           }),
         ]}
       />
-      <PublicHeader />
       <ComparisonPage page={page} />
-      <Footer />
-    </>
+    </MarketingShell>
   );
 }

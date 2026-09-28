@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/seo/JsonLd";
-import PublicHeader from "@/components/landing/Header";
-import Footer from "@/components/landing/MainFooter";
+import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { SectionHeader } from "@/components/marketing/Reveal";
 import { ShowcaseGallery } from "@/components/showcase/ShowcaseGallery";
 import { curatedShowcaseScreenCount, showcaseCollections } from "@/lib/showcase";
 import { siteConfig } from "@/lib/seo/config";
@@ -18,7 +18,7 @@ export const metadata: Metadata = buildMetadata({
 
 export default function ShowcasePage() {
   return (
-    <div className="min-h-screen bg-[#F7F7F5]">
+    <MarketingShell>
       <JsonLd
         data={[
           webPageSchema({
@@ -32,25 +32,20 @@ export default function ShowcasePage() {
           ]),
         ]}
       />
-      <PublicHeader />
-      <main className="px-3 pb-24 pt-28 sm:px-6 sm:pb-32 sm:pt-36">
-        <header className="mx-auto max-w-4xl text-center">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
-            Drawgle screen showcase
-          </div>
-          <h1 className="mt-5 font-pixel-square text-[38px] font-semibold leading-[1.04] tracking-tight text-black sm:text-6xl md:text-7xl">
-            Premium mobile screens,
-            <span className="block text-[#1b7fcc]">rendered for you to explore.</span>
-          </h1>
-          <p className="mx-auto mt-7 max-w-2xl text-sm leading-6 text-black/45 sm:text-lg sm:leading-7">
-            Browse {curatedShowcaseScreenCount} interactive screens across {showcaseCollections.length} original
-            visual directions. Fork an exact editable project or remix its visual style into your own brief.
-          </p>
-        </header>
+      <main className="px-3 pb-24 pt-32 sm:px-6 sm:pb-32 sm:pt-40">
+        <SectionHeader
+          as="h1"
+          kicker="Drawgle screen showcase"
+          lead="Premium mobile screens,"
+          emphasis="rendered live for you to explore."
+          emphasisTone="accent"
+          breakBeforeEmphasis
+          description={`Browse ${curatedShowcaseScreenCount} interactive screens across ${showcaseCollections.length} original visual directions. Fork an exact editable project, or remix its visual style into your own brief.`}
+          className="mx-auto max-w-4xl text-center"
+        />
 
         <ShowcaseGallery />
       </main>
-      <Footer />
-    </div>
+    </MarketingShell>
   );
 }

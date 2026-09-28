@@ -1,54 +1,55 @@
-import type { Metadata } from 'next'
-import PublicHeader from '@/components/landing/Header'
-import { HeroSection } from '@/components/landing/HeroSection'
-import NewHowItWorks from '@/components/landing/NewHowItWorks'
-import { FeaturesSection } from '@/components/landing/FeaturesSection'
-import MethodComparison from "@/components/landing/MethodComparison";
-import AppShowcase from '@/components/landing/AppShowcase';
-import PricingCards from '@/components/landing/pricing-cards'
-import FAQSection, { homeFaqs } from '@/components/landing/FAQSection'
-import { CTASection } from '@/components/landing/CTASection'
-import  Footer  from '@/components/landing/MainFooter'
-import HookSection from "@/components/landing/HookSection";
-import { JsonLd } from '@/components/seo/JsonLd'
-import { siteConfig } from '@/lib/seo/config'
-import { buildMetadata } from '@/lib/seo/metadata'
-import { breadcrumbListSchema, faqPageSchema, webApplicationSchema, webPageSchema } from '@/lib/seo/schema'
+import type { Metadata } from "next";
+
+import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { Challenge } from "@/components/marketing/home/Challenge";
+import { CtaBanner } from "@/components/marketing/home/CtaBanner";
+import { Faq } from "@/components/marketing/home/Faq";
+import { Features } from "@/components/marketing/home/Features";
+import { Handoff } from "@/components/marketing/home/Handoff";
+import { Hero } from "@/components/marketing/home/Hero";
+import { HowItWorks } from "@/components/marketing/home/HowItWorks";
+import { Pricing } from "@/components/marketing/home/Pricing";
+import { Reviews } from "@/components/marketing/home/Reviews";
+import { Showcase } from "@/components/marketing/home/Showcase";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { homeFaqs } from "@/lib/marketing/home-content";
+import { siteConfig } from "@/lib/seo/config";
+import { buildMetadata } from "@/lib/seo/metadata";
+import { breadcrumbListSchema, faqPageSchema, webApplicationSchema, webPageSchema } from "@/lib/seo/schema";
 
 export const metadata: Metadata = buildMetadata({
   title: siteConfig.publicRoutes[0].title,
   description: siteConfig.publicRoutes[0].description,
-  path: '/',
-})
+  path: "/",
+});
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-white">
+    <MarketingShell>
       <JsonLd
         data={[
           webPageSchema({
-            path: '/',
+            path: "/",
             name: siteConfig.publicRoutes[0].title,
             description: siteConfig.publicRoutes[0].description,
           }),
           webApplicationSchema(),
-          breadcrumbListSchema([{ name: 'Home', path: '/' }]),
+          breadcrumbListSchema([{ name: "Home", path: "/" }]),
           faqPageSchema(homeFaqs),
         ]}
       />
-      <PublicHeader />
       <main>
-        <HeroSection />
-        <HookSection />
-        <AppShowcase />
-        <NewHowItWorks />
-        <MethodComparison />
-        <PricingCards />
-        <FeaturesSection />
-        <FAQSection />
-        <CTASection />
+        <Hero />
+        <Challenge />
+        <HowItWorks />
+        <Features />
+        <Handoff />
+        <Showcase />
+        <Reviews />
+        <Pricing />
+        <Faq items={homeFaqs} />
+        <CtaBanner />
       </main>
-      <Footer />
-    </div>
-  )
+    </MarketingShell>
+  );
 }

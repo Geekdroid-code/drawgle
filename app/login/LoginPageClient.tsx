@@ -6,8 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import PublicHeader from "@/components/landing/Header";
-import Footer from "@/components/landing/MainFooter";
+import { MarketingShell } from "@/components/marketing/MarketingShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getSafeAuthRedirect } from "@/lib/auth-redirect";
@@ -35,13 +34,11 @@ const noticeMessages: Record<string, string> = {
 
 export default function LoginPage() {
   return (
-    <div className="min-h-screen bg-white">
-      <PublicHeader />
+    <MarketingShell>
       <Suspense fallback={<LoginPageFallback />}>
         <LoginPageContent />
       </Suspense>
-      <Footer />
-    </div>
+    </MarketingShell>
   );
 }
 
@@ -211,18 +208,18 @@ function LoginPageContent() {
   };
 
   return (
-    <main className="bg-white text-black">
+    <main className="bg-white text-mk-ink">
       <div className="grid min-h-[100dvh] w-full lg:grid-cols-2">
-        <section className="flex min-h-[100dvh] flex-col justify-center border-black/[0.09] px-5 py-12 sm:px-10 lg:border-r lg:px-14">
+        <section className="flex min-h-[100dvh] flex-col justify-center px-5 pb-12 pt-28 sm:px-10 lg:px-14">
           <div className="mx-auto flex w-full max-w-[410px] flex-col justify-center">
             <div className="mb-5">
-              <div className="mb-2.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
+              <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-400">
                 Your design workspace
               </div>
-              <h1 className="font-pixel-square text-[32px] font-semibold leading-[1.06] tracking-tight sm:text-[38px]">
+              <h1 className="text-[32px] font-semibold leading-[1.06] tracking-tight text-mk-heading sm:text-[40px]">
                 {mode === "sign-in" ? "Welcome back." : "Build something worth opening."}
               </h1>
-              <p className="mt-2 max-w-sm text-[13px] leading-5 text-black/48">
+              <p className="mt-3 max-w-sm text-sm leading-relaxed text-mk-body">
                 {mode === "sign-in"
                   ? "Sign in to continue refining your screens, systems, and ideas."
                   : "Create your workspace and turn the first rough thought into editable mobile UI."}
@@ -232,10 +229,10 @@ function LoginPageContent() {
             {activeFeedback ? (
               <div
                 className={[
-                  "mb-4 border px-3.5 py-2.5 text-xs leading-5",
+                  "mb-4 rounded-2xl border px-4 py-3 text-xs leading-5",
                   activeFeedback.tone === "error"
                     ? "border-red-200 bg-red-50 text-red-700"
-                    : "border-[#1b7fcc]/20 bg-[#1b7fcc]/[0.05] text-[#145f99]",
+                    : "border-mk-accent/20 bg-mk-accent/[0.05] text-[#1f44b8]",
                 ].join(" ")}
               >
                 {activeFeedback.message}
@@ -243,7 +240,7 @@ function LoginPageContent() {
             ) : null}
 
             <Button
-              className="h-10 w-full rounded-md border border-black/[0.12] bg-white text-xs font-semibold text-black shadow-none hover:bg-black/[0.025]"
+              className="h-11 w-full rounded-full border border-black/[0.1] bg-white text-[13px] font-semibold text-mk-ink shadow-none hover:bg-black/[0.03]"
               disabled={isBusy}
               onClick={handleGoogleSignIn}
               type="button"
@@ -258,24 +255,24 @@ function LoginPageContent() {
             </Button>
 
             <div className="my-4 flex items-center gap-3">
-              <span className="h-px flex-1 bg-black/[0.09]" />
-              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-black/30">
+              <span className="h-px flex-1 bg-black/[0.06]" />
+              <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-neutral-400">
                 or use email
               </span>
-              <span className="h-px flex-1 bg-black/[0.09]" />
+              <span className="h-px flex-1 bg-black/[0.06]" />
             </div>
 
-            <div className="mb-4 grid grid-cols-2 border-b border-black/[0.1]">
+            <div className="mb-5 grid grid-cols-2 rounded-full bg-black/[0.04] p-1">
               <button
                 type="button"
                 onClick={() => {
                   clearFormFeedback();
                   setMode("sign-in");
                 }}
-                className={`h-9 border-b-2 text-xs font-semibold transition-colors ${
+                className={`h-9 rounded-full text-xs font-semibold transition-all ${
                   mode === "sign-in"
-                    ? "border-[#1b7fcc] text-black"
-                    : "border-transparent text-black/35 hover:text-black/60"
+                    ? "bg-white text-mk-ink shadow-[0_2px_10px_-4px_rgba(15,23,42,0.25)]"
+                    : "text-neutral-500 hover:text-mk-ink"
                 }`}
               >
                 Sign in
@@ -286,10 +283,10 @@ function LoginPageContent() {
                   clearFormFeedback();
                   setMode("sign-up");
                 }}
-                className={`h-9 border-b-2 text-xs font-semibold transition-colors ${
+                className={`h-9 rounded-full text-xs font-semibold transition-all ${
                   mode === "sign-up"
-                    ? "border-[#1b7fcc] text-black"
-                    : "border-transparent text-black/35 hover:text-black/60"
+                    ? "bg-white text-mk-ink shadow-[0_2px_10px_-4px_rgba(15,23,42,0.25)]"
+                    : "text-neutral-500 hover:text-mk-ink"
                 }`}
               >
                 Create account
@@ -375,13 +372,13 @@ function LoginPageContent() {
               </form>
             )}
 
-            <p className="mt-4 text-center text-[10px] leading-4 text-black/35">
+            <p className="mt-5 text-center text-[11px] leading-4 text-neutral-400">
               By continuing, you agree to Drawgle&apos;s{" "}
-              <Link href="/terms" className="font-medium text-black/55 hover:text-black">
+              <Link href="/terms" className="font-medium text-neutral-600 hover:text-mk-ink">
                 Terms
               </Link>{" "}
               and{" "}
-              <Link href="/privacy-policy" className="font-medium text-black/55 hover:text-black">
+              <Link href="/privacy-policy" className="font-medium text-neutral-600 hover:text-mk-ink">
                 Privacy Policy
               </Link>
               .
@@ -399,15 +396,15 @@ function LoginPageFallback() {
   return (
     <main className="bg-white">
       <div className="grid min-h-[100dvh] w-full lg:grid-cols-2">
-        <div className="flex items-center justify-center border-r border-black/[0.09] p-8">
+        <div className="flex items-center justify-center p-8">
           <div className="w-full max-w-[430px] space-y-4">
-            <div className="h-10 w-56 bg-black/[0.05]" />
-            <div className="h-12 w-full bg-black/[0.04]" />
-            <div className="h-12 w-full bg-black/[0.04]" />
-            <div className="h-12 w-full bg-[#1b7fcc]/10" />
+            <div className="h-10 w-56 rounded-full bg-black/[0.05]" />
+            <div className="h-11 w-full rounded-full bg-black/[0.04]" />
+            <div className="h-11 w-full rounded-2xl bg-black/[0.04]" />
+            <div className="h-11 w-full rounded-full bg-mk-accent/10" />
           </div>
         </div>
-        <div className="hidden bg-[#f0f0ec] lg:block" />
+        <div className="mk-surface m-3 hidden rounded-[36px] lg:block" />
       </div>
     </main>
   );
@@ -434,10 +431,10 @@ function AuthField({
 }) {
   return (
     <label className="block space-y-1.5">
-      <span className="text-[11px] font-semibold text-black/65">{label}</span>
+      <span className="text-xs font-semibold text-neutral-600">{label}</span>
       <Input
         autoComplete={autoComplete}
-        className="h-10 rounded-md border-black/[0.12] bg-[#fafaf8] px-3.5 text-xs shadow-none placeholder:text-black/25 focus-visible:border-[#1b7fcc]/50 focus-visible:ring-2 focus-visible:ring-[#1b7fcc]/10"
+        className="h-11 rounded-2xl border-black/[0.08] bg-neutral-50 px-4 text-[13px] shadow-none placeholder:text-neutral-400 focus-visible:border-mk-accent/50 focus-visible:ring-4 focus-visible:ring-mk-accent/10"
         disabled={disabled}
         minLength={minLength}
         onChange={(event) => onChange(event.target.value)}
@@ -461,13 +458,13 @@ function AuthSubmitButton({
 }) {
   return (
     <Button
-      className="group relative h-10 w-full overflow-hidden rounded-md border border-[#1b7fcc]/50 bg-[#1b7fcc] pl-5 pr-12 text-xs font-semibold text-white shadow-none hover:bg-[#1975bd]"
+      className="group relative h-11 w-full overflow-hidden rounded-full border-0 bg-mk-accent pl-5 pr-12 text-[13px] font-semibold text-white shadow-none hover:bg-mk-accent-strong"
       disabled={disabled}
       type="submit"
     >
       {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
       {children}
-      <span className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-sm bg-white text-[#1b7fcc]">
+      <span className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-mk-accent">
         <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
       </span>
     </Button>
@@ -505,15 +502,16 @@ function ShowcasePanel() {
   ];
 
   return (
-    <aside className="relative hidden min-h-[100dvh] overflow-hidden border-l border-black/[0.09] bg-[#f3f3ef] lg:flex lg:flex-col">
+    <aside className="mk-surface relative m-3 hidden min-h-[calc(100dvh-24px)] overflow-hidden rounded-[36px] lg:flex lg:flex-col">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 size-[420px] rounded-full bg-mk-accent/10 blur-3xl" />
       <div className="relative z-10 px-10 pb-5 pt-28 xl:px-14">
-        <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#1b7fcc]">
+        <div className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
           Designed with Drawgle
         </div>
-        <h2 className="mt-3 max-w-xl font-pixel-square text-[34px] font-semibold leading-[1.06] tracking-tight text-black xl:text-[42px]">
-          One workspace. Distinct visual directions.
+        <h2 className="mt-3 max-w-xl text-[34px] font-medium leading-[1.08] tracking-tight text-mk-body xl:text-[42px]">
+          One workspace. <span className="font-semibold text-mk-ink">Distinct visual directions.</span>
         </h2>
-        <p className="mt-3 max-w-lg text-sm leading-6 text-black/45">
+        <p className="mt-3 max-w-lg text-sm leading-6 text-neutral-500">
           Generate polished mobile UI, then keep refining every screen after the first result.
         </p>
       </div>
@@ -523,24 +521,26 @@ function ShowcasePanel() {
           {screens.map((screen) => (
             <div
               key={screen.src}
-              className={`relative aspect-[390/844] overflow-hidden rounded-[22px] border border-black/[0.13] bg-white ${screen.className}`}
+              className={`rounded-[26px] bg-gradient-to-b from-[#f4f4f5] to-[#dcdde1] p-1 shadow-[0_30px_60px_-30px_rgba(15,23,42,0.5)] ring-1 ring-black/[0.08] ${screen.className}`}
             >
-              <Image
-                src={screen.src}
-                alt={screen.alt}
-                fill
-                priority
-                sizes="(max-width: 1023px) 0px, 18vw"
-                className="object-cover"
-              />
+              <div className="relative aspect-[390/844] overflow-hidden rounded-[22px] bg-white">
+                <Image
+                  src={screen.src}
+                  alt={screen.alt}
+                  fill
+                  priority
+                  sizes="(max-width: 1023px) 0px, 18vw"
+                  className="object-cover"
+                />
+              </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center justify-between border-t border-black/[0.09] px-10 py-5 text-[10px] font-medium text-black/38 xl:px-14">
+      <div className="relative z-10 flex items-center justify-between border-t border-black/[0.05] px-10 py-5 text-[11px] font-medium text-neutral-400 xl:px-14">
         <span>Original screens generated by Drawgle</span>
-        <Link href="/showcase" className="flex items-center gap-2 text-black/55 transition-colors hover:text-black">
+        <Link href="/showcase" className="flex items-center gap-2 text-neutral-600 transition-colors hover:text-mk-ink">
           Explore showcase
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>

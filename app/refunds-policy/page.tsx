@@ -85,7 +85,7 @@ const sections: LegalSection[] = [
       <>
         <p>
           Email{" "}
-          <a className="font-medium text-[#1b7fcc]" href="mailto:support@drawgle.com">support@drawgle.com</a>{" "}
+          <a className="font-medium text-mk-accent" href="mailto:support@drawgle.com">support@drawgle.com</a>{" "}
           within 14 days of the charge. Include your account email, invoice or payment identifier,
           charge date, and a clear explanation of the issue. Do not send complete card details.
         </p>
@@ -138,7 +138,7 @@ const sections: LegalSection[] = [
         </p>
         <p>
           Questions may be sent to{" "}
-          <a className="font-medium text-[#1b7fcc]" href="mailto:support@drawgle.com">support@drawgle.com</a>.
+          <a className="font-medium text-mk-accent" href="mailto:support@drawgle.com">support@drawgle.com</a>.
           Also review our <LegalLink href="/terms">Terms of Service</LegalLink>.
         </p>
       </>

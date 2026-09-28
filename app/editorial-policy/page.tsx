@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import Footer from "@/components/landing/MainFooter";
-import PublicHeader from "@/components/landing/Header";
+import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { MkButton } from "@/components/marketing/MkButton";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { breadcrumbListSchema, webPageSchema } from "@/lib/seo/schema";
@@ -46,7 +45,7 @@ const principles = [
 
 export default function EditorialPolicyPage() {
   return (
-    <div className="min-h-screen bg-[#f7f5f3]">
+    <MarketingShell>
       <JsonLd
         data={[
           webPageSchema({
@@ -61,46 +60,42 @@ export default function EditorialPolicyPage() {
           ]),
         ]}
       />
-      <PublicHeader />
       <main className="px-4 pb-24 pt-32 sm:px-6 sm:pt-40">
         <section className="mx-auto max-w-3xl">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
-            Research standards
-          </div>
-          <h1 className="mt-4 font-pixel-square text-4xl font-semibold leading-tight tracking-tight text-black sm:text-6xl">
-            Drawgle comparison editorial policy
+          <span className="block text-xs font-semibold uppercase tracking-wider text-neutral-400 sm:text-sm">Research standards</span>
+          <h1 className="mt-4 text-4xl font-medium leading-[1.08] tracking-tight text-mk-body sm:text-5xl md:text-6xl">
+            Drawgle comparison <span className="font-semibold text-mk-ink">editorial policy</span>
           </h1>
-          <p className="mt-6 text-base leading-7 text-black/60">
+          <p className="mt-6 text-base leading-7 text-mk-body sm:text-lg">
             Our comparison pages exist to help a buyer choose the right workflow, including when Drawgle is not
             the right tool. This policy explains how we research claims, label evidence, and keep fast-changing
             product information accountable.
           </p>
-          <p className="mt-4 text-sm leading-6 text-black/50">Last reviewed July 17, 2026.</p>
+          <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.14em] text-neutral-400">Last reviewed July 17, 2026</p>
         </section>
 
         <section className="mx-auto mt-12 grid max-w-3xl gap-4">
           {principles.map((principle, index) => (
-            <article key={principle.title} className="rounded-2xl border border-black/[0.08] bg-white p-6">
-              <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#1b7fcc]">
-                {String(index + 1).padStart(2, "0")}
-              </div>
-              <h2 className="mt-3 font-pixel-square text-2xl font-semibold text-black">{principle.title}</h2>
-              <p className="mt-3 text-sm leading-6 text-black/55">{principle.body}</p>
+            <article key={principle.title} className="mk-surface rounded-[26px] p-6 sm:p-7">
+              <div className="font-mono text-[11px] tracking-[0.1em] text-mk-accent">{String(index + 1).padStart(2, "0")}</div>
+              <h2 className="mt-3 text-xl font-semibold tracking-tight text-mk-ink sm:text-2xl">{principle.title}</h2>
+              <p className="mt-3 text-[15px] leading-7 text-mk-body">{principle.body}</p>
             </article>
           ))}
         </section>
 
-        <section className="mx-auto mt-10 max-w-3xl rounded-2xl border border-[#1b7fcc]/20 bg-[#1b7fcc]/[0.05] p-6">
-          <h2 className="font-pixel-square text-xl font-semibold text-black">Read the comparisons</h2>
-          <p className="mt-3 text-sm leading-6 text-black/55">
-            The alternatives hub links every published comparison and shows the current set of products covered.
-          </p>
-          <Link href="/alternatives" className="mt-4 inline-flex text-sm font-semibold text-[#1b7fcc] hover:underline">
-            Browse Drawgle alternatives
-          </Link>
+        <section className="mx-auto mt-10 flex max-w-3xl flex-col items-start justify-between gap-5 rounded-[26px] border border-black/[0.06] bg-white p-6 sm:flex-row sm:items-center sm:p-7">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight text-mk-ink">Read the comparisons</h2>
+            <p className="mt-2 text-sm leading-6 text-neutral-500">
+              The alternatives hub links every published comparison and shows the current set of products covered.
+            </p>
+          </div>
+          <MkButton href="/alternatives" size="sm">
+            Browse alternatives
+          </MkButton>
         </section>
       </main>
-      <Footer />
-    </div>
+    </MarketingShell>
   );
 }
