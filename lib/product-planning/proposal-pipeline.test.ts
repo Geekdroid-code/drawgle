@@ -1,3 +1,4 @@
+import { proposalResponseFixture } from "./test-fixtures";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ generate: vi.fn(), shortlist: vi.fn(), trigger: vi.fn() }));
@@ -39,7 +40,7 @@ beforeEach(() => {
     const fields = config.responseSchema.properties;
     if (fields.productReady) return { text: JSON.stringify({ productReady: true, experienceReady: true,
       gaps: [], recommendations: [], screenFlowPreview: [], delegation: "", rationale: "The task is clear" }) };
-    if (fields.outputs) return { text: JSON.stringify(candidate) };
+    if (fields.outputs) return { text: JSON.stringify(proposalResponseFixture(candidate)) };
     if (fields.requestedScope) {
       const input = JSON.parse(contents[0].parts[0].text);
       const id = (section: string) => input.blueprint.find((fact: { section: string }) => fact.section === section).id;

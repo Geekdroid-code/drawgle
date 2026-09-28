@@ -7,7 +7,7 @@ The screenshot stops at “Analyzing design direction” but displays a screen-f
 Source inspection confirms that one catch block previously reported failures in reference inspection, saving the reference, validating scope, reviewing coverage, and saving the proposal as `flow_review / REVIEW_UNAVAILABLE`.
 It also stored technical exceptions as review issues, allowing a later attempt to treat a service failure as a reason to change the design.
 
-The exact exception in this production project has **not** been recovered. The available Supabase connection lists only the unrelated `seo-blog-writer` project; no Drawgle credentials are inherited by the shell. No secret files were read. No live database records, generations, credits, or flags were modified.
+At the earlier checkpoint, the exact exception in this production project had **not** been recovered. The Supabase connection listed only the unrelated `seo-blog-writer` project; no Drawgle credentials were inherited by the shell. No secret files were read at that checkpoint. See the later authorized diagnosis below, which supersedes this access limitation.
 
 ## Changes to the shared pipeline
 
@@ -35,6 +35,25 @@ The integration cases run the real designer, assessment, proposal, reference pol
 
 The `pnpm run check` launcher refused to start because it could not fetch/verify the pinned pnpm registry signature. Its three constituent checks were run with the installed binaries and passed as recorded above. Vitest and Node tests required execution outside the Windows sandbox because child-process creation returned `EPERM` inside it.
 
-## Delivery boundary
+## Delivery boundary at the earlier checkpoint
 
 Changes are local and tested; they have not been pushed or deployed in this turn. Live replay of the reported project and production provider behavior remain unverified until the Drawgle Supabase connection is available. This record establishes removal of the listed failure dependencies, not a claim that an unavailable external provider or database can never fail. No measured production latency or visual-equivalence claim is made.
+
+## Follow-up: confirmed missing task facts
+
+After explicit permission to load credentials privately for a read-only diagnostic, inspected project `2f7c810c-79e8-40aa-91c6-f6eca787ec53`. No credentials, conversation text, or raw records were printed; no production records were changed.
+
+- Saved revision 11/content revision 3 has three selected outputs, one identity, one actor, one journey, and **zero jobs** (user-task facts).
+- Evidence permits proposal, there are no blocking questions or removed surfaces, and the saved reference passes compatibility and requirements checks.
+- The most recent saved failure is `scope_validation / SCOPE_VALIDATION_UNAVAILABLE`. Re-evaluating the saved scope locally identifies `REQUIRED_FACTS_MISSING`, specifically `jobs`.
+- That saved turn's measured wall time was 18,755 ms; proposal repair took 12,798 ms. These timings describe the saved server turn, not how long the screenshot's UI appeared busy.
+
+The producer previously accepted a flat fact list with no required categories. Approval separately required identity, actors, jobs, and journeys, only after saving the candidate and inspecting its reference. This mismatch explains this confirmed failure; it does not establish the cause of every older incident.
+
+The proposal's structured response now has explicit core fact groups. A category absent from accepted state requires at least one fact; existing categories can remain untouched. Other fact types keep one shared array to avoid duplicating a schema for every optional category. Server parsing returns the existing flat persistence format. The required-category definition is shared with approval. Existing readiness checks run before the atomic candidate commit and reference inspection, including after removals and supersessions. Scope-validation progress is reported under flow review rather than leaving reference analysis active.
+
+No new model request, retry loop, approval step, flag, or migration was added. Models, generation prompts, rendering, and independent semantic coverage review remain unchanged. The proposal response format and its instructions changed; this is not a claim of identical model output or a measured reduction in total token cost. Array constraints are within [Gemini's documented structured-output subset](https://ai.google.dev/gemini-api/docs/structured-output#json-schema-support); live provider acceptance of this complete new schema has not been exercised in this turn.
+
+Verification: **655 Vitest tests across 109 files passed**, **7 Node tests passed**, TypeScript passed, ESLint passed with the existing PricingDialog warning, and the curated index check passed (56 references). Regressions cover every missing required category, incomplete existing drafts, preserving screen identities/reference reuse, and preventing removal of the last required fact from reaching persistence. `pnpm run check` itself still fails during pinned-package signature verification/fetch; its installed constituent binaries passed. `git diff --check` passed.
+
+These changes are local, not pushed or deployed. The live project remains unchanged. Its next planning turn can supply the missing task facts through the corrected contract after deployment; approval and generation have not been run against production with this change.

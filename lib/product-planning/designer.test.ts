@@ -29,7 +29,7 @@ vi.mock("@/lib/supabase/queries", () => ({
 }));
 import { runProductDesigner } from "./designer";
 import { activeFacts, applyProductPatch, createProductPlanning } from "./model";
-import { productFixture, experienceFixture, functionalFixture } from "./test-fixtures";
+import { productFixture, experienceFixture, functionalFixture, proposalResponseFixture } from "./test-fixtures";
 import { ProductToolError } from "./tool-failure";
 
 const options = { admin: {}, projectId: "project", ownerId: "owner", prompt: "Design only onboarding.", clientTurnId: "initial:project", initialize: true };
@@ -69,12 +69,12 @@ describe("product designer tool loop", () => {
       ["jobs", "tasks", "Review today's tasks"], ["journeys", "daily", "Complete daily chores"],
       ["surfaces", "today", "Today task view"],
     ].map(([section, ref, detail]) => ({ section, ref, label: ref, detail, source: "assumption" }));
-    mocks.generate.mockResolvedValue({ text: JSON.stringify({ facts, outputs: [{ ref: "today", name: "Today",
+    mocks.generate.mockResolvedValue({ text: JSON.stringify(proposalResponseFixture({ facts, outputs: [{ ref: "today", name: "Today",
       description: "See family chores", surfaceRefs: ["today"], journeyRefs: ["daily"],
       actions: [{ label: "Complete", destinationRef: null, outcome: "Show task completion inline" }],
       information: "Chore list", entryCondition: "Parent opens the app", outcome: "Daily chores are visible" }],
       scope: { goal: "Design daily chores", rationale: "The user requested daily tasks",
-        outputRefs: ["today"], surfaceRefs: ["today"] } }) });
+        outputRefs: ["today"], surfaceRefs: ["today"] } })) });
     let roadmap: Array<Record<string, unknown>> = [];
     const query = { select: () => query, eq: () => query, neq: () => query,
       then: (resolve: (value: unknown) => void) => resolve({ data: roadmap, error: null }) };

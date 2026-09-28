@@ -1,3 +1,4 @@
+import { proposalResponseFixture } from "./test-fixtures";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProductPlanning } from "./model";
 import type { FunctionalItem } from "./functional-plan";
@@ -61,7 +62,7 @@ function harness() {
 
 describe("single-candidate proposal turn", () => {
   beforeEach(() => {
-    mocks.generate.mockReset().mockResolvedValue({ text: JSON.stringify(candidate), usageMetadata: {
+    mocks.generate.mockReset().mockResolvedValue({ text: JSON.stringify(proposalResponseFixture(candidate)), usageMetadata: {
       promptTokenCount: 100, candidatesTokenCount: 200 } });
     mocks.review.mockReset().mockResolvedValue({ ready: true, issues: [] });
     mocks.inspect.mockReset().mockResolvedValue({ experience: {
@@ -82,6 +83,57 @@ describe("single-candidate proposal turn", () => {
     expect(h.getRows()).toHaveLength(1);
     expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(mocks.review).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects missing task facts before any save, reference call, or review", async () => {
+    const h = harness();
+    mocks.generate.mockResolvedValue({ text: JSON.stringify(proposalResponseFixture({ ...candidate,
+      facts: candidate.facts.filter(fact => fact.section !== "jobs") })) });
+    const result = await h.run();
+    expect(result.failure?.code).toBe("PROPOSAL_INVALID");
+    expect(result.failure?.summary).toContain("facts.jobs");
+    expect(h.commit).not.toHaveBeenCalled();
+    expect(h.persist).not.toHaveBeenCalled();
+    expect(mocks.inspect).not.toHaveBeenCalled();
+    expect(mocks.review).not.toHaveBeenCalled();
+  });
+
+  it("fills the missing jobs category in a saved draft without recreating its screens or reference", async () => {
+    const h = harness();
+    await h.run();
+    const saved = h.getState();
+    await h.persist({ ...saved, blueprint: { facts: saved.blueprint.facts.filter(fact => fact.section !== "jobs") },
+      scope: { ...saved.scope!, status: "draft" } });
+    const keys = saved.scope!.outputKeys!;
+    mocks.generate.mockClear().mockResolvedValue({ text: JSON.stringify(proposalResponseFixture({ ...candidate,
+      facts: candidate.facts.filter(fact => fact.section === "jobs"), outputs: [],
+      scope: { ...candidate.scope, outputRefs: keys, surfaceRefs: saved.scope!.surfaceIds } })) });
+    mocks.inspect.mockClear();
+    mocks.review.mockClear();
+    expect((await h.run()).failure).toBeUndefined();
+    expect(h.getState().scope?.status).toBe("proposed");
+    expect(h.getState().scope?.outputKeys).toEqual(keys);
+    expect(h.getRows()).toHaveLength(1);
+    expect(h.getState().blueprint.facts.filter(fact => fact.section === "jobs")).toHaveLength(1);
+    expect(mocks.generate).toHaveBeenCalledOnce();
+    expect(mocks.inspect).not.toHaveBeenCalled();
+    expect(mocks.review).toHaveBeenCalledOnce();
+  });
+
+  it("cannot remove the last required fact from a valid draft and commit a late failure", async () => {
+    const h = harness();
+    await h.run();
+    const saved = h.getState();
+    const job = saved.blueprint.facts.find(fact => fact.section === "jobs")!;
+    mocks.generate.mockResolvedValue({ text: JSON.stringify(proposalResponseFixture({ ...candidate,
+      facts: [], outputs: [], removeFactIds: [job.id],
+      scope: { ...candidate.scope, outputRefs: saved.scope!.outputKeys, surfaceRefs: saved.scope!.surfaceIds } })) });
+    h.commit.mockClear();
+    mocks.inspect.mockClear();
+    expect((await h.run()).failure?.code).toBe("FLOW_STRUCTURE");
+    expect(h.getState()).toBe(saved);
+    expect(h.commit).not.toHaveBeenCalled();
+    expect(mocks.inspect).not.toHaveBeenCalled();
   });
 
   it("does not claim approval after a stale atomic write", async () => {
@@ -174,7 +226,7 @@ describe("single-candidate proposal turn", () => {
   it("records only a sanitized phase when a candidate needs structural repair", async () => {
     const h = harness();
     mocks.generate.mockResolvedValueOnce({ text: "{" })
-      .mockResolvedValueOnce({ text: JSON.stringify(candidate) });
+      .mockResolvedValueOnce({ text: JSON.stringify(proposalResponseFixture(candidate)) });
     const result = await h.run();
     expect(result.failure).toBeUndefined();
     expect(result.performance).toContainEqual(expect.objectContaining({
@@ -189,7 +241,7 @@ describe("single-candidate proposal turn", () => {
     const h = harness();
     mocks.review.mockResolvedValueOnce({ ready: false, issues: ["The completion state is unclear."] })
       .mockResolvedValueOnce({ ready: true, issues: [] });
-    mocks.generate.mockImplementationOnce(async () => ({ text: JSON.stringify(candidate) }))
+    mocks.generate.mockImplementationOnce(async () => ({ text: JSON.stringify(proposalResponseFixture(candidate)) }))
       .mockImplementationOnce(async (request) => {
         const current = JSON.parse(request.contents[0].parts[0].text);
         expect(current.repair.issues).toContain("The completion state is unclear.");
@@ -198,12 +250,12 @@ describe("single-candidate proposal turn", () => {
         expect(current.savedJourneyGraph.journeys).toEqual([
           expect.objectContaining({ outputKeys: [key], independentEntryCandidates: [key] }),
         ]);
-        return { text: JSON.stringify({ ...candidate,
+        return { text: JSON.stringify(proposalResponseFixture({ ...candidate,
           facts: candidate.facts.map(fact => fact.ref === "today"
             ? { ...fact, detail: "A renamed description of the same task view" } : fact),
           outputs: [{ ...candidate.outputs[0], existingKey: key,
           inlineStates: ["Completed task appears checked with a timestamp"] }],
-          scope: { ...candidate.scope, outputRefs: [key] } }) };
+          scope: { ...candidate.scope, outputRefs: [key] } })) };
       });
     const result = await h.run();
     expect(result.failure).toBeUndefined();

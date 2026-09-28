@@ -7,6 +7,7 @@ import { designRequirementsKey } from "./design-requirements";
 import { experienceSchema } from "./experience";
 import { functionalItemSchema, validateFunctionalPlan } from "./functional-plan";
 import { ProductToolError } from "./tool-failure";
+import { assertRequiredFacts, requiredFactSections } from "./required-facts";
 
 const text = z.string().trim().min(1).max(2400);
 const id = z.string().regex(/^[a-z0-9][a-z0-9_-]{0,79}$/);
@@ -224,7 +225,7 @@ export function readinessIssues(state: ProductPlanning): string[] {
     const frames = state.scope.manifest.map(item => item.referenceScreenIndex);
     if (frames.some(index => index == null) || new Set(frames).size !== frames.length) issues.push("Map each requested recreation screen to its distinct source frame before proposing.");
   }
-  for (const section of recreation ? ["identity"] as const : ["identity", "actors", "jobs", "journeys"] as const) {
+  for (const section of requiredFactSections(state.input)) {
     if (!activeFacts(state, section).length) issues.push(`Clarify the product's ${section}.`);
   }
   issues.push(...blockingScreenQuestions(state).map((fact) => fact.detail));
@@ -261,6 +262,7 @@ export function proposeProductScope(state: ProductPlanning): ProductPlanning {
     if (!state.scope?.manifest?.length) throw new Error("Map concrete screens and states on the roadmap, then select their output keys.");
     validateFunctionalPlan(state.scope.manifest, (state.scope.existingOutputs ?? []).map(output => output.item), state.scope.boundaries?.map(item => item.key));
   }
+  assertRequiredFacts(state);
   const issues = readinessIssues(state);
   if (issues.length) throw new Error(issues.join(" "));
   return { ...state, scope: { ...state.scope!, status: "proposed", reviewedContentRevision: state.contentRevision ?? 0, approvedRevision: null, generationRunId: null } };

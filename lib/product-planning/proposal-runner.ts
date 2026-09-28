@@ -1,5 +1,4 @@
 import "server-only";
-import { Type } from "@google/genai";
 import { z } from "zod";
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
@@ -8,7 +7,7 @@ import { candidateFactPatch, candidateRoadmap, designFlowCandidateSchema,
   reconcileCandidateFactEvidence } from "./proposal-candidate";
 import { prepareDesignerPatch } from "./designer-patch";
 import { reviewFactEvidence } from "./review-fact-evidence";
-import { activeFacts, applyProductPatch, assertExperienceReady, blockingScreenQuestions, proposeProductScope, type ProductPlanning } from "./model";
+import { activeFacts, applyProductPatch, assertExperienceReady, blockingScreenQuestions, readinessIssues, proposeProductScope, type ProductPlanning } from "./model";
 import { functionalItemSchema, type FunctionalItem } from "./functional-plan";
 import { flowPreflight } from "./flow-preflight";
 import { deriveJourneyGraph } from "./flow-review";
@@ -18,6 +17,8 @@ import { PlanningConflict, type PlanningStore } from "./store";
 import type { EvidenceAssessment } from "./evidence";
 import { ProductToolError, type PlanningFailure } from "./tool-failure";
 import { describeProposalFailure, type ProposalStage } from "./proposal-failure";
+import { proposalResponseContract } from "./proposal-response";
+import { assertRequiredFacts } from "./required-facts";
 
 type RoadmapRow = { item: FunctionalItem; status: string; screenId: string | null };
 type Trace = { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number; errorCode?: string };
@@ -26,36 +27,8 @@ const instructions = `You are Drawgle, a senior SCREEN and FLOW designer. Produc
 Map every named user task to visible screens, actions, destinations and outcomes. A full-app request needs the whole requested flow; a focused request stays focused. Describe useful information, entry conditions, result states and inline feedback. Use one screen for a coherent task; do not invent separate screens for every tiny state. One product surface may need several distinct task screens. Never target a fixed screen count. Do not ask about backend architecture, storage, codecs, APIs, cloud sync, model choice, or implementation policy.
 For each journey, trace its actual user path from an entry screen through action destinationRefs to the visible outcome. Every screen carrying that journeyRef must either be reachable along its actions or have a credible independent entry condition for its actor, such as opening a separate child app. If the journey has independent entry points, preserve them rather than inventing a cross-actor link. An entryCondition sentence or a generation dependencyRef does not create navigation: add the appropriate visible action when the user really moves between screens. Existing user-confirmed facts are authoritative; do not restate or rewrite them unless the latest user request actually corrects them.
 The server assigns identities. Each new fact and output needs a unique short lowercase ref. To change an active fact, set supersedesId to its current ID; never make a renamed copy. To edit an unbuilt screen, set existingKey. Ready or building outputs are historical context, not new scope selections; use a new ref for a redesign. Preserve all unaffected existing decisions and output keys. Existing fact IDs and output keys may be used directly in references. Only remove planned outputs when the user actually changed scope.
-Facts marked source=user must quote supporting user words in evidence. Designer choices are assumptions, not confirmed requirements. Preserve consistent audience language, entity names and plausible example content; visual references supply craft, not an unrelated domain or invented product promises. Refer to every selected output in scope.outputRefs. For an external action, use destinationRef=null and explain the handoff in outcome. Generation dependencyRefs are build prerequisites, not navigation order. Every output needs a real surface and journey fact. Give each main screen a task-specific information hierarchy; avoid generic repeated card stacks. Return JSON only with facts, removeFactIds, outputs, removeOutputKeys and scope.`;
+Return facts grouped into identity, actors, jobs, and journeys; put the remaining categories in facts.other with their section field. identity describes the product, actors names who uses it, jobs describes what those people want to accomplish, and journeys describes their visible path to that result. Required sections missing from activeFacts must be supplied. Reuse existing facts by their IDs; leave a group empty when no addition or explicit correction is needed. A job is a user task, not a backend requirement. Never remove the last active fact in a required section without replacing it. Facts marked source=user must quote supporting user words in evidence. Designer choices are assumptions, not confirmed requirements. Preserve consistent audience language, entity names and plausible example content; visual references supply craft, not an unrelated domain or invented product promises. Refer to every selected output in scope.outputRefs. For an external action, use destinationRef=null and explain the handoff in outcome. Generation dependencyRefs are build prerequisites, not navigation order. Every output needs a real surface and journey fact. Give each main screen a task-specific information hierarchy; avoid generic repeated card stacks. Return JSON only with facts, removeFactIds, outputs, removeOutputKeys and scope.`;
 
-const string = { type: Type.STRING } as const;
-const strings = { type: Type.ARRAY, items: string } as const;
-const responseSchema = { type: Type.OBJECT, properties: {
-  facts: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {
-    ref: string, supersedesId: { type: Type.STRING, nullable: true },
-    section: { type: Type.STRING, enum: ["identity", "actors", "jobs", "capabilities", "entities", "journeys",
-      "surfaces", "constraints", "decisions", "questions", "preferences", "roadmap", "content"] },
-    label: string, detail: string, source: { type: Type.STRING, enum: ["user", "assumption"] },
-    evidence: string, links: strings, blocking: { type: Type.BOOLEAN },
-  }, required: ["ref", "section", "label", "detail", "source", "evidence", "links", "blocking"] } },
-  removeFactIds: strings,
-  outputs: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {
-    ref: string, existingKey: { type: Type.STRING, nullable: true }, name: string, description: string,
-    surfaceRefs: strings, journeyRefs: strings, decisionRefs: strings, dependencyRefs: strings,
-    actions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {
-      label: string, destinationRef: { type: Type.STRING, nullable: true }, outcome: string,
-    }, required: ["label", "destinationRef", "outcome"] } },
-    information: string,
-    entryCondition: { type: Type.STRING, description: "How this screen is reached: name an incoming action or the actor's independent entry point." },
-    outcome: { type: Type.STRING, description: "The visible result of this screen's task, including an inline completion when no result screen is needed." },
-    inlineStates: strings,
-    sequence: { type: Type.INTEGER },
-  }, required: ["ref", "name", "description", "surfaceRefs", "journeyRefs", "actions",
-    "information", "entryCondition", "outcome", "inlineStates"] } },
-  removeOutputKeys: strings,
-  scope: { type: Type.OBJECT, properties: { goal: string, rationale: string,
-    outputRefs: strings, surfaceRefs: strings }, required: ["goal", "rationale", "outputRefs", "surfaceRefs"] },
-}, required: ["facts", "removeFactIds", "outputs", "removeOutputKeys", "scope"] };
 
 async function roadmapRows(admin: PlanningStore, projectId: string, ownerId: string): Promise<RoadmapRow[]> {
   const { data, error } = await admin.from("project_screen_roadmap")
@@ -104,7 +77,7 @@ export async function runProposalPlanner(input: {
   };
   const ai = createGeminiClient();
   const policy = geminiPolicyForTask("project_planning", {
-    responseMimeType: "application/json", responseSchema,
+    responseMimeType: "application/json",
     maxOutputTokens: 12000, systemInstruction: instructions,
   });
   let repair: { kind: "structure" | "coverage"; issues: string[] } | null = input.resumeSavedReview
@@ -149,12 +122,13 @@ export async function runProposalPlanner(input: {
   for (let attempt = 0; attempt < 3; attempt++) {
     const before = input.getState();
     const current = await roadmapRows(admin, projectId, ownerId);
+    const contract = proposalResponseContract(before);
     await input.progress(repair ? "Repairing screen flow" : "Designing screens and flow",
       repair ? "Fixing the specific saved screen or navigation gaps..." : "Mapping user tasks to screens, actions and outcomes...");
     const started = Date.now();
     let response: Awaited<ReturnType<typeof ai.models.generateContent>>;
     try {
-      response = await ai.models.generateContent({ model: policy.model, config: policy.config,
+      response = await ai.models.generateContent({ model: policy.model, config: { ...policy.config, responseSchema: contract.responseSchema },
         contents: [{ role: "user", parts: [{ text: JSON.stringify({
           originalRequest: input.originalRequest, currentRequest: input.prompt,
           userMessages: input.conversation.filter(message => message.role === "user"),
@@ -179,7 +153,7 @@ export async function runProposalPlanner(input: {
     const validationStarted = Date.now();
     let candidate: ReturnType<typeof designFlowCandidateSchema.parse>;
     try {
-      candidate = designFlowCandidateSchema.parse(JSON.parse(response.text || "{}"));
+      candidate = contract.parse(JSON.parse(response.text || "{}"));
     } catch (error) {
       performance.push({ stage: "proposal_structure_rejection", elapsedMs: Date.now() - validationStarted,
         errorCode: error instanceof SyntaxError ? "JSON_PARSE" : "CANDIDATE_SCHEMA" });
@@ -212,6 +186,10 @@ export async function runProposalPlanner(input: {
         || mapped.removeKeys.length > 0 || scopeChanged;
       draft = { ...factState, contentRevision: (before.contentRevision ?? 0) + (contentChanged ? 1 : 0),
         scope: mapped.scope };
+      validationPhase = "SCOPE_PREREQUISITES";
+      assertRequiredFacts(draft);
+      const prerequisites = readinessIssues(draft);
+      if (prerequisites.length) throw new Error(prerequisites.join(" "));
       validationPhase = "FLOW_PREFLIGHT";
       const graph = flowPreflight(draft, mapped.roadmap);
       if (graph.issues.length) throw new Error(graph.issues.join(" "));
@@ -257,9 +235,9 @@ export async function runProposalPlanner(input: {
         state = input.getState();
       }
       stage = "scope_validation";
+      await input.progress("Reviewing screen flow", "Checking the requested tasks, screen paths and outcomes...");
       if (blockingScreenQuestions(state).length) throw new Error("A saved screen-flow decision still needs the user's answer.");
       const proposed = proposeProductScope(state);
-      await input.progress("Reviewing screen flow", "Checking the requested tasks, screen paths and outcomes...");
       stage = "flow_review";
       const [review] = await Promise.all([
         reviewProductReadiness(proposed, input.prompt, {

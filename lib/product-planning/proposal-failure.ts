@@ -27,7 +27,14 @@ export function describeProposalFailure(stage: ProposalStage, error: unknown): P
   const fingerprint = createHash("sha256").update(JSON.stringify({ stage, kind, issuePaths,
     message: error instanceof Error ? error.message : typeof record.message === "string" ? record.message : "" }))
     .digest("hex").slice(0, 12);
-  const summary = kind === "USER_REFERENCE_CONFLICT"
+  const labels: Record<string, string> = { identity: "product purpose", actors: "intended users", jobs: "user tasks", journeys: "screen journeys" };
+  const missing = error instanceof ProductToolError && kind === "REQUIRED_FACTS_MISSING"
+    && Array.isArray(error.repair.sections) ? error.repair.sections
+      .filter((section): section is string => typeof section === "string" && Object.hasOwn(labels, section)) : [];
+  if (missing.length) issuePaths.push(...missing.map(section => `blueprint.${section}`));
+  const summary = kind === "REQUIRED_FACTS_MISSING"
+    ? `The planner did not record ${missing.length ? missing.map(section => labels[section]).join(", ") : "the required product facts"} needed for review. Your saved decisions remain intact.`
+    : kind === "USER_REFERENCE_CONFLICT"
     ? "The supplied reference conflicts with your explicit design requirements. Choose which direction to preserve."
     : kind === "USER_REFERENCE_UNAVAILABLE"
       ? "The supplied reference could not be loaded. Restore or replace that image; your screen flow is saved."
