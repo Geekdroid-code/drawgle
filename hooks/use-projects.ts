@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectRow } from "@/lib/supabase/database.types";
-import { mapProjectRow } from "@/lib/supabase/mappers";
+import { mapProjectRow, PROJECT_COLUMNS } from "@/lib/supabase/mappers";
+import { isCompleteRecord, mergeRealtimeRecord } from "@/lib/supabase/realtime-patch";
 import type { ProjectData } from "@/lib/types";
 
 const EMPTY_PROJECTS: ProjectData[] = [];
@@ -90,7 +91,16 @@ export function useProjects(ownerId: string, initialProjects: ProjectData[] = EM
             return;
           }
 
-          setProjects((currentProjects) => upsertProject(currentProjects, mapProjectRow(payload.new as ProjectRow)));
+          // UPDATE records omit unchanged large columns: merge over the held
+          // project. A partial record for a project not in the list is skipped.
+          const record = payload.new as Partial<ProjectRow>;
+          setProjects((currentProjects) => {
+            const current = currentProjects.find((project) => project.id === record.id);
+            if (current) return upsertProject(currentProjects, mergeRealtimeRecord(current, record, mapProjectRow, PROJECT_COLUMNS));
+            return isCompleteRecord(record, PROJECT_COLUMNS)
+              ? upsertProject(currentProjects, mapProjectRow(record as ProjectRow))
+              : currentProjects;
+          });
         },
       )
       .subscribe();

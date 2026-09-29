@@ -1,6 +1,7 @@
 import { parseStoredNavigationPlan } from "@/lib/project-navigation";
 import { readProductPlanning } from "@/lib/product-planning/model";
 import type { User } from "@supabase/supabase-js";
+import type { FieldColumns } from "@/lib/supabase/realtime-patch";
 
 import type {
   GenerationRunRow,
@@ -162,3 +163,37 @@ export function mapProjectNavigationRow(row: ProjectNavigationRow): ProjectNavig
     updatedAt: row.updated_at,
   };
 }
+
+// Source column of every mapped field, for merging partial realtime records.
+export const PROJECT_COLUMNS: FieldColumns<ProjectData, ProjectRow> = {
+  tokenRevision: "token_revision", productPlanning: "product_planning", id: "id", ownerId: "owner_id",
+  userId: "owner_id", name: "name", prompt: "prompt", status: "status", charter: "project_charter",
+  designTokens: "design_tokens", publicPreviewToken: "public_preview_token",
+  publicPreviewEnabled: "public_preview_enabled", publicPreviewCreatedAt: "public_preview_created_at",
+  createdAt: "created_at", updatedAt: "updated_at",
+};
+
+export const SCREEN_COLUMNS: FieldColumns<ScreenData, ScreenRow> = {
+  designRevision: "design_revision", id: "id", projectId: "project_id", ownerId: "owner_id", userId: "owner_id",
+  generationRunId: "generation_run_id", name: "name", code: "code", sourceLoaded: "code", prompt: "prompt",
+  summary: "summary", blockIndex: "block_index", chromePolicy: "chrome_policy", navigationItemId: "navigation_item_id",
+  parentScreenId: "parent_screen_id", stateKey: "state_key", stateLabel: "state_label", stateRole: "state_role",
+  roadmapItemId: "roadmap_item_id", x: "position_x", y: "position_y", sortIndex: "sort_index", status: "status",
+  error: "error", triggerRunId: "trigger_run_id", streamPublicToken: "stream_public_token",
+  createdAt: "created_at", updatedAt: "updated_at",
+};
+
+export const PROJECT_NAVIGATION_COLUMNS: FieldColumns<ProjectNavigationData, ProjectNavigationRow> = {
+  designRevision: "design_revision", id: "id", projectId: "project_id", ownerId: "owner_id", plan: "plan",
+  shellCode: "shell_code", blockIndex: "block_index", status: "status", error: "error",
+  createdAt: "created_at", updatedAt: "updated_at",
+};
+
+export const PROJECT_MESSAGE_COLUMNS: FieldColumns<ProjectMessage, ProjectMessageRow> = {
+  id: "id", projectId: "project_id", ownerId: "owner_id", screenId: "screen_id", role: "role", content: "content",
+  messageType: "message_type", metadata: "metadata", timestamp: "created_at",
+};
+
+export const SCREEN_MESSAGE_COLUMNS: FieldColumns<Message, ScreenMessageRow> = {
+  id: "id", role: "role", content: "content", timestamp: "created_at",
+};

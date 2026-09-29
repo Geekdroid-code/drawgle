@@ -5,7 +5,8 @@ import { isProjectRefresh, PROJECT_REFRESH_EVENT } from "@/lib/project-refresh";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectMessageRow } from "@/lib/supabase/database.types";
-import { mapProjectMessageRow } from "@/lib/supabase/mappers";
+import { mapProjectMessageRow, PROJECT_MESSAGE_COLUMNS } from "@/lib/supabase/mappers";
+import { isCompleteRecord, mergeRealtimeRecord } from "@/lib/supabase/realtime-patch";
 import { fetchProjectMessages } from "@/lib/supabase/queries";
 import type { ProjectMessage } from "@/lib/types";
 import { preferNewerWorkTrace } from "@/lib/agent/work-trace";
@@ -102,13 +103,17 @@ export function useProjectMessages(projectId: string) {
             return;
           }
 
-          realtimeUpdates.set(payload.new.id, realtimeSequence);
-          setMessages((currentMessages) =>
-            upsertMessage(
-              currentMessages,
-              mapProjectMessageRow(payload.new as ProjectMessageRow),
-            ),
-          );
+          // UPDATE records omit unchanged large columns (content, metadata):
+          // merge over the held message, never replace with them.
+          const record = payload.new as Partial<ProjectMessageRow> & Pick<ProjectMessageRow, "id">;
+          realtimeUpdates.set(record.id, realtimeSequence);
+          setMessages((currentMessages) => {
+            const current = currentMessages.find((message) => message.id === record.id);
+            if (current) return upsertMessage(currentMessages, mergeRealtimeRecord(current, record, mapProjectMessageRow, PROJECT_MESSAGE_COLUMNS));
+            return isCompleteRecord(record, PROJECT_MESSAGE_COLUMNS)
+              ? upsertMessage(currentMessages, mapProjectMessageRow(record as ProjectMessageRow))
+              : currentMessages;
+          });
         },
       )
       .subscribe();

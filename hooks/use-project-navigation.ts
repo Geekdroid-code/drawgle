@@ -4,8 +4,9 @@ import { useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectNavigationRow } from "@/lib/supabase/database.types";
-import { mapProjectNavigationRow } from "@/lib/supabase/mappers";
+import { mapProjectNavigationRow, PROJECT_NAVIGATION_COLUMNS } from "@/lib/supabase/mappers";
 import { fetchProjectNavigation } from "@/lib/supabase/queries";
+import { isCompleteRecord, mergeRealtimeRecord } from "@/lib/supabase/realtime-patch";
 import type { ProjectNavigationData } from "@/lib/types";
 import { PROJECT_REFRESH_EVENT, isProjectRefresh } from "@/lib/project-refresh";
 
@@ -27,12 +28,15 @@ export function useProjectNavigation(projectId: string, initialNavigation: Proje
     const supabase = createClient();
     let cancelled = false;
     let requestVersion = 0;
+    // The navigation row a completed fetch or complete record has confirmed.
+    let heldNavigationId: string | null = null;
 
     const loadNavigation = async () => {
       const version = ++requestVersion;
       try {
         const nextNavigation = await fetchProjectNavigation(supabase, projectId);
         if (!cancelled && version === requestVersion) {
+          heldNavigationId = nextNavigation?.id ?? null;
           setProjectNavigation(nextNavigation);
         }
       } catch (error) {
@@ -57,12 +61,26 @@ export function useProjectNavigation(projectId: string, initialNavigation: Proje
         (payload) => {
           requestVersion += 1;
           if (payload.eventType === "DELETE") {
+            heldNavigationId = null;
             setProjectNavigation(null);
             return;
           }
 
-          const next = mapProjectNavigationRow(payload.new as ProjectNavigationRow);
-          setProjectNavigation(current => current?.designRevision !== undefined && next.designRevision !== undefined && current.designRevision > next.designRevision ? current : next);
+          // UPDATE records omit unchanged large columns (plan, shell, block
+          // index): merge over the held navigation, never replace with them.
+          const record = payload.new as Partial<ProjectNavigationRow>;
+          const complete = isCompleteRecord(record, PROJECT_NAVIGATION_COLUMNS);
+          setProjectNavigation((current) => {
+            if (current && current.id === record.id) {
+              return current.designRevision !== undefined && typeof record.design_revision === "number"
+                && current.designRevision > record.design_revision
+                ? current
+                : mergeRealtimeRecord(current, record, mapProjectNavigationRow, PROJECT_NAVIGATION_COLUMNS);
+            }
+            return complete ? mapProjectNavigationRow(record as ProjectNavigationRow) : current;
+          });
+          if (complete) heldNavigationId = record.id ?? null;
+          else if (heldNavigationId !== record.id) void loadNavigation();
         },
       )
       .subscribe((status) => {

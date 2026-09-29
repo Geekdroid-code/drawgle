@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectMessageRow, ScreenRow } from "@/lib/supabase/database.types";
-import { mapScreenRow } from "@/lib/supabase/mappers";
+import { mapScreenRow, SCREEN_COLUMNS } from "@/lib/supabase/mappers";
+import { isCompleteRecord, mergeRealtimeRecord } from "@/lib/supabase/realtime-patch";
 import { fetchScreenCatalog, fetchScreenSource } from "@/lib/supabase/queries";
 import type { ScreenData } from "@/lib/types";
 import { acceptFetchedSource, mergeScreenCatalog } from "@/lib/design-history/screen-cache";
@@ -33,22 +34,15 @@ const upsertScreen = (screens: ScreenData[], screen: ScreenData) => {
   return sortScreens(nextScreens);
 };
 
-const mergeScreenPatch = (currentScreen: ScreenData, nextScreen: ScreenData): ScreenData => {
-  const patch = Object.fromEntries(
-    Object.entries(nextScreen).filter(([, value]) => value !== undefined),
-  ) as Partial<ScreenData>;
-
-  return {
-    ...currentScreen,
-    ...patch,
-  };
-};
-
 export function useScreens(projectId: string, initialScreens: ScreenData[] = []) {
   const [screens, setScreens] = useState<ScreenData[]>(sortScreens(initialScreens));
   const [isLoading, setIsLoading] = useState(initialScreens.length === 0);
   const sourceRequestsRef = useRef(new Set<string>());
   const catalogRequestRef = useRef(0);
+  const screensRef = useRef(screens);
+  useEffect(() => {
+    screensRef.current = screens;
+  }, [screens]);
 
   const mergeCatalog = useCallback((catalog: ScreenData[], current: ScreenData[]) => {
     return mergeScreenCatalog(catalog, current);
@@ -120,12 +114,20 @@ export function useScreens(projectId: string, initialScreens: ScreenData[] = [])
             return;
           }
 
+          // UPDATE records omit unchanged large columns (code, prompt, block
+          // index): merge over the held screen, never replace with them.
+          const record = payload.new as Partial<ScreenRow>;
+          const complete = isCompleteRecord(record, SCREEN_COLUMNS);
+          if (!complete && !screensRef.current.some((screen) => screen.id === record.id)) {
+            queueRefreshScreens();
+            return;
+          }
           setScreens((currentScreens) => {
-            const nextScreen = mapScreenRow(payload.new as ScreenRow);
-            const currentScreen = currentScreens.find((screen) => screen.id === nextScreen.id);
-            if (currentScreen?.designRevision !== undefined && nextScreen.designRevision !== undefined && currentScreen.designRevision > nextScreen.designRevision) return currentScreens;
-
-            return upsertScreen(currentScreens, currentScreen ? mergeScreenPatch(currentScreen, nextScreen) : nextScreen);
+            const currentScreen = currentScreens.find((screen) => screen.id === record.id);
+            if (currentScreen?.designRevision !== undefined && typeof record.design_revision === "number"
+              && currentScreen.designRevision > record.design_revision) return currentScreens;
+            if (currentScreen) return upsertScreen(currentScreens, mergeRealtimeRecord(currentScreen, record, mapScreenRow, SCREEN_COLUMNS));
+            return complete ? upsertScreen(currentScreens, mapScreenRow(record as ScreenRow)) : currentScreens;
           });
         },
       )
