@@ -53,6 +53,23 @@ const DEVICE_ONLY_FONT_FAMILIES = new Set([
   "avenir next",
 ]);
 
+/** Well-known serif and slab families on Google Fonts, in lower case. A family that is not here is taken for a sans. */
+const SERIF_FONT_FAMILIES = new Set([
+  "playfair display", "playfair display sc", "lora", "merriweather", "libre baskerville", "baskervville", "cormorant", "cormorant garamond",
+  "cormorant infant", "eb garamond", "dm serif display", "dm serif text", "fraunces", "newsreader", "source serif 4", "source serif pro",
+  "crimson text", "crimson pro", "pt serif", "noto serif", "noto serif display", "bitter", "roboto slab", "roboto serif", "zilla slab",
+  "spectral", "gelasio", "alegreya", "vollkorn", "old standard tt", "bodoni moda", "instrument serif", "young serif", "gloock",
+  "libre caslon text", "libre caslon display", "cardo", "domine", "arvo", "abril fatface", "cinzel", "rufina", "prata", "marcellus",
+  "literata", "tinos", "yeseva one", "bellefair", "lustria", "neuton", "frank ruhl libre", "ibm plex serif", "stix two text", "aleo",
+  "rokkitt", "josefin slab", "crete round", "podkova", "playfair", "libre bodoni", "gilda display", "italiana", "cormorant upright",
+]);
+
+/** Well-known monospaced families, in lower case. */
+const MONO_FONT_FAMILIES = new Set([
+  "jetbrains mono", "fira code", "fira mono", "ibm plex mono", "roboto mono", "source code pro", "space mono", "dm mono", "inconsolata",
+  "ubuntu mono", "courier prime", "overpass mono", "red hat mono", "geist mono", "martian mono", "azeret mono", "sometype mono",
+]);
+
 /** The families of a CSS font stack, in order, without their quotes. */
 export const parseFontFamilyList = (fontFamily?: string | null) => {
   const value = fontFamily?.trim();
@@ -105,6 +122,21 @@ export const loadableFontFamily = (fontFamily?: string | null): string | null =>
   return family && !DEVICE_ONLY_FONT_FAMILIES.has(family.toLowerCase()) ? family : null;
 };
 
+/**
+ * Whether a stack is set in a serif or monospaced face, from its family or, for a family this list does not
+ * know, from the generic keyword the model closed the stack with (`"Foo", serif`). Null for a sans.
+ */
+export const fontClassOf = (fontFamily?: string | null): "serif" | "mono" | null => {
+  const families = parseFontFamilyList(fontFamily);
+  const primary = namedFontFamily(fontFamily)?.toLowerCase();
+  if (primary && MONO_FONT_FAMILIES.has(primary)) return "mono";
+  if (primary && SERIF_FONT_FAMILIES.has(primary)) return "serif";
+  const closing = families.slice(1).map((family) => family.toLowerCase()).filter((family) => GENERIC_FONT_FAMILIES.has(family));
+  if (closing.includes("monospace") || closing.includes("ui-monospace")) return "mono";
+  if (closing.includes("serif") || closing.includes("ui-serif")) return "serif";
+  return null;
+};
+
 const DEFAULT_HEADING_STACK = '"Manrope", sans-serif';
 const DEFAULT_BODY_STACK = '"Inter", sans-serif';
 
@@ -139,4 +171,32 @@ export function resolveFontFamilies({
   const headingFamily = usable(chosenHeading)?.toLowerCase();
   const other = named.find((family) => family.toLowerCase() !== headingFamily);
   return { heading: chosenHeading, body: other ? stackOf(other) : DEFAULT_BODY_STACK };
+}
+
+/**
+ * The stacks with any serif or monospaced role replaced, for a reference whose letters were read as a sans:
+ * a heading by the body's sans, else by a sans the model recommended, else by the neutral default; a body by a
+ * recommended sans of another family, else by the neutral default. A stack that is already a sans is kept.
+ */
+export function keepSansFamilies({
+  heading,
+  body,
+  recommended = [],
+}: {
+  heading?: string | null;
+  body?: string | null;
+  recommended?: readonly string[];
+}): { heading: string | null; body: string | null } {
+  const isSans = (stack?: string | null) => Boolean(namedFontFamily(stack)) && !fontClassOf(stack);
+  const sans = recommended.map((family) => family.trim()).filter((family) => loadableFontFamily(family) && !fontClassOf(family));
+
+  const nextHeading = !heading || isSans(heading)
+    ? heading ?? null
+    : isSans(body) ? String(body).trim() : sans[0] ? stackOf(loadableFontFamily(sans[0])!) : DEFAULT_HEADING_STACK;
+  const headingFamily = loadableFontFamily(nextHeading)?.toLowerCase();
+  const otherSans = sans.find((family) => loadableFontFamily(family)?.toLowerCase() !== headingFamily);
+  const nextBody = !body || isSans(body)
+    ? body ?? null
+    : otherSans ? stackOf(loadableFontFamily(otherSans)!) : DEFAULT_BODY_STACK;
+  return { heading: nextHeading, body: nextBody };
 }

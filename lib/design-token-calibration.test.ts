@@ -283,6 +283,34 @@ describe("calibrateGeneratedTokens accent tints", () => {
   });
 });
 
+describe("calibrateGeneratedTokens typeface", () => {
+  const withFonts = (heading: string, body: string, recommended: string[] = []) =>
+    normalizeDesignTokens({
+      system_schema: "mobile_universal_core",
+      meta: { recommendedFonts: recommended },
+      tokens: { ...generated().tokens, typography: { heading_font_family: heading, body_font_family: body } },
+    });
+
+  it("keeps a sans in both roles for a reference whose letters were read as a sans", () => {
+    const typography = calibrate({ typeface: "sans" }, withFonts("Libre Baskerville, serif", "Quicksand, sans-serif", ["Libre Baskerville", "Quicksand"])).typography;
+    expect(typography?.heading_font_family).toBe("Quicksand, sans-serif");
+    expect(typography?.body_font_family).toBe("Quicksand, sans-serif");
+  });
+
+  it("leaves a sans heading and body as they are", () => {
+    const typography = calibrate({ typeface: "sans" }, withFonts('"Outfit", sans-serif', '"Plus Jakarta Sans", sans-serif')).typography;
+    expect(typography?.heading_font_family).toBe('"Outfit", sans-serif');
+    expect(typography?.body_font_family).toBe('"Plus Jakarta Sans", sans-serif');
+  });
+
+  it("does nothing when the letters were not read, or were read as a serif", () => {
+    const serif = withFonts("Fraunces, serif", "Inter, sans-serif");
+    expect(calibrate({}, serif).typography?.heading_font_family).toBe("Fraunces, serif");
+    expect(calibrate({ typeface: null }, serif).typography?.heading_font_family).toBe("Fraunces, serif");
+    expect(calibrate({ typeface: "serif" }, serif).typography?.heading_font_family).toBe("Fraunces, serif");
+  });
+});
+
 describe("calibrateGeneratedTokens contract", () => {
   it("is idempotent", () => {
     const evidence: CalibrationEvidence = { palette: mindfulness, radiusClass: "very-rounded", surfaceElevation: "flat-tone" };

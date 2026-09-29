@@ -8,7 +8,7 @@ import {
   type CuratedStylePreset,
 } from "@/lib/generation/curated-style-presets";
 import { measureReferencePalette } from "@/lib/generation/reference-palette";
-import { boxOf, cropToBox, pickSpecimenScreen } from "@/lib/generation/specimen-build";
+import { boxOf, cropToBox, pickSpecimenScreen, SpecimenIncompleteError } from "@/lib/generation/specimen-build";
 import { extractStyleComponents } from "@/lib/generation/style-component-extraction";
 import { MAX_STYLE_COMPONENTS } from "@/lib/generation/style-components";
 import type {
@@ -141,6 +141,7 @@ export async function buildPresetComponents({
   settled.forEach((outcome, position) => {
     // Provider errors can carry request details; only that a phone's build failed is kept.
     if (outcome.status === "fulfilled") specimens.push(outcome.value);
+    else if (outcome.reason instanceof SpecimenIncompleteError) notes.push(`the build of phone ${screens[position].index} (${screens[position].suggestedRole}) was cut short twice and is left out`);
     else notes.push(`the build of phone ${screens[position].index} (${screens[position].suggestedRole}) failed and is left out`);
   });
   if (specimens.length === 0) {

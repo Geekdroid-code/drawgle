@@ -4240,6 +4240,8 @@ export async function generateDesignTokens({
           radiusClass: referenceAnalysis?.radiusClass ?? null,
           surfaceElevation: referenceAnalysis?.surfaceElevation ?? null,
           userColorRoles: userNamedColorRoles(designRequirements),
+          // fonts the user named are theirs; otherwise the letters that were read decide the class
+          typeface: presetNamesFonts ? null : referenceAnalysis?.typefaceClass ?? null,
         };
 
     const generated = parsed.success

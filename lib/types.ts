@@ -875,6 +875,9 @@ export type RadiusClass = "square" | "soft" | "rounded" | "very-rounded";
 /** How the main cards separate from the page. */
 export type SurfaceElevation = "flat-tone" | "hairline" | "soft-shadow" | "strong-shadow";
 
+/** What the letterforms of a reference's headings are: read from a close-up of them, not from the style's mood. */
+export type TypefaceClass = "sans" | "serif" | "display" | "mono";
+
 export interface ReferenceAnalysis {
   overallVisualStyle: string;
   screenCountEstimate: number;
@@ -884,6 +887,8 @@ export interface ReferenceAnalysis {
   semanticCompositionPrimitives?: SemanticCompositionPrimitive[];
   radiusClass?: RadiusClass | null;
   surfaceElevation?: SurfaceElevation | null;
+  /** The class of the headings' typeface, when a close-up of them was read (see reference-focus.ts). */
+  typefaceClass?: TypefaceClass | null;
 }
 
 export interface ReferenceAnalysisResult {

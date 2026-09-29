@@ -2,6 +2,7 @@ import { deltaE2000, hexToLab, mixHex, parseHex, shiftLightness } from "@/lib/co
 import { RADIUS_CLASS_PX, SOFT_SHADOW_MAX_ALPHA } from "@/lib/generation/design-classes";
 import type { MeasuredPalette } from "@/lib/generation/reference-palette";
 import type { ColorRole } from "@/lib/generation/user-color-roles";
+import { keepSansFamilies } from "@/lib/font-stack";
 import { capShadow, softShadow } from "@/lib/shadow-css";
 import type {
   DesignColorTokens,
@@ -10,6 +11,7 @@ import type {
   DesignTokens,
   RadiusClass,
   SurfaceElevation,
+  TypefaceClass,
 } from "@/lib/types";
 
 type UnknownRecord = Record<string, unknown>;
@@ -539,6 +541,11 @@ export type CalibrationEvidence = {
   surfaceElevation?: SurfaceElevation | null;
   /** Roles the user named colours for. The palette never overwrites those. */
   userColorRoles?: ReadonlySet<ColorRole> | readonly ColorRole[] | null;
+  /**
+   * The class of the reference's headings, read from a close-up of them. A sans does not get a serif or a
+   * monospaced font from a model that took the style's mood for its letters. Left out when the user named fonts.
+   */
+  typeface?: TypefaceClass | null;
 };
 
 const clampNumber = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -692,6 +699,20 @@ export const calibrateGeneratedTokens = (
       }
     }
     tokens.color = color;
+  }
+
+  // Typeface: a reference whose letters were read as a sans keeps a sans in both roles.
+  if (evidence.typeface === "sans" && isRecord(tokens.typography)) {
+    const kept = keepSansFamilies({
+      heading: tokens.typography.heading_font_family,
+      body: tokens.typography.body_font_family,
+      recommended: designTokens.meta?.recommendedFonts ?? [],
+    });
+    tokens.typography = {
+      ...tokens.typography,
+      ...(kept.heading ? { heading_font_family: kept.heading } : {}),
+      ...(kept.body ? { body_font_family: kept.body } : {}),
+    };
   }
 
   // Tokens that only mirrored a role follow it; ones the model set deliberately stay.

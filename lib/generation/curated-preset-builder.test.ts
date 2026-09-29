@@ -14,6 +14,7 @@ import {
   specimenScreens,
   type PresetBuildDeps,
 } from "@/lib/generation/curated-preset-builder";
+import { SpecimenIncompleteError } from "@/lib/generation/specimen-build";
 import {
   PRESET_REFERENCE_ID,
   presetAnalysis,
@@ -148,6 +149,17 @@ describe("buildCuratedPreset", () => {
     expect(result.skipped).toEqual([{ name: "bottom-tab-bar", reason: expect.stringContaining("drawn by the renderer") }]);
     expect(result.notes.join("\n")).toContain("phone 2: skipped bottom-tab-bar");
     expect(result.specimens[0].html).toContain("data-dg-component");
+  });
+
+  it("says that a phone's build was cut short, and leaves it out", async () => {
+    const { result } = await build({
+      buildSpecimen: async ({ screen }) => {
+        if (screen.index === 3) throw new SpecimenIncompleteError("Generated HTML ends inside an unfinished tag.");
+        return specimenHtml;
+      },
+    });
+    expect(result.specimens.map((specimen) => specimen.screenIndex)).toEqual([2, 1]);
+    expect(result.notes).toContain("the build of phone 3 (Profile) was cut short twice and is left out");
   });
 
   it("learns from every phone, richest first, and keeps one component of each name", async () => {

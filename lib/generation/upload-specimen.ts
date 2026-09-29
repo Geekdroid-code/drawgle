@@ -1,4 +1,4 @@
-import { boxOf, cropToBox, pickSpecimenScreen, specimenBuildInput } from "@/lib/generation/specimen-build";
+import { boxOf, buildCompleteSpecimen, cropToBox, pickSpecimenScreen, specimenBuildInput } from "@/lib/generation/specimen-build";
 import { extractStyleComponents } from "@/lib/generation/style-component-extraction";
 import { usableStyleComponents } from "@/lib/generation/style-components";
 import type {
@@ -100,7 +100,7 @@ export async function buildUploadSpecimen({
     return { specimen: null, notes: [`the image shows ${analysis.screenReferences.length} screens and "${screen.suggestedRole}" has no box to crop it by`] };
   }
 
-  const built = await buildScreen(specimenBuildInput({
+  const built = await buildCompleteSpecimen(buildScreen, specimenBuildInput({
     image: phone,
     screen,
     tokens,

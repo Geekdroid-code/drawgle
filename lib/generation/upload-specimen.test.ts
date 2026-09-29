@@ -35,6 +35,10 @@ const analysisOf = (screens: ReturnType<typeof screen>[]): ReferenceAnalysis => 
 });
 const tokens = presetTokens();
 
+const SENTINEL = "<!-- DRAWGLE_GENERATION_COMPLETE -->";
+/** A build that finished ends with the completion sentinel. */
+const done = (html: string) => `${html}
+${SENTINEL}`;
 const marked = (...names: string[]) => `<div class="dg-bg-primary" data-drawgle-id="root">${names.map((name) =>
   `<div data-dg-component="${name}" data-dg-use="use for ${name}" class="dg-surface-card dg-radius-app p-4"><p>${name} sample</p></div>`).join("")}</div>`;
 
@@ -76,7 +80,7 @@ describe("building the specimen of an upload", () => {
         screen(1, ["Header"], { x: 0, y: 0, width: 0.5, height: 1 }),
         screen(2, ["Calendar strip", "Stat tiles", "Chips"], { x: 0.5, y: 0.1, width: 0.5, height: 0.8 }),
       ]),
-      buildScreen: async (input) => { seen.push(input); return { code: marked("calendar-strip", "stat-tile-pair", "mood-chips", "donut-card") }; },
+      buildScreen: async (input) => { seen.push(input); return { code: done(marked("calendar-strip", "stat-tile-pair", "mood-chips", "donut-card")) }; },
     });
 
     expect(seen).toHaveLength(1);
@@ -107,7 +111,7 @@ describe("building the specimen of an upload", () => {
     const image = await collage();
     const result = await buildUploadSpecimen({
       image, tokens, analysis: analysisOf([screen(1, ["Cards"], null)]),
-      buildScreen: async (input) => { seen.push(input); return { code: marked("summary-card", "list-row", "chip-row", "stat-tile") }; },
+      buildScreen: async (input) => { seen.push(input); return { code: done(marked("summary-card", "list-row", "chip-row", "stat-tile")) }; },
     });
     expect(seen[0].image).toBe(image);
     expect(result.specimen?.components).toHaveLength(4);
@@ -126,7 +130,7 @@ describe("building the specimen of an upload", () => {
   it("gives no specimen, and says why, when the build marked nothing usable", async () => {
     const result = await buildUploadSpecimen({
       image: await collage(), tokens, analysis: analysisOf([screen(1, ["Cards"], null)]),
-      buildScreen: async () => ({ code: '<div class="dg-bg-primary"><p>No markers here</p></div>' }),
+      buildScreen: async () => ({ code: done('<div class="dg-bg-primary"><p>No markers here</p></div>') }),
     });
     expect(result.specimen).toBeNull();
     expect(result.notes.join(" ")).toContain("marked no usable component");
@@ -135,10 +139,32 @@ describe("building the specimen of an upload", () => {
   it("keeps a thin specimen but says it is thin, and never keeps the status bar or the navigation", async () => {
     const result = await buildUploadSpecimen({
       image: await collage(), tokens, analysis: analysisOf([screen(1, ["Cards"], null)]),
-      buildScreen: async () => ({ code: `${marked("summary-card")}<nav data-dg-component="bottom-tab-bar" class="fixed bottom-0"><a>Home</a><a>Me</a></nav>` }),
+      buildScreen: async () => ({ code: done(`${marked("summary-card")}<nav data-dg-component="bottom-tab-bar" class="fixed bottom-0"><a>Home</a><a>Me</a></nav>`) }),
     });
     expect(result.specimen?.components.map((component) => component.name)).toEqual(["summary-card"]);
     expect(result.notes).toEqual(expect.arrayContaining([expect.stringContaining("skipped bottom-tab-bar"), "only 1 component was marked"]));
+  });
+});
+
+describe("a specimen build that stops before it finishes", () => {
+  const cutShort = `${marked("summary-card")}<div data-dg-component="media-card" class="p-4"><div class="flex"><svg viewBox="0 0 24 24"><path d="M12 2"/></svg></`;
+
+  it("is asked for once more, and the second build is the one used", async () => {
+    const codes = [cutShort, done(marked("summary-card", "list-row", "chip-row", "stat-tile"))];
+    const buildScreen = vi.fn(async () => ({ code: codes.shift()! }));
+    const result = await buildUploadSpecimen({ image: await collage(), tokens, analysis: analysisOf([screen(1, ["Cards"], null)]), buildScreen });
+    expect(buildScreen).toHaveBeenCalledTimes(2);
+    expect(result.specimen?.components.map((component) => component.name)).toEqual(["summary-card", "list-row", "chip-row", "stat-tile"]);
+  });
+
+  it("is not used when the second build is cut short too: the error says so, and the generation goes on without one", async () => {
+    const buildScreen = vi.fn(async () => ({ code: cutShort }));
+    const settled = vi.fn();
+    const ready = { image: await collage(), analysis: analysisOf([screen(1, ["Cards"], null)]), tokens };
+    const specimen = await startUploadSpecimen({ applies: applies(), input: () => ready, buildScreen, onSettled: settled });
+    expect(specimen).toBeNull();
+    expect(buildScreen).toHaveBeenCalledTimes(2);
+    expect(settled).toHaveBeenCalledWith(expect.objectContaining({ specimen: null, error: expect.objectContaining({ name: "SpecimenIncompleteError" }) }));
   });
 });
 
@@ -159,7 +185,7 @@ describe("starting the specimen beside planning", () => {
     const ready = await input();
     const specimen = await startUploadSpecimen({
       applies: applies(), input: () => ready, onSettled: settled,
-      buildScreen: async () => ({ code: marked("summary-card", "list-row", "chip-row", "stat-tile") }),
+      buildScreen: async () => ({ code: done(marked("summary-card", "list-row", "chip-row", "stat-tile")) }),
     });
     expect(specimen?.components).toHaveLength(4);
     expect(settled).toHaveBeenCalledWith(expect.objectContaining({ specimen, notes: [] }));
@@ -181,7 +207,7 @@ describe("starting the specimen beside planning", () => {
     const ready = await input();
     const pending = startUploadSpecimen({
       applies: applies(), input: () => ready,
-      buildScreen: async () => { events.push("build started"); await Promise.resolve(); events.push("build finished"); return { code: marked("a-card", "b-card", "c-card", "d-card") }; },
+      buildScreen: async () => { events.push("build started"); await Promise.resolve(); events.push("build finished"); return { code: done(marked("a-card", "b-card", "c-card", "d-card")) }; },
     });
     events.push("planning");
     await Promise.resolve();

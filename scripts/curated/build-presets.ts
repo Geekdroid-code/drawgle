@@ -8,9 +8,11 @@
  *   pnpm curated:presets --all --rebuild           ...and those that have one (a rebuild un-approves it)
  *   pnpm curated:presets --approve <reference id>  approve a built preset, after looking at its preview
  *
- * A build is one full analysis (every phone, no salvage), the measured palette, the calibrated tokens, and
- * a specimen of each phone: the recreate builder on it, with each reusable component marked, read back out of
- * the markup. It writes lib/generation/generated/curated-style-presets.json and a preview to
+ * A build is one full analysis (every phone, no salvage) corrected by a close-up of the top and the bottom of each
+ * phone (the letters of the headings, and whether the bottom bar is attached or floating), the measured palette,
+ * the calibrated tokens, and a specimen of each phone: the recreate builder on it, with each reusable component
+ * marked, read back out of the markup. A specimen that stops before it finishes is built again once, and left out
+ * if it stops again. It writes lib/generation/generated/curated-style-presets.json and a preview to
  * scripts/curated/out/<id>.png (git-ignored). Nothing is used at run time until a preset is approved, and only
  * while its catalogue entry is unchanged. See lib/generation/curated-style-presets.ts.
  *
@@ -43,7 +45,8 @@ import {
   withCuratedPresetApproval,
   type CuratedStylePreset,
 } from "@/lib/generation/curated-style-presets";
-import { specimenBuildInput } from "@/lib/generation/specimen-build";
+import { geminiFocusAsk, refineAnalysisFromCrops } from "@/lib/generation/reference-focus";
+import { buildCompleteSpecimen, specimenBuildInput } from "@/lib/generation/specimen-build";
 
 import { renderPresetPreview } from "./preview";
 import { formatSpecimenReport, measureSpecimen } from "./specimen-report";
@@ -93,16 +96,29 @@ async function realDeps(): Promise<PresetBuildDeps> {
   ]);
   console.log(`Models: ${geminiModelForTask("project_planning")} for the analysis and tokens, ${geminiModelForTask("screen_build")} for the specimen.`);
 
+  const askAboutCloseUp = await geminiFocusAsk();
+
   return {
-    analyze: ({ reference, image }) => analyzeReferenceImageForScope({
-      prompt: reference.styleIntent, image, referenceMode: "curated_style", referenceId: null,
-    }),
+    analyze: async ({ reference, image }) => {
+      const result = await analyzeReferenceImageForScope({
+        prompt: reference.styleIntent, image, referenceMode: "curated_style", referenceId: null,
+      });
+      if (!result.analysis || result.source !== "full_analysis") return result;
+      // A picture of three phones leaves the letters and the bottom bar to chance; a close-up of each phone does not.
+      const refined = await refineAnalysisFromCrops({ image, analysis: result.analysis, ask: askAboutCloseUp });
+      for (const note of refined.notes) console.log(`  close-up: ${note}`);
+      return { ...result, analysis: refined.analysis };
+    },
     generateTokens: ({ reference, image, analysis }) => generateDesignTokens({
       prompt: reference.styleIntent, image, referenceMode: "curated_style", referenceId: reference.id,
       referenceAnalysis: analysis, ignorePreset: true,
     }),
     buildSpecimen: async ({ reference, image, screen, tokens }) => {
-      const built = await buildScreenCode(specimenBuildInput({ image, screen, tokens, intent: reference.styleIntent }));
+      const built = await buildCompleteSpecimen(
+        buildScreenCode,
+        specimenBuildInput({ image, screen, tokens, intent: reference.styleIntent }),
+        { onIncomplete: (issue, attempt) => console.log(`  phone ${screen.index}: the build was cut short (${issue}); ${attempt < 2 ? "building it again" : "leaving it out"}`) },
+      );
       return built.code;
     },
   };

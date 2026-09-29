@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loadableFontFamily, parseFontFamilyList, resolveFontFamilies } from "@/lib/font-stack";
+import { fontClassOf, keepSansFamilies, loadableFontFamily, parseFontFamilyList, resolveFontFamilies } from "@/lib/font-stack";
 
 describe("loadableFontFamily", () => {
   it("names the first family of a stack when it is a real font", () => {
@@ -73,5 +73,49 @@ describe("resolveFontFamilies", () => {
       .toEqual({ heading: '"Space Grotesk", sans-serif', body: '"DM Sans", sans-serif' });
     expect(resolveFontFamilies({ heading: '"Fraunces", serif' })).toEqual({ heading: '"Fraunces", serif', body: '"Inter", sans-serif' });
     expect(resolveFontFamilies({ heading: '"Inter", sans-serif' })).toEqual({ heading: '"Inter", sans-serif', body: '"Inter", sans-serif' });
+  });
+});
+
+describe("fontClassOf", () => {
+  it("knows a well-known serif and a well-known monospaced family, and takes anything else for a sans", () => {
+    expect(fontClassOf('"Libre Baskerville", serif')).toBe("serif");
+    expect(fontClassOf("Playfair Display, Georgia, serif")).toBe("serif");
+    expect(fontClassOf('"JetBrains Mono", monospace')).toBe("mono");
+    expect(fontClassOf('"Plus Jakarta Sans", sans-serif')).toBeNull();
+    expect(fontClassOf("Inter")).toBeNull();
+    expect(fontClassOf(null)).toBeNull();
+  });
+
+  it("goes by the keyword the stack closes with when it does not know the family", () => {
+    expect(fontClassOf('"Some Rare Face", serif')).toBe("serif");
+    expect(fontClassOf('"Some Rare Face", monospace')).toBe("mono");
+    expect(fontClassOf('"Some Rare Face", sans-serif')).toBeNull();
+    // a bare keyword names no family: there is nothing to classify
+    expect(fontClassOf("serif")).toBeNull();
+  });
+});
+
+describe("keepSansFamilies", () => {
+  it("leaves stacks that are already a sans alone", () => {
+    expect(keepSansFamilies({ heading: '"Outfit", sans-serif', body: '"Plus Jakarta Sans", sans-serif' }))
+      .toEqual({ heading: '"Outfit", sans-serif', body: '"Plus Jakarta Sans", sans-serif' });
+  });
+
+  it("replaces a serif heading with the body's sans, the case of the second mindfulness build", () => {
+    expect(keepSansFamilies({ heading: "Libre Baskerville, serif", body: "Quicksand, sans-serif" }))
+      .toEqual({ heading: "Quicksand, sans-serif", body: "Quicksand, sans-serif" });
+  });
+
+  it("replaces a serif heading by a recommended sans when the body is no sans either, and by the default when there is none", () => {
+    expect(keepSansFamilies({ heading: "Lora, serif", body: "Merriweather, serif", recommended: ["Lora", "DM Sans", "Inter"] }))
+      .toEqual({ heading: '"DM Sans", sans-serif', body: '"Inter", sans-serif' });
+    expect(keepSansFamilies({ heading: "Lora, serif", body: "Merriweather, serif" }))
+      .toEqual({ heading: '"Manrope", sans-serif', body: '"Inter", sans-serif' });
+  });
+
+  it("replaces a monospaced body, and leaves out a role that was not given", () => {
+    expect(keepSansFamilies({ heading: '"Outfit", sans-serif', body: "Roboto Mono, monospace", recommended: ["Outfit", "Inter"] }))
+      .toEqual({ heading: '"Outfit", sans-serif', body: '"Inter", sans-serif' });
+    expect(keepSansFamilies({ body: "Lora, serif" })).toEqual({ heading: null, body: '"Inter", sans-serif' });
   });
 });

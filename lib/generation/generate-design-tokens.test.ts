@@ -264,6 +264,34 @@ describe("generateDesignTokens keeps the fonts the evidence chose", () => {
     expect(buildGoogleFontHref(tokens)).toBeNull();
   });
 
+  it("keeps a reference read as a sans in a sans, whatever the model made of its mood", async () => {
+    // the second mindfulness build: the analysis said an elegant serif, the close-up said a sans, and the model followed the analysis
+    modelReturns({ heading_font_family: "Libre Baskerville, serif", body_font_family: "Quicksand, sans-serif" }, ["Libre Baskerville", "Quicksand"]);
+    const tokens = await generateDesignTokens({
+      prompt: "A wellness app", image: await referenceImage(), referenceMode: "curated_style", referenceAnalysis: { ...analysis, typefaceClass: "sans" },
+    });
+    expect(tokens.tokens?.typography?.heading_font_family).toBe("Quicksand, sans-serif");
+    expect(tokens.tokens?.typography?.body_font_family).toBe("Quicksand, sans-serif");
+  });
+
+  it("leaves a serif alone when the reference was not read as a sans, and when the user named the fonts", async () => {
+    modelReturns({ heading_font_family: "Fraunces, serif", body_font_family: "Inter, sans-serif" }, ["Fraunces", "Inter"]);
+    const unread = await generateDesignTokens({
+      prompt: "A wellness app", image: await referenceImage(), referenceMode: "curated_style", referenceAnalysis: analysis,
+    });
+    expect(unread.tokens?.typography?.heading_font_family).toBe("Fraunces, serif");
+
+    const named = await generateDesignTokens({
+      prompt: "A wellness app", image: await referenceImage(), referenceMode: "curated_style", referenceAnalysis: { ...analysis, typefaceClass: "sans" },
+      designRequirements: [
+        "EXPLICIT USER DESIGN REQUIREMENTS",
+        "Preserve these evidenced choices.",
+        JSON.stringify([{ id: "typography", label: "Typography", detail: "Use a serif font for headings", evidence: "the user said so" }]),
+      ].join("\n"),
+    });
+    expect(named.tokens?.typography?.heading_font_family).toBe("Fraunces, serif");
+  });
+
   it("still gives two families to a model that named two", async () => {
     modelReturns({ heading_font_family: '"Fraunces", serif', body_font_family: '"Inter", sans-serif' }, ["Fraunces", "Inter"]);
     const typography = (await generateFor()).tokens?.typography;

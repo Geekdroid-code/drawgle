@@ -3,6 +3,7 @@ import { Buffer } from "node:buffer";
 import sharp from "sharp";
 
 import type { NormalizedBox } from "@/lib/generation/reference-palette";
+import { validateSourceCompletion } from "@/lib/generation/screen-quality";
 import type {
   BuildScreenInput,
   DesignTokens,
@@ -83,4 +84,34 @@ export function specimenBuildInput({
     requiresBottomNav: false,
     specimenMarking: true,
   };
+}
+
+/** A specimen build that stopped before it finished, more than once. */
+export class SpecimenIncompleteError extends Error {
+  constructor(readonly issue: string) {
+    super(`the build was cut short: ${issue}`);
+    this.name = "SpecimenIncompleteError";
+  }
+}
+
+/**
+ * Builds a specimen and insists that it is whole. A model that stops in the middle of a tag leaves markup whose
+ * last component is a stump, and the components are read out of that markup, so an unfinished build is never
+ * used. It is asked once more, and after that the error says so: a preset leaves the phone out, and an upload
+ * goes on without a specimen.
+ */
+export async function buildCompleteSpecimen<Built extends { code: string }>(
+  build: (input: BuildScreenInput) => Promise<Built>,
+  input: BuildScreenInput,
+  { attempts = 2, onIncomplete }: { attempts?: number; onIncomplete?: (issue: string, attempt: number) => void } = {},
+): Promise<Built> {
+  let issue = "the build did not finish";
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const built = await build(input);
+    const completion = validateSourceCompletion({ code: built.code, requireSentinel: true });
+    if (completion.valid) return built;
+    issue = completion.issues[0] ?? issue;
+    onIncomplete?.(issue, attempt);
+  }
+  throw new SpecimenIncompleteError(issue);
 }
