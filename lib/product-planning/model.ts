@@ -225,7 +225,7 @@ export function readinessIssues(state: ProductPlanning): string[] {
     const frames = state.scope.manifest.map(item => item.referenceScreenIndex);
     if (frames.some(index => index == null) || new Set(frames).size !== frames.length) issues.push("Map each requested recreation screen to its distinct source frame before proposing.");
   }
-  for (const section of requiredFactSections(state.input)) {
+  for (const section of requiredFactSections(state.input) as ProductFact["section"][]) {
     if (!activeFacts(state, section).length) issues.push(`Clarify the product's ${section}.`);
   }
   issues.push(...blockingScreenQuestions(state).map((fact) => fact.detail));

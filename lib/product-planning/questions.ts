@@ -43,6 +43,19 @@ export function isScreenDesignQuestionCard(questions: ProductQuestions) {
 
 export const resumeProductPlanningPrompt = "Continue designing the requested screens using the mode I selected. Ask only about missing visible screens or flow choices.";
 
+/** A Continue click resumes planning. It is not a product request, so it never
+ * becomes evidence, a scope goal or the text a planner is asked to satisfy. */
+export const PLANNING_CONTINUE_ACTION = "product_planning_continue";
+export const PLANNING_CONTINUE_LABEL = "Continue screen design";
+const legacyControlPrompts = new Set([
+  "Repair the saved screen-flow review issues using the existing facts and roadmap. Preserve my requested screens and visible flows, original request, and corrections. This is not approval to generate.",
+  resumeProductPlanningPrompt,
+]);
+export function isPlanningControlMessage(message: { role: string; content: string; metadata: Record<string, unknown> }) {
+  return message.role === "user" && (message.metadata.action === PLANNING_CONTINUE_ACTION
+    || legacyControlPrompts.has(message.content.trim()));
+}
+
 export function productMessageContext(message: { content: string; metadata: Record<string, unknown> }) {
   const questions = readProductQuestions(message.metadata);
   if (!questions) return message.content;

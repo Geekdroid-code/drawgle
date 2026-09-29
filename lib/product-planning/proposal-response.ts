@@ -1,17 +1,22 @@
 import { Type } from "@google/genai";
-import { z } from "zod";
-import { designFlowCandidateSchema } from "./proposal-candidate";
-import { activeFacts, productSectionSchema, type ProductPlanning } from "./model";
-import { requiredFactSections, requiredProductFactSections } from "./required-facts";
+import { productSectionSchema } from "./model";
 
 const string = { type: Type.STRING } as const;
 const strings = { type: Type.ARRAY, items: string } as const;
-const factResponse = { type: Type.OBJECT, properties: {
+
+/**
+ * The structured-output schema for one screen-flow proposal. It deliberately
+ * has no minItems/maxItems/length constraints: every bound is enforced by
+ * server normalization instead, which keeps the provider's constrained
+ * decoder simple and never turns a slightly different answer into an error.
+ */
+export const proposalResponseSchema = { type: Type.OBJECT, properties: {
+  facts: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {
     ref: string, supersedesId: { type: Type.STRING, nullable: true },
+    section: { type: Type.STRING, enum: productSectionSchema.options },
     label: string, detail: string, source: { type: Type.STRING, enum: ["user", "assumption"] },
-    evidence: string, links: strings, blocking: { type: Type.BOOLEAN },
-  }, required: ["ref", "label", "detail", "source", "evidence", "links", "blocking"] };
-const responseSchema = { type: Type.OBJECT, properties: {
+    evidence: string, links: strings,
+  }, required: ["ref", "section", "label", "detail", "source", "evidence", "links"] } },
   removeFactIds: strings,
   outputs: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {
     ref: string, existingKey: { type: Type.STRING, nullable: true }, name: string, description: string,
@@ -30,49 +35,3 @@ const responseSchema = { type: Type.OBJECT, properties: {
   scope: { type: Type.OBJECT, properties: { goal: string, rationale: string,
     outputRefs: strings, surfaceRefs: strings }, required: ["goal", "rationale", "outputRefs", "surfaceRefs"] },
 }, required: ["facts", "removeFactIds", "outputs", "removeOutputKeys", "scope"] };
-
-const descriptions: Partial<Record<(typeof productSectionSchema.options)[number], string>> = {
-  identity: "What product is being designed. Preserve the user's product intent.",
-  actors: "Who uses the screens. Preserve distinct audiences and roles.",
-  jobs: "User tasks and desired visible outcomes the screens must support. Not backend jobs or implementation decisions.",
-  journeys: "How each actor enters the flow, performs a task, and reaches a visible outcome.",
-  surfaces: "The product areas represented by the planned screens.",
-};
-
-/** The producer must supply the same fact categories that approval consumes.
- * Existing categories may stay empty: saved facts remain authoritative and do
- * not need another model-generated copy on each answer or targeted repair. */
-export function proposalResponseContract(state: ProductPlanning) {
-  const required = new Set<string>(requiredFactSections(state.input));
-  const fact = designFlowCandidateSchema.shape.facts.element.omit({ section: true });
-  const sections = requiredProductFactSections;
-  const otherSections = productSectionSchema.options.filter(section => !sections.some(core => core === section));
-  const otherFact = designFlowCandidateSchema.shape.facts.element.extend({ section: z.enum(otherSections) });
-  const groups = Object.fromEntries(sections.map(section => {
-    const min = required.has(section) && !activeFacts(state, section).length ? 1 : 0;
-    return [section, z.array(fact).min(min).max(40)];
-  }));
-  const grouped = designFlowCandidateSchema.extend({ facts: z.object({ ...groups, other: z.array(otherFact).max(40) }) });
-  const properties = Object.fromEntries(sections.map(section => [section, {
-    type: Type.ARRAY, items: factResponse, maxItems: 40,
-    minItems: required.has(section) && !activeFacts(state, section).length ? 1 : 0,
-    description: `${descriptions[section] ?? section} Add only new facts or explicit corrections; reuse active facts by ID.`,
-  }]));
-  return {
-    responseSchema: { ...responseSchema, properties: {
-      facts: { type: Type.OBJECT, properties: { ...properties,
-        other: { type: Type.ARRAY, maxItems: 40, items: { ...factResponse,
-          properties: { ...factResponse.properties, section: { type: Type.STRING, enum: otherSections } },
-          required: [...factResponse.required, "section"] },
-        description: "Other new or explicitly changed facts, including surfaces and visual requirements. Preserve each fact's section." },
-      }, required: [...sections, "other"] }, ...responseSchema.properties } },
-    parse(value: unknown) {
-      const candidate = grouped.parse(value);
-      return designFlowCandidateSchema.parse({ ...candidate, facts: [
-        ...sections.flatMap(section => candidate.facts[section].map(item => ({ ...item, section }))),
-        ...candidate.facts.other,
-      ] });
-    },
-  };
-}
-

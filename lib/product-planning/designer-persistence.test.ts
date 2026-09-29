@@ -7,21 +7,40 @@ vi.mock("@/lib/agent/project-tools", () => ({ projectReadToolDeclarations: [], c
 vi.mock("@/lib/generation/message-memory", () => ({ persistProjectMessageMemoryPair: vi.fn() }));
 import { runProductDesigner } from "./designer";
 import { productDesignerMemoryStore } from "@/scripts/lib/product-designer-memory-store";
-import { appointmentFlow } from "./flow-test-fixtures";
-import { createProductPlanning, readProductPlanning } from "./model";
+import { applyProductPatch, createProductPlanning, readProductPlanning } from "./model";
+import { functionalItemSchema } from "./functional-plan";
 import { experienceFixture } from "./test-fixtures";
+
+function appointmentFlow() {
+  const state = applyProductPatch(createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null }), { operations: [
+    ...[
+      ["identity", "clinic", "Book clinic appointments"], ["actors", "patient", "Patient booking care"],
+      ["jobs", "book", "Obtain a confirmed appointment"], ["journeys", "booking", "Choose availability and confirm a reservation"],
+      ["surfaces", "appointments", "Appointment availability and reservation"],
+    ].map(([section, id, detail]) => ({ op: "put_fact", fact: { section, id, label: id, detail, source: "assumption" } })),
+    { op: "set_scope", goal: "The complete booking app", rationale: "Complete the patient's job", surfaceIds: ["appointments"],
+      outputKeys: ["screen:availability", "state:availability:reserved"] },
+  ] }, "11111111-1111-4111-8111-111111111111");
+  const availability = functionalItemSchema.parse({ stableKey: "screen:availability", kind: "screen", name: "Availability",
+    surfaceIds: ["appointments"], journeyIds: ["booking"], description: "Choose a time and reserve it",
+    information: "Doctor, date and available times", entryCondition: "Patient opens booking", outcome: "Appointment reserved",
+    actions: [{ label: "Reserve", destinationKey: "state:availability:reserved", outcome: "Reserve the selected appointment" }],
+    inlineStates: ["If the slot was taken, refresh availability and keep the date"], sequence: 0 });
+  const reserved = functionalItemSchema.parse({ ...availability, stableKey: "state:availability:reserved", kind: "state", name: "Reserved",
+    parentStableKey: availability.stableKey, stateKey: "reserved", triggerLabel: "Reservation succeeds",
+    editInstruction: "Show the confirmed appointment details in place of available times", actions: [], sequence: 1 });
+  return { state, roadmap: [availability, reserved], request: "Build the complete booking app" };
+}
 
 beforeEach(() => { vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "legacy"); mocks.generate.mockReset(); });
 afterEach(() => vi.unstubAllEnvs());
-it("repairs failed inline-flow persistence through the real stores, assessment, scope snapshot and flow reviewer", async () => {
-  const { state: mapped, roadmap, review } = appointmentFlow();
+it("repairs failed inline-flow persistence through the real stores, assessment and scope snapshot", async () => {
+  const { state: mapped, roadmap, request } = appointmentFlow();
   // Ordinary confirmation is inline, not a paid state frame in a new scope.
   const removed = roadmap.pop()!;
   roadmap[0].actions = [{ label: "Reserve", destinationKey: null, outcome: removed.outcome }];
   roadmap[0].inlineStates.push(removed.description);
   mapped.scope!.outputKeys = [roadmap[0].stableKey];
-  review.journeys[0].outputKeys = [roadmap[0].stableKey];
-  review.journeys[0].completionKeys = [roadmap[0].stableKey];
   const initial = createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null });
   initial.experience = experienceFixture();
   initial.input.imagePath = initial.experience.referencePath;
@@ -49,17 +68,16 @@ it("repairs failed inline-flow persistence through the real stores, assessment, 
   ];
   mocks.generate.mockImplementation(async ({ config }) => {
     if (config.responseSchema?.properties?.productReady) return { text: JSON.stringify({ productReady: true, experienceReady: true, gaps: [], recommendations: [], delegation: "", rationale: "The booking behavior is explicit" }) };
-    if (config.responseSchema?.properties?.requestedScope) return { text: JSON.stringify({ ...review, scopeMessageIndex: 0 }) };
     return designerReplies.shift();
   });
-  await runProductDesigner({ admin, projectId: "project", ownerId: "owner", prompt: review.scopeEvidence,
-    originalPrompt: review.scopeEvidence, clientTurnId: "repair-turn", enqueueMemory: false });
+  await runProductDesigner({ admin, projectId: "project", ownerId: "owner", prompt: request,
+    originalPrompt: request, clientTurnId: "repair-turn", enqueueMemory: false });
   const saved = readProductPlanning(tables.projects[0].product_planning)!;
   expect(writes).toBe(2);
   expect(saved.scope?.status).toBe("proposed");
   expect(saved.scope?.manifest?.map(item => item.stableKey)).toEqual(roadmap.map(item => item.stableKey));
-  expect(saved.scope?.journeyCoverage).toEqual(review.journeys);
-  expect(saved.scope?.requestedScope).toBe("whole_product");
+  // No separate model review runs before the approval card.
+  expect(mocks.generate).toHaveBeenCalledTimes(4); // assessment + three designer rounds
   expect(saved.phase).toBe("discovery");
   expect(saved.lease).toBeNull();
   const modelMessage = tables.project_messages.find(m => m.role === "model");

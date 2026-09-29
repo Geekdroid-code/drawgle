@@ -4,12 +4,13 @@ import { ProductPlanningRecovery } from "./ProductPlanningRecovery";
 import { readPlanningFailure } from "@/lib/product-planning/tool-failure";
 afterEach(cleanup);
 
-it("shows a reference service failure without calling it a broken screen flow", () => {
+it("offers the way forward without repeating the failure or calling an outage a flow review", () => {
   render(<ProductPlanningRecovery active onSubmit={vi.fn()} failure={{
-    stage: "reference_inspection", code: "REFERENCE_INSPECTION_HTTP_503", retryable: true,
-    summary: "The supplied visual reference could not be inspected.",
+    stage: "proposal", code: "PROPOSAL_UNAVAILABLE_HTTP_503", retryable: true,
+    summary: "Drawgle's design service didn't respond, so the screen flow wasn't drafted.",
   }} />);
-  expect(screen.getByText("The supplied visual reference could not be inspected.")).toBeTruthy();
+  expect(screen.getByText(/Continue from where planning stopped/)).toBeTruthy();
+  expect(screen.queryByText(/design service didn't respond/)).toBeNull();
   expect(screen.queryByText(/Screen-flow review:/)).toBeNull();
 });
 
@@ -18,7 +19,7 @@ it("resumes explicitly without generation approval or automatic requests", async
   const view = render(<ProductPlanningRecovery active onSubmit={onSubmit} />);
   expect(onSubmit).not.toHaveBeenCalled();
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Continue screen design" })));
-  expect(onSubmit.mock.calls[0][0]).toMatchObject({ continueProductPlanning: true });
+  expect(onSubmit.mock.calls[0][0]).toMatchObject({ continueProductPlanning: true, prompt: "Continue screen design" });
   expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("approve");
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Continue screen design" })));
   expect(onSubmit.mock.calls[0][0]).toEqual(onSubmit.mock.calls[1][0]);
@@ -37,7 +38,8 @@ it("offers a screen-design continuation for an old implementation question", asy
   expect(screen.getByText(/questions are not needed for screen design/)).toBeTruthy();
   await act(async () => fireEvent.click(screen.getByRole("button", { name: "Continue screen design" })));
   expect(onSubmit.mock.calls[0][0]).toMatchObject({ continueProductPlanning: true });
-  expect((onSubmit.mock.calls[0][0] as { prompt: string }).prompt).toContain("requested screens and visible flows");
+  // The click is an interface action; it never carries a synthetic instruction into the conversation.
+  expect((onSubmit.mock.calls[0][0] as { prompt: string }).prompt).toBe("Continue screen design");
   view.rerender(<ProductPlanningRecovery active={false} implementationQuestion onSubmit={onSubmit} />);
   expect(screen.queryByText(/questions are not needed for screen design/)).toBeNull();
 });

@@ -2,14 +2,13 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { ProductToolError, type PlanningFailure } from "./tool-failure";
 
-export type ProposalStage = "reference_inspection" | "reference_save" | "scope_validation" | "flow_review" | "scope_save";
+export type ProposalStage = "reference_inspection" | "reference_save" | "scope_validation" | "scope_save";
 
 const summaries: Record<ProposalStage, string> = {
-  reference_inspection: "Drawgle could not inspect the selected visual reference. Your saved screen flow is intact.",
-  reference_save: "The visual direction could not be saved. Your saved screen flow is intact.",
-  scope_validation: "The saved screen scope has an unresolved planning constraint.",
-  flow_review: "The flow review service could not complete its assessment. Your saved screen flow is intact.",
-  scope_save: "The reviewed scope could not be saved. Your previous decisions remain intact.",
+  reference_inspection: "Drawgle could not inspect the selected visual reference. Your saved screen flow is intact — continue to try again.",
+  reference_save: "The visual direction could not be saved. Your saved screen flow is intact — continue to try again.",
+  scope_validation: "Drawgle couldn't finalize the screen flow. Your saved screen flow is intact — continue to try again.",
+  scope_save: "The screen flow could not be saved for approval. Your previous decisions remain intact — continue to try again.",
 };
 
 /** Persist enough to distinguish a model, schema, or storage fault, without

@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { resumeProductPlanningPrompt } from "@/lib/product-planning/questions";
+import { PLANNING_CONTINUE_LABEL } from "@/lib/product-planning/questions";
 import type { PlanningFailure } from "@/lib/product-planning/tool-failure";
 
 export function ProductPlanningRecovery({ active, disabled, onSubmit, modeError = false, implementationQuestion = false, failure }: {
@@ -13,26 +13,25 @@ export function ProductPlanningRecovery({ active, disabled, onSubmit, modeError 
   const turnId = useRef<string | null>(null);
   const submitting = useRef(false);
   if (implementationQuestion && !active) return null;
-  const specificFlowFailure = failure && ["proposal", "screen_flow", "flow_review", "propose_scope"].includes(failure.stage);
+  // The assistant message above already states what stopped; this card only offers the way forward.
   return <section className="mx-4 mb-4 rounded-xl border border-slate-950/10 p-3 text-xs leading-5 text-slate-500">
     <p>{modeError ? "That mode question was shown in error. Your project’s selected mode will be used."
       : implementationQuestion ? "Those questions are not needed for screen design. Continue without answering them."
-      : specificFlowFailure
-        ? `Screen-flow review: ${failure.issues?.[0] ?? failure.summary}`
-        : failure?.stage === "update_product"
-          ? "A saved product fact needs a specific correction. Continue from the existing roadmap and decisions."
-          : failure ? failure.summary
-          : "Continue from the saved decisions and roadmap. You’ll review the scope before any generation starts."}</p>
+      : failure?.stage === "update_product"
+        ? "A saved product fact needs a specific correction. Continue from the existing roadmap and decisions."
+        : failure ? "Continue from where planning stopped. Your saved decisions are kept, and no screens have been generated yet."
+        : "Continue from the saved decisions and roadmap. You’ll review the scope before any generation starts."}</p>
     {active && !done && <button type="button" disabled={disabled || busy} className="mt-2 rounded-lg bg-slate-950 px-3 py-2 text-white disabled:opacity-50" onClick={async () => {
       if (submitting.current) return;
       submitting.current = true; setBusy(true); setError(false);
       turnId.current ??= crypto.randomUUID();
       try {
-        const ok = await onSubmit({ prompt: modeError ? resumeProductPlanningPrompt : "Repair the saved screen-flow review issues using the existing facts and roadmap. Preserve my requested screens and visible flows, original request, and corrections. This is not approval to generate.", continueProductPlanning: true, clientTurnId: turnId.current });
+        // Continue is an interface action, not a product request: the server resumes from saved state.
+        const ok = await onSubmit({ prompt: PLANNING_CONTINUE_LABEL, continueProductPlanning: true, clientTurnId: turnId.current });
         setDone(ok); setError(!ok);
       } catch { setError(true); }
       finally { setBusy(false); submitting.current = false; }
-    }}>{busy ? "Continuing…" : "Continue screen design"}</button>}
+    }}>{busy ? "Continuing…" : PLANNING_CONTINUE_LABEL}</button>}
     {error && <p role="alert" className="mt-2">Couldn’t continue. Please retry.</p>}
   </section>;
 }

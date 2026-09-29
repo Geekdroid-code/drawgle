@@ -117,11 +117,25 @@ it("reselects a saved curated reference when requirements change", async () => {
   expect(result.experience.referenceId).toBe("candidate-1");
   expect(mocks.shortlist).toHaveBeenCalledOnce();
 });
-it("never replaces an incompatible user upload with library evidence", async () => {
+it("keeps a conflicting user upload, records the conflict and lets explicit requirements win", async () => {
   mocks.load.mockResolvedValue({ data: "user", mimeType: "image/webp" });
-  mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...experienceFixture(), compatibility: { compatible: false, conflicts: ["Cannot transfer"], transfer: "", rationale: "Conflict" } }) });
-  await expect(inspectProductReference({}, "owner", designerFixture(), "Preserve choices")).rejects.toMatchObject({ code: "USER_REFERENCE_CONFLICT" });
+  mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...experienceFixture(), compatibility: { compatible: false, conflicts: ["Dark palette vs cream requirement"], transfer: "Spacing and type", rationale: "Conflict" } }) });
+  const state = designerFixture();
+  const { experience } = await inspectProductReference({}, "owner", state, "Preserve choices");
+  expect(experience).toMatchObject({ provenance: "user_upload", referencePath: state.input.imagePath,
+    compatibility: { compatible: true, conflicts: ["Dark palette vs cream requirement"], transfer: "Spacing and type" } });
+  expect(experience.compatibility?.rationale).toMatch(/Explicit user requirements take precedence/);
+  // Never silently replaced with library evidence, and planning can continue to approval.
   expect(mocks.shortlist).not.toHaveBeenCalled();
+  expect(() => proposeProductScope({ ...state, experience: { ...experience, requirementsKey: designRequirementsKey(state) } })).not.toThrow();
+});
+it("keeps a good reference when the model's description runs long", async () => {
+  mocks.load.mockResolvedValue({ data: "user", mimeType: "image/webp" });
+  mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...experienceFixture(), direction: "Soft layered cards. ".repeat(400),
+    compatibility: { compatible: true, conflicts: [], transfer: "Craft", rationale: "Fits" } }) });
+  const { experience } = await inspectProductReference({}, "owner", designerFixture(), "Preserve choices");
+  expect(experience.direction.length).toBeLessThanOrEqual(4000);
+  expect(experience.provenance).toBe("user_upload");
 });
 it("approves an automatically prompt-derived direction without a permanent no-reference preference", () => {
   const state = designerFixture();

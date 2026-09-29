@@ -1,11 +1,13 @@
 import { ProductToolError } from "./tool-failure";
 
-/** Shared by the proposal producer and approval consumer. */
-export const requiredProductFactSections = ["identity", "actors", "jobs", "journeys"] as const;
-
-export function requiredFactSections(input: { imagePath: string | null; imageReferenceMode: string }) {
-  return input.imagePath && input.imageReferenceMode === "recreate"
-    ? ["identity"] as const : requiredProductFactSections;
+/**
+ * Product-mode plans have no mandatory fact categories: the proposal runner
+ * derives any missing identity, surface or journey from the request and the
+ * plan itself, and no downstream consumer needs a particular category to
+ * exist. Exact recreation keeps its minimal observed identity.
+ */
+export function requiredFactSections(input: { imagePath: string | null; imageReferenceMode: string }): readonly string[] {
+  return input.imagePath && input.imageReferenceMode === "recreate" ? ["identity"] : [];
 }
 
 export function assertRequiredFacts(state: { input: Parameters<typeof requiredFactSections>[0];

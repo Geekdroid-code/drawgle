@@ -1,11 +1,9 @@
 import { applyProductPatch, createProductPlanning, type ProductPlanning } from "./model";
 import { functionalItemSchema } from "./functional-plan";
-import { requiredProductFactSections } from "./required-facts";
 const messageId = "11111111-1111-4111-8111-111111111111";
+/** The provider response shape: a flat fact list with sections. */
 export function proposalResponseFixture<T extends { facts: Array<{ section: string }> }>(candidate: T) {
-  return { ...candidate, facts: { ...Object.fromEntries(requiredProductFactSections.map(section => [section,
-    candidate.facts.filter(fact => fact.section === section).map(({ section: _section, ...fact }) => fact)])),
-    other: candidate.facts.filter(fact => !requiredProductFactSections.some(section => section === fact.section)) } };
+  return { removeFactIds: [], removeOutputKeys: [], ...candidate };
 }
 export function productFixture(): ProductPlanning {
   const state = createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null });

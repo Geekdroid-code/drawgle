@@ -40,14 +40,9 @@ beforeEach(() => {
     const fields = config.responseSchema.properties;
     if (fields.productReady) return { text: JSON.stringify({ productReady: true, experienceReady: true,
       gaps: [], recommendations: [], screenFlowPreview: [], delegation: "", rationale: "The task is clear" }) };
-    if (fields.outputs) return { text: JSON.stringify(proposalResponseFixture(candidate)) };
-    if (fields.requestedScope) {
-      const input = JSON.parse(contents[0].parts[0].text);
-      const id = (section: string) => input.blueprint.find((fact: { section: string }) => fact.section === section).id;
-      const key = input.wholeProductRoadmap[0].stableKey;
-      return { text: JSON.stringify({ ready: true, issues: [], requestedScope: "whole_product", scopeMessageIndex: 0,
-        journeys: [{ journeyId: id("journeys"), actorId: id("actors"), jobId: id("jobs"),
-          entryKey: key, completionKeys: [key], outcome: "Person completes the task inline" }] }) };
+    if (fields.outputs) {
+      expect(JSON.parse(contents[0].parts[0].text)).toMatchObject({ assignment: brief, latestMessage: { kind: "new_request" } });
+      return { text: JSON.stringify(proposalResponseFixture(candidate)) };
     }
     throw new Error("Unexpected model dependency");
   });
@@ -68,7 +63,7 @@ it.each([false, true])("reaches a persisted approval through real planning modul
     prompt: brief, originalPrompt: brief, clientTurnId: "first-design-turn", enqueueMemory: false });
   const saved = readProductPlanning(tables.projects[0].product_planning)!;
   expect(saved.scope?.status).toBe("proposed");
-  expect(saved.scope?.journeyCoverage?.[0].outputKeys).toEqual(saved.scope?.outputKeys);
+  expect(saved.scope?.manifest?.map(item => item.name)).toEqual(["Today"]);
   expect(saved.experience?.provenance).toBe("prompt_synthesis");
   expect(saved.input.imagePath).toBeNull();
   expect(saved.input.referencePreference).toBeUndefined();
@@ -76,7 +71,7 @@ it.each([false, true])("reaches a persisted approval through real planning modul
   const reply = tables.project_messages.find(message => (message.metadata as Record<string, unknown>)?.productTurnComplete);
   expect(reply?.metadata).toMatchObject({ productScopeProposal: { scope: { status: "proposed" } } });
   expect(reply?.metadata).not.toHaveProperty("productPlanningFailure");
-  expect(mocks.generate).toHaveBeenCalledTimes(3); // assessment, proposal, substantive review
+  expect(mocks.generate).toHaveBeenCalledTimes(2); // assessment, proposal — no separate review or repair
   expect(mocks.trigger).not.toHaveBeenCalled();
   expect(tables.screens ?? []).toHaveLength(0);
   expect(tables.generation_runs ?? []).toHaveLength(0);
