@@ -337,7 +337,17 @@ export function normalizeReferenceTransferContract({
   return mode === "style" ? stripDesignValuesDeep(contract) : contract;
 }
 
-export function formatReferenceTransferContract(contract?: ReferenceTransferContract | null) {
+export function formatReferenceTransferContract(
+  contract?: ReferenceTransferContract | null,
+  { qualityDetails = true }: {
+    /**
+     * False when the builder has the reference's components as markup: the premium quality
+     * targets (the semantic primitives' craft details and the analysis's craft cues) then
+     * only restate what the markup and the tokens show.
+     */
+    qualityDetails?: boolean;
+  } = {},
+) {
   if (!contract) return "";
 
   return [
@@ -352,7 +362,7 @@ export function formatReferenceTransferContract(contract?: ReferenceTransferCont
     ].join("\n") : null,
     contract.adapt.length ? `- Approved adaptations: ${contract.adapt.join(" | ")}` : null,
     contract.reject.length ? `- Rejected transfer: ${contract.reject.join(" | ")}` : null,
-    contract.premiumQualityTargets.length ? `- Premium quality targets: ${contract.premiumQualityTargets.join(" | ")}` : null,
+    qualityDetails && contract.premiumQualityTargets.length ? `- Premium quality targets: ${contract.premiumQualityTargets.join(" | ")}` : null,
     `- Rationale: ${contract.rationale}`,
   ].filter(Boolean).join("\n");
 }

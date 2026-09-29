@@ -94,6 +94,7 @@ import { progressiveGenerationEnabled } from "@/lib/product-planning/generation-
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
+import { styleComponentsOf } from "@/lib/generation/style-components";
 import {
   bindReservationToScreen,
   captureGenerationCredit,
@@ -129,7 +130,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenFamilyContract, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan, TopChromeContinuityEvidence } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenFamilyContract, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan, StyleComponent, TopChromeContinuityEvidence } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -189,6 +190,7 @@ type BuildScreenTaskPayload = {
   designStyleId?: string | null;
   designStyle?: DesignStylePack | null;
   screenFamilyContract?: ScreenFamilyContract | null;
+  styleComponents?: StyleComponent[] | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
@@ -1105,6 +1107,7 @@ async function collectScreenBuild(
       designTokens: input.designTokens,
       designStyle: input.designStyle,
       screenFamilyContract: input.screenFamilyContract,
+      styleComponents: input.styleComponents,
       prompt: input.prompt,
       image: input.image,
       referenceScope: input.referenceScope,
@@ -1172,6 +1175,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     designTokens: input.designTokens,
     designStyle: input.designStyle,
     screenFamilyContract: input.screenFamilyContract,
+    styleComponents: input.styleComponents,
     prompt: input.prompt,
     image: input.image,
     referenceScope: input.referenceScope,
@@ -3553,6 +3557,7 @@ export const generateUiFlowTask = task({
             designStyleId: designStyle?.id ?? null,
             designStyle,
             screenFamilyContract: acceptedFamily ?? plan.screenFamilyContract ?? plan.charter.referenceDna?.screenFamilyContract ?? null,
+            styleComponents: styleComponentsOf(plan.charter.referenceDna),
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,

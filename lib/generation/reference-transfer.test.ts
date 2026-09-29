@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildPortableReferenceContext,
   createReferenceTransferContract,
+  formatReferenceTransferContract,
   normalizeReferenceTransferContract,
   toPortableCreativeDirection,
 } from "@/lib/generation/reference-transfer";
@@ -181,6 +182,24 @@ describe("reference transfer carries no design values", () => {
     });
     expect(JSON.stringify(normalised)).not.toMatch(VALUE);
     expect(normalised.preserve.join(" ")).toContain("Warm cream background");
+  });
+
+  it("can leave the premium quality targets out, for a builder that has the components as markup", () => {
+    const contract = createReferenceTransferContract({ mode: "style", screenName: "Chat Interface", referenceAnalysis: analysis });
+    expect(contract.premiumQualityTargets.length).toBeGreaterThan(0);
+
+    const full = formatReferenceTransferContract(contract);
+    const lean = formatReferenceTransferContract(contract, { qualityDetails: false });
+    expect(full).toContain("Premium quality targets:");
+    expect(formatReferenceTransferContract(contract, { qualityDetails: true })).toBe(full);
+    expect(lean).not.toContain("Premium quality targets");
+    for (const target of contract.premiumQualityTargets) expect(lean).not.toContain(target);
+    // the decisions, the adaptations and the rejections stay
+    expect(lean).toContain("Layout authority: screen-purpose");
+    expect(lean).toContain("Rejected transfer:");
+    expect(lean).toContain("Rationale:");
+    expect(lean).toContain("Semantic composition decisions:");
+    expect(formatReferenceTransferContract(null, { qualityDetails: false })).toBe("");
   });
 
   it("does not touch the contracts of modes that reproduce or invent", () => {

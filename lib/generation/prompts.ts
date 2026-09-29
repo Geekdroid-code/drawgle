@@ -5,8 +5,9 @@ import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
 import { formatScreenFamilyContract } from "@/lib/generation/screen-family-contract";
+import { formatStyleComponents } from "@/lib/generation/style-components";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
-import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenPlan, NavigationPlan } from "@/lib/types";
+import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenChromeKind, ScreenChromePolicy, ScreenPlan, NavigationPlan } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
 // PLANNER — UX Architect
@@ -800,14 +801,23 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const textHigh = resolveToken(designTokens, "color.text.high_emphasis", "#111827");
   const headingFontFamily = resolveToken(designTokens, "typography.heading_font_family", "sans-serif");
   const bodyFontFamily = resolveToken(designTokens, "typography.body_font_family", "sans-serif");
+  const color = normalizeDesignTokens(designTokens)?.tokens?.color;
+  const tintCount = Object.keys(color?.accent_tints ?? {}).length;
+  // The rungs a project's tokens define. Old projects have a page and a card, and keep only those.
+  const ladder = [
+    "page (dg-bg-primary)",
+    "card (dg-surface-card)",
+    color?.surface?.inset ? "inset tile or field inside a card (dg-surface-inset)" : null,
+    tintCount > 0 ? `pastel tint wells and chips (dg-tint-1 to dg-tint-${tintCount})` : null,
+    "one focal accent (dg-action-primary or a token gradient)",
+    "at most one strong dark control",
+  ].filter(Boolean).join(" → ");
 
   return [
-    `- Outer surface radius: ${appRadius} (cards, sheets, panels, fields, and navigation shells)`,
-    `- Inner container radius: ${innerRadius} (nested cards, inset panels, segmented tabs, and active navigation items)`,
-    `- Pill radius: ${pillRadius} (use only for true capsules and circular wells)`,
+    `- Surface ladder, back to front: ${ladder}. Separate surfaces by stepping one rung, not by adding borders or shadows.`,
+    `- Radius roles: card ${appRadius} (cards, sheets, panels, fields, and navigation shells); inner ${innerRadius} (tiles and fields inside a card, segmented tabs, and active navigation items); pill ${pillRadius} (capsule controls); circle ${pillRadius} on a square element (icon wells and avatars).`,
     `- Standard border width: ${standardBorder}`,
-    `- Standard surface shadow: ${surfaceShadow}`,
-    `- Overlay shadow: ${overlayShadow}`,
+    `- Shadows: only where a token defines one. Surface shadow: ${/^\s*none\s*$/i.test(surfaceShadow) ? "none, so cards separate by tone" : surfaceShadow}. Overlay shadow: ${overlayShadow} (sheets and floating panels only).`,
     `- Screen margin: ${screenMargin}`,
     `- Section gap: ${sectionGap}`,
     `- Element gap: ${elementGap}`,
@@ -949,17 +959,33 @@ export const buildNavigationArchitectureContract = ({
   return lines.join("\n");
 };
 
+const SCREEN_CHROME_DESCRIPTION: Record<ScreenChromeKind, string> = {
+  "bottom-tabs": "the shared bottom navigation",
+  "top-bar": "a top app bar or an anchored header",
+  "top-bar-back": "a top app bar with a back affordance",
+  "modal-sheet": "a presented sheet with a dismiss affordance",
+  immersive: "minimal, immersive chrome",
+};
+
 export const buildSharedNavigationContract = ({
   navigationInstruction,
   navigationPlan,
   screenPlan,
+  screenChrome,
 }: {
   navigationInstruction: string;
   navigationPlan?: BuildScreenInput["navigationPlan"];
   screenPlan: ScreenPlan;
+  screenChrome?: ScreenChromePolicy | null;
 }) => {
   if (!navigationPlan?.enabled) {
-    return "";
+    // Without this, a reference that shows a tab bar gets one drawn inside each screen.
+    const chrome = screenChrome?.chrome ?? screenPlan.chromePolicy?.chrome ?? (screenPlan.type === "root" ? "top-bar" : "top-bar-back");
+    return [
+      "This project has no persistent bottom navigation.",
+      "Do not draw a tab bar, dock, bottom navigation, or a floating button that stands in for one.",
+      `Use this screen's chrome: ${SCREEN_CHROME_DESCRIPTION[chrome]}.`,
+    ].join(" ");
   }
 
   return [
@@ -1123,13 +1149,14 @@ const buildScreenInstruction = ({
   designTokens,
   designStyle,
   screenFamilyContract,
+  styleComponents,
   screenPlan,
   prompt,
   requiresBottomNav,
   navigationArchitecture,
   navigationPlan,
   assetManifest,
-}: Pick<BuildScreenInput, "designTokens" | "designStyle" | "screenFamilyContract" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: GenerationPromptMode) => {
+}: Pick<BuildScreenInput, "designTokens" | "designStyle" | "screenFamilyContract" | "styleComponents" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }, mode: GenerationPromptMode) => {
   const safeTop = resolveToken(designTokens, "mobile_layout.safe_area_top", "16px");
   const safeBottom = resolveToken(designTokens, "mobile_layout.safe_area_bottom", "16px");
   const minTouch = resolveToken(designTokens, "sizing.min_touch_target", "48px");
@@ -1146,6 +1173,8 @@ const buildScreenInstruction = ({
     screenPlan,
     navigationArchitecture: resolvedNavigationArchitecture,
   });
+  // The reference's components as markup to copy. Style mode only: Image to UI reproduces its source.
+  const styleComponentsBlock = mode === "style" ? formatStyleComponents(styleComponents) : null;
 
   const navigationInstruction = (() => {
     if (mode === "recreate" && !navigationPlan?.enabled) return "Reproduce the target frame's visible chrome, navigation, overlays and back/dismiss affordances exactly from the supplied pixels. Ignore generic chrome categories when they contradict that frame. Do not invent a top bar, bottom sheet or navigation shell. Navigation visible in the reference belongs inside this output.";
@@ -1164,6 +1193,13 @@ const buildScreenInstruction = ({
         return "This screen should use a standard top-bar or anchored header treatment. Do not add the primary bottom-tab shell unless the screen chrome contract says so.";
     }
   })();
+  // A project with no shared navigation says so, so that a reference showing a tab bar does not get one
+  // drawn inside each screen. A screen that owns its primary navigation (legacy) and Image to UI do not.
+  const sharedNavigationSection = navigationPlan?.enabled
+    ? `SHARED NAVIGATION CONTRACT:\n${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan, screenChrome })}\n\n`
+    : mode !== "recreate" && !screenChrome.showPrimaryNavigation
+      ? `NO SHARED NAVIGATION:\n${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan, screenChrome })}\n\n`
+      : "";
   const modeInstruction = mode === "recreate"
     ? [
       "MODE CONTRACT: IMAGE_TO_UI. The application has confirmed that an image is attached. Treat it as the highest-priority structural evidence for this screen route.",
@@ -1191,7 +1227,7 @@ Screen Name: ${screenPlan.name}
 Screen Type: ${screenPlan.type}
 Screen Description: ${screenDescription}
 ${screenLayoutContract ? `SCREEN LAYOUT CONTRACT:\n${screenLayoutContract}` : ""}
-${screenPlan.referenceTransfer ? `REFERENCE TRANSFER CONTRACT (higher priority than conflicting screen-description or memory prose):\n${formatReferenceTransferContract(screenPlan.referenceTransfer)}` : ""}
+${screenPlan.referenceTransfer ? `REFERENCE TRANSFER CONTRACT (higher priority than conflicting screen-description or memory prose):\n${formatReferenceTransferContract(screenPlan.referenceTransfer, { qualityDetails: !styleComponentsBlock })}` : ""}
 ${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.referenceScreenCount && screenPlan.referenceScreenCount > 1
       ? `Reference Target: Build visible reference screen ${screenPlan.referenceScreenIndex} of ${screenPlan.referenceScreenCount}, mapped left-to-right unless the screen brief says otherwise.`
       : ""}
@@ -1241,6 +1277,7 @@ ${designStyleContract ? `STYLE CONTRACT:\n${designStyleContract}\n` : ""}
 
 ${mode !== "recreate" && screenFamilyContract ? `SCREEN FAMILY CONTRACT (visual system only; the target screen's user task owns its composition):\n${formatScreenFamilyContract(screenFamilyContract)}\nDo not turn a surface cue into a card around every section. Reuse typography, spacing, color, edge, and control treatment across this family while keeping this screen's own hierarchy.\n` : ""}
 
+${styleComponentsBlock ? `${styleComponentsBlock}\n` : ""}
 NAVIGATION ARCHITECTURE CONTRACT:
 ${mode === "recreate" && !navigationPlan?.enabled ? navigationInstruction : buildNavigationArchitectureContract({
         navigationArchitecture: resolvedNavigationArchitecture,
@@ -1255,10 +1292,7 @@ ${buildAssetManifestContract(assetManifest)}
 TOKEN CONTEXT:
 ${buildTokenPromptContext(designTokens, "compact_visual")}
 
-${navigationPlan?.enabled ? `SHARED NAVIGATION CONTRACT:
-${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenPlan })}
-
-` : ""}OUTPUT RULES:
+${sharedNavigationSection}OUTPUT RULES:
 - Root element MUST be exactly: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
 - Typography family lock: nav_title, screen_title, hero_title, and section_title use var(--dg-typography-heading-font-family). Metrics, body, supporting text, captions, buttons, controls, tabs, and navigation labels use var(--dg-typography-body-font-family). Use the matching dg-type-* class and never add inline font-family declarations or arbitrary font-family utilities.
 - Safe areas: top container pt-[${safeTop}]. Without shared navigation, bottom content may use pb-[${safeBottom}]. With shared navigation, use only the renderer-owned dg-shared-nav-clearance marker described above.
@@ -1280,7 +1314,7 @@ ${buildSharedNavigationContract({ navigationInstruction, navigationPlan, screenP
 export const buildRecreateScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "recreate");
 
-export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "screenFamilyContract" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
+export const buildStyleScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "screenFamilyContract" | "styleComponents" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>
   buildScreenInstruction(input, "style");
 
 export const buildPromptScreenInstruction = (input: Pick<BuildScreenInput, "designTokens" | "designStyle" | "screenFamilyContract" | "requiresBottomNav" | "navigationArchitecture" | "navigationPlan" | "assetManifest"> & { screenPlan: ScreenPlan; prompt?: string | null }) =>

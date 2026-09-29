@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { normalizeDesignTokens } from "@/lib/design-tokens";
 import {
   buildCreativeDirectionInstruction,
   buildDesignInstruction,
@@ -11,7 +12,7 @@ import {
   referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
-import type { ScreenAssetManifest, ScreenPlan } from "@/lib/types";
+import type { NavigationPlan, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 const modes: GenerationPromptMode[] = ["recreate", "style", "prompt"];
 
@@ -384,5 +385,188 @@ describe("state-scoped prompt construction", () => {
       expect(instruction).toContain('data-asset-slot="true"');
       expect(instruction).not.toContain(asset.url);
     }
+  });
+});
+
+describe("builder inputs that carry the reference's component vocabulary", () => {
+  const component = {
+    name: "calendar-strip",
+    use: "A week selector at the top of a day view",
+    html: `<div class="dg-surface-card dg-radius-app flex gap-2 p-[var(--dg-spacing-sm)]"><div class="dg-tint-1 dg-radius-pill">Mon</div></div>`,
+  };
+  const transfer = {
+    layoutSource: "screen-purpose" as const,
+    preserve: ["Warm tonal surfaces."],
+    adapt: ["Use depth for message ownership."],
+    reject: [],
+    rationale: "The user job owns layout.",
+    targetCapabilities: ["conversation" as const],
+    semanticDecisions: [{
+      primitiveId: "layered-depth-screen-1",
+      decision: "preserve" as const,
+      suitabilityScore: 75,
+      targetCapability: "conversation" as const,
+      rationale: "Plane hierarchy clarifies authorship.",
+      adaptation: "Use depth for message ownership.",
+      qualityTargets: ["Radius should be at least 24px."],
+    }],
+    premiumQualityTargets: ["Radius should be at least 24px.", "Create one dominant first read."],
+  };
+  const tokensWithLadder = normalizeDesignTokens({
+    system_schema: "mobile_universal_core",
+    tokens: {
+      color: {
+        background: { primary: "#F2EADC", secondary: "#EDE4D2" },
+        surface: { card: "#F7F4E8", inset: "#EDEAD7", bottom_sheet: "#F7F4E8", modal: "#F7F4E8" },
+        accent_tints: { "1": "#F6E3C3", "2": "#E8EBC9", "3": "#E7DDE9", "4": "#D9E6EE" },
+        text: { high_emphasis: "#211E1E", medium_emphasis: "#5C5650", low_emphasis: "#8A847C" },
+        action: { primary: "#FEC068", secondary: "#A8B89A", on_primary_text: "#211E1E" },
+        border: { divider: "#E4DCCB", focused: "#FEC068" },
+      },
+      radii: { app: "20px", inner: "12px", pill: "9999px" },
+      shadows: { surface: "none", overlay: "0 -8px 40px rgba(33,30,30,0.16)" },
+    },
+  });
+  const oldTokens = normalizeDesignTokens({
+    system_schema: "mobile_universal_core",
+    tokens: {
+      color: {
+        background: { primary: "#FFFFFF" },
+        surface: { card: "#F5F5F5" },
+        text: { high_emphasis: "#111111" },
+        action: { primary: "#2563EB" },
+      },
+      radii: { app: "18px", inner: "12px", pill: "9999px" },
+      shadows: { surface: "0 12px 32px rgba(15,23,42,0.14)" },
+    },
+  });
+  const sharedNavigation: NavigationPlan = {
+    version: 2, decision: "project-native", enabled: true, kind: "bottom-tabs",
+    evidence: { source: "product-architecture", reason: "Peer areas" },
+    items: [
+      { id: "today", label: "Today", icon: "home", role: "Day view", availability: "generated", linkedScreenName: "Dashboard" },
+      { id: "pets", label: "Pets", icon: "paw-print", role: "Pet list", availability: "planned", linkedScreenName: null },
+    ],
+    design: { anatomy: "floating-dock", width: "content", labels: "active-only", activeTreatment: "compact-chip", surface: "solid",
+      radiusPx: 32, safeAreaOffsetPx: 16, itemGapPx: 8, iconSizePx: 22, border: false, elevation: "low", centerActionItemId: null },
+    visualBrief: "Attached dock",
+    screenChrome: [{ screenName: "Dashboard", chrome: "bottom-tabs", navigationItemId: "today" }],
+  };
+
+  describe("the style components block", () => {
+    it("reaches a style builder, with its rules, after the family contract and before navigation", () => {
+      const style = buildStyleScreenInstruction({
+        ...screenInput,
+        screenFamilyContract: {
+          summary: "Quiet family", surfaces: "Tonal", typography: "One pair", spacing: "One rail", navigation: "None", imagery: "Photos", consistencyRules: [],
+        },
+        styleComponents: [component],
+      });
+      expect(style).toContain("STYLE COMPONENTS (this project's reference vocabulary.");
+      expect(style).toContain("- calendar-strip — A week selector at the top of a day view — <div class=\"dg-surface-card");
+      expect(style).toContain("Never reproduce the reference's sections, their order or its content");
+      expect(style.indexOf("SCREEN FAMILY CONTRACT")).toBeLessThan(style.indexOf("STYLE COMPONENTS"));
+      expect(style.indexOf("STYLE COMPONENTS")).toBeLessThan(style.indexOf("NAVIGATION ARCHITECTURE CONTRACT"));
+    });
+
+    it("is absent without components, and never sent to Image to UI or a prompt-only build", () => {
+      expect(buildStyleScreenInstruction(screenInput)).not.toContain("STYLE COMPONENTS");
+      expect(buildStyleScreenInstruction({ ...screenInput, styleComponents: [] })).not.toContain("STYLE COMPONENTS");
+      expect(buildRecreateScreenInstruction({ ...screenInput, styleComponents: [component] } as never)).not.toContain("STYLE COMPONENTS");
+      expect(buildPromptScreenInstruction({ ...screenInput, styleComponents: [component] } as never)).not.toContain("STYLE COMPONENTS");
+    });
+
+    it("keeps the block inside its size budget on every build", () => {
+      const huge = Array.from({ length: 30 }, (_, index) => ({ ...component, name: `component-${index}`, html: `<div>${"x".repeat(650)}</div>` }));
+      const block = buildStyleScreenInstruction({ ...screenInput, styleComponents: huge })
+        .split("STYLE COMPONENTS")[1].split("NAVIGATION ARCHITECTURE CONTRACT")[0];
+      expect(block.length).toBeLessThan(6300);
+      expect(block.match(/\n- component-/g)?.length).toBeLessThanOrEqual(10);
+    });
+
+    it("drops the semantic quality targets it would duplicate, and keeps the composition decisions", () => {
+      const plan = { ...screenPlan, referenceTransfer: transfer };
+      const without = buildStyleScreenInstruction({ ...screenInput, screenPlan: plan });
+      const withComponents = buildStyleScreenInstruction({ ...screenInput, screenPlan: plan, styleComponents: [component] });
+
+      expect(without).toContain("Premium quality targets: Radius should be at least 24px. | Create one dominant first read.");
+      expect(withComponents).not.toContain("Premium quality targets");
+      expect(withComponents).not.toContain("Radius should be at least 24px");
+      expect(withComponents).toContain("layered-depth-screen-1: PRESERVE");
+      expect(withComponents).toContain("Use depth for message ownership.");
+      expect(withComponents).toContain("REFERENCE TRANSFER CONTRACT");
+    });
+  });
+
+  describe("the strict design contract", () => {
+    it("describes the surface ladder and the radius roles when the tokens define them", () => {
+      const style = buildStyleScreenInstruction({ ...screenInput, designTokens: tokensWithLadder });
+      expect(style).toContain("Surface ladder, back to front: page (dg-bg-primary) → card (dg-surface-card) → inset tile or field inside a card (dg-surface-inset) → pastel tint wells and chips (dg-tint-1 to dg-tint-4) → one focal accent (dg-action-primary or a token gradient) → at most one strong dark control.");
+      expect(style).toContain("Radius roles: card 20px (cards, sheets, panels, fields, and navigation shells); inner 12px (tiles and fields inside a card, segmented tabs, and active navigation items); pill 9999px (capsule controls); circle 9999px on a square element (icon wells and avatars).");
+      expect(style).toContain("Shadows: only where a token defines one. Surface shadow: none, so cards separate by tone.");
+      // the single card recipe is gone
+      expect(style).not.toContain("Outer surface radius");
+      expect(style).not.toContain("Standard surface shadow");
+    });
+
+    it("keeps to the rungs an older project has, and names its shadow", () => {
+      const style = buildStyleScreenInstruction({ ...screenInput, designTokens: oldTokens });
+      // the token guide lists every utility class; the contract lists only the rungs this project defines
+      const contract = style.split("STRICT DESIGN CONTRACT:")[1].split("NAVIGATION ARCHITECTURE CONTRACT:")[0];
+      expect(contract).toContain("Surface ladder, back to front: page (dg-bg-primary) → card (dg-surface-card) → one focal accent (dg-action-primary or a token gradient) → at most one strong dark control.");
+      expect(contract).not.toContain("dg-surface-inset");
+      expect(contract).not.toContain("dg-tint-1");
+      expect(contract).toContain("Surface shadow: 0 12px 32px rgba(15,23,42,0.14).");
+    });
+
+    it("reads the same in every mode", () => {
+      for (const instruction of [
+        buildRecreateScreenInstruction({ ...screenInput, designTokens: tokensWithLadder }),
+        buildStyleScreenInstruction({ ...screenInput, designTokens: tokensWithLadder }),
+        buildPromptScreenInstruction({ ...screenInput, designTokens: tokensWithLadder }),
+      ]) {
+        expect(instruction).toContain("Surface ladder, back to front");
+        expect(instruction).toContain("Radius roles: card 20px");
+      }
+    });
+  });
+
+  describe("a project with no shared navigation", () => {
+    const noNavigation = "This project has no persistent bottom navigation. Do not draw a tab bar, dock, bottom navigation, or a floating button that stands in for one. Use this screen's chrome:";
+
+    it("is told so, with the chrome its screen does use", () => {
+      const root = buildStyleScreenInstruction({ ...screenInput, navigationPlan: { ...sharedNavigation, enabled: false } });
+      expect(root).toContain(`NO SHARED NAVIGATION:\n${noNavigation} a top app bar or an anchored header.`);
+      expect(root).not.toContain("SHARED NAVIGATION CONTRACT");
+
+      const detail = buildStyleScreenInstruction({ ...screenInput, screenPlan: { ...screenPlan, type: "detail" } });
+      expect(detail).toContain(`${noNavigation} a top app bar with a back affordance.`);
+      expect(buildPromptScreenInstruction(screenInput)).toContain(noNavigation);
+    });
+
+    it("says nothing of the kind when the project has shared navigation", () => {
+      const withNavigation = buildStyleScreenInstruction({ ...screenInput, navigationPlan: sharedNavigation, requiresBottomNav: true });
+      expect(withNavigation).toContain("SHARED NAVIGATION CONTRACT:");
+      expect(withNavigation).toContain("Do not output <nav>, <footer>, bottom tabs, tab bars, docks");
+      expect(withNavigation).not.toContain("NO SHARED NAVIGATION");
+      expect(withNavigation).not.toContain("no persistent bottom navigation");
+    });
+
+    it("leaves Image to UI and a screen that owns its own navigation alone", () => {
+      // exact recreation reproduces whatever navigation the source frame shows
+      expect(buildRecreateScreenInstruction(screenInput)).not.toContain("no persistent bottom navigation");
+      // a legacy project without a navigation plan still draws its primary navigation in the screen
+      const legacy = buildStyleScreenInstruction({
+        ...screenInput,
+        requiresBottomNav: true,
+        navigationArchitecture: {
+          kind: "bottom-tabs-app", primaryNavigation: "bottom-tabs", rootChrome: "bottom-tabs", detailChrome: "top-bar-back",
+          consistencyRules: [], rationale: "Legacy tabs",
+        },
+      });
+      expect(legacy).toContain("primaryNav=render in this screen");
+      expect(legacy).not.toContain("no persistent bottom navigation");
+      expect(legacy).not.toContain("NO SHARED NAVIGATION");
+    });
   });
 });

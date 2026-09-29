@@ -1,0 +1,122 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  formatStyleComponents,
+  MAX_STYLE_COMPONENT_HTML_CHARS,
+  MAX_STYLE_COMPONENTS,
+  MAX_STYLE_COMPONENTS_BLOCK_CHARS,
+  styleComponentsOf,
+  styleComponentsSchema,
+  usableStyleComponents,
+} from "@/lib/generation/style-components";
+import type { ProjectReferenceDna } from "@/lib/types";
+
+const stat = {
+  name: "stat-tile-pair",
+  use: "Two counts side by side, for example meals and meds",
+  html: `<div class="grid grid-cols-2 gap-[var(--dg-spacing-sm)]">
+    <div class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)]"><p class="dg-type-caption dg-text-medium">Meals</p><p class="dg-type-metric-value">3</p></div>
+  </div>`,
+};
+
+const withHtml = (index: number, size: number) => ({
+  name: `component-${index}`,
+  use: `Use ${index}`,
+  html: `<div class="c${index}">${"x".repeat(size)}</div>`,
+});
+
+describe("formatStyleComponents", () => {
+  it("writes one line per component as name — when to use it — html, under the rules", () => {
+    const block = formatStyleComponents([stat])!;
+    const lines = block.split("\n");
+
+    expect(lines[0]).toContain("STYLE COMPONENTS");
+    expect(lines[0]).toContain("name — when to use it — html");
+    expect(block).toContain("Build this screen's content from these components wherever they fit its job.");
+    expect(block).toContain("must use the same surface ladder, radius roles, type roles and spacing");
+    expect(block).toContain("Never reproduce the reference's sections, their order or its content");
+    const componentLines = lines.filter((line) => line.startsWith("- "));
+    expect(componentLines).toHaveLength(1);
+    expect(componentLines[0].startsWith("- stat-tile-pair — Two counts side by side, for example meals and meds — <div")).toBe(true);
+    // the components come after the rules
+    expect(lines.indexOf(componentLines[0])).toBe(lines.length - 1);
+  });
+
+  it("puts each component on a single line", () => {
+    const block = formatStyleComponents([stat])!;
+    expect(block.split("\n").filter((line) => line.startsWith("- "))).toHaveLength(1);
+    expect(block).not.toMatch(/\n\s+<div/);
+    expect(block).toContain('<div class="grid grid-cols-2 gap-[var(--dg-spacing-sm)]"> <div class="dg-surface-card');
+  });
+
+  it("caps the block at ten components", () => {
+    const many = Array.from({ length: 14 }, (_, index) => withHtml(index + 1, 20));
+    const block = formatStyleComponents(many)!;
+    const lines = block.split("\n").filter((line) => line.startsWith("- "));
+    expect(lines).toHaveLength(MAX_STYLE_COMPONENTS);
+    expect(lines[0]).toContain("component-1 —");
+    expect(lines[9]).toContain("component-10 —");
+    expect(block).not.toContain("component-11");
+  });
+
+  it("stays inside the size budget by leaving out whole components, never by cutting markup", () => {
+    // ten components at the per-component limit would be about 7.6k characters
+    const large = Array.from({ length: 10 }, (_, index) => withHtml(index + 1, MAX_STYLE_COMPONENT_HTML_CHARS - 40));
+    const block = formatStyleComponents(large)!;
+    expect(block.length).toBeLessThanOrEqual(MAX_STYLE_COMPONENTS_BLOCK_CHARS);
+    const lines = block.split("\n").filter((line) => line.startsWith("- "));
+    expect(lines.length).toBeGreaterThan(5);
+    expect(lines.length).toBeLessThan(10);
+    // every line that made it is complete
+    for (const line of lines) expect(line.endsWith("</div>")).toBe(true);
+    // the ones left out are the last ones
+    expect(block).toContain(`component-${lines.length} —`);
+    expect(block).not.toContain(`component-${lines.length + 1} —`);
+  });
+
+  it("leaves out anything malformed or over the per-component limit", () => {
+    const block = formatStyleComponents([
+      { name: "", use: "No name", html: "<div></div>" },
+      { name: "no-use", use: " ", html: "<div></div>" },
+      { name: "no-html", use: "Nothing to copy", html: "" },
+      { name: "too-long", use: "Over the limit", html: `<div>${"x".repeat(MAX_STYLE_COMPONENT_HTML_CHARS)}</div>` },
+      { name: "not-strings", use: 4, html: {} },
+      null,
+      "text",
+      { name: "kept", use: "The one that is valid", html: "<span>ok</span>" },
+    ])!;
+    const lines = block.split("\n").filter((line) => line.startsWith("- "));
+    expect(lines).toEqual(["- kept — The one that is valid — <span>ok</span>"]);
+  });
+
+  it("does not let a dash inside a name or a use read as another field", () => {
+    const [component] = usableStyleComponents([{ name: "week — strip", use: "Pick a day – any day", html: "<div></div>" }]);
+    expect(component.name).toBe("week - strip");
+    expect(component.use).toBe("Pick a day - any day");
+  });
+
+  it("gives nothing when there is nothing to show", () => {
+    expect(formatStyleComponents([])).toBeNull();
+    expect(formatStyleComponents(null)).toBeNull();
+    expect(formatStyleComponents(undefined)).toBeNull();
+    expect(formatStyleComponents("<div></div>")).toBeNull();
+    expect(formatStyleComponents([{ name: "x" }])).toBeNull();
+  });
+});
+
+describe("style component data", () => {
+  it("validates what a preset stores: at most ten, each with its markup under the limit", () => {
+    expect(styleComponentsSchema.safeParse([stat]).success).toBe(true);
+    expect(styleComponentsSchema.safeParse(Array.from({ length: 11 }, (_, index) => withHtml(index, 10))).success).toBe(false);
+    expect(styleComponentsSchema.safeParse([{ ...stat, html: "x".repeat(MAX_STYLE_COMPONENT_HTML_CHARS + 1) }]).success).toBe(false);
+    expect(styleComponentsSchema.safeParse([{ name: "x", use: "y" }]).success).toBe(false);
+  });
+
+  it("reads the components a project's reference DNA carries", () => {
+    const dna = { specimen: { source: "preset", components: [stat, { name: "", use: "x", html: "<i></i>" }] } } as unknown as ProjectReferenceDna;
+    expect(styleComponentsOf(dna).map((component) => component.name)).toEqual(["stat-tile-pair"]);
+    expect(styleComponentsOf({} as ProjectReferenceDna)).toEqual([]);
+    expect(styleComponentsOf(null)).toEqual([]);
+    expect(styleComponentsOf(undefined)).toEqual([]);
+  });
+});

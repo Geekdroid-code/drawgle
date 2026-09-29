@@ -23,6 +23,8 @@ import { describeSurfaceClasses, describeTokenLanguage } from "@/lib/generation/
 import { stripDesignValues, stripDesignValuesDeep } from "@/lib/generation/design-value-scrub";
 import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/generation/measured-colors";
 import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
+import { omitCraftBars } from "@/lib/generation/semantic-inspiration";
+import { usableStyleComponents } from "@/lib/generation/style-components";
 import { userNamedColorRoles } from "@/lib/generation/user-color-roles";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
@@ -4173,8 +4175,20 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   if (resolvedReferenceMode === "user_recreate" && input.sourceDetail) {
     parts.push({ text: "Verified detail crop of this output's target frame. Use it for fine detail; the original composite above remains authoritative for context and anything outside this crop." }, toInlineImage(input.sourceDetail)!);
   }
+  const promptMode = resolveGenerationPromptMode({
+    referenceMode: resolvedReferenceMode,
+    hasImage: Boolean(inlineImage),
+    hasDesignStyle: Boolean(input.designStyle),
+    hasReferenceAnalysis: false,
+    hasProjectVisualMemory: input.referenceSource === "project_memory" || input.referenceSource === "project_upload",
+  });
   if (resolvedReferenceMode !== "user_recreate" && input.productContent) parts.push({ text: input.productContent });
-  const compactProjectContext = resolvedReferenceMode === "user_recreate" ? null : input.projectContext?.trim().slice(0, 6000);
+  // With the reference's components as markup, the composition library's craft bars only restate what that markup shows.
+  const hasStyleComponents = promptMode === "style" && usableStyleComponents(input.styleComponents).length > 0;
+  const memory = input.projectContext?.trim();
+  const compactProjectContext = resolvedReferenceMode === "user_recreate"
+    ? null
+    : (hasStyleComponents && memory ? omitCraftBars(memory) : memory)?.slice(0, 6000);
   if (compactProjectContext) {
     parts.push({
       text: `Compact Existing Project Memory:\n${compactProjectContext}`,
@@ -4187,13 +4201,6 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     });
   }
 
-  const promptMode = resolveGenerationPromptMode({
-    referenceMode: resolvedReferenceMode,
-    hasImage: Boolean(inlineImage),
-    hasDesignStyle: Boolean(input.designStyle),
-    hasReferenceAnalysis: false,
-    hasProjectVisualMemory: input.referenceSource === "project_memory" || input.referenceSource === "project_upload",
-  });
   const buildInstruction = promptMode === "recreate"
     ? buildRecreateScreenInstruction
     : promptMode === "style"
@@ -4203,6 +4210,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     designTokens: input.designTokens,
     designStyle: input.designStyle,
     screenFamilyContract: input.screenFamilyContract,
+    styleComponents: input.styleComponents,
     screenPlan: input.screenPlan,
     prompt: input.prompt,
     requiresBottomNav: input.requiresBottomNav,

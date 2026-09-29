@@ -455,6 +455,22 @@ export interface ProjectCharterPlanningDiagnostics {
   [key: string]: JsonValue | undefined;
 }
 
+/** One reusable component of a style reference: the name a brief uses, when to use it, and its markup. */
+export interface StyleComponent {
+  name: string;
+  use: string;
+  html: string;
+}
+
+/**
+ * The reference's component vocabulary as markup the builder can copy, from an approved
+ * curated preset or from a specimen built out of an uploaded reference.
+ */
+export interface ReferenceSpecimen {
+  source: "preset" | "upload";
+  components: StyleComponent[];
+}
+
 export interface ProjectReferenceDna {
   schemaVersion: 1;
   source: "image_analysis" | "legacy_reconstruction";
@@ -465,6 +481,7 @@ export interface ProjectReferenceDna {
   createdAt: string;
   analysis: ReferenceAnalysis;
   screenFamilyContract: ScreenFamilyContract;
+  specimen?: ReferenceSpecimen | null;
 }
 
 export type PrimaryNavigationKind = "bottom-tabs" | "none";
@@ -1213,6 +1230,8 @@ export interface BuildScreenInput {
   referenceScreenCount?: number | null;
   designStyle?: DesignStylePack | null;
   screenFamilyContract?: ScreenFamilyContract | null;
+  /** The style reference's components, as markup to copy. Style mode only. */
+  styleComponents?: StyleComponent[] | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;

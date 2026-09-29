@@ -4,6 +4,7 @@ import {
   buildSemanticTransferPlan,
   ensureSemanticCompositionPrimitives,
   formatSemanticCompositionLibrary,
+  omitCraftBars,
 } from "@/lib/generation/semantic-inspiration";
 import { normalizeReferenceTransferContract } from "@/lib/generation/reference-transfer";
 import { normalizeReferenceAnalysis } from "@/lib/generation/scope-contract";
@@ -130,6 +131,27 @@ describe("semantic inspiration suitability", () => {
     expect(library).toContain("Legible progression");
     expect(library).not.toContain(onboardingReference.screenReferences[0].layoutSummary);
     expect(library).not.toContain("Three status modules");
+  });
+
+  it("drops the craft bars and nothing else once the builder has the reference's components", () => {
+    const library = formatSemanticCompositionLibrary(onboardingReference);
+    const trimmed = omitCraftBars(library);
+    const primitives = ensureSemanticCompositionPrimitives(onboardingReference).semanticCompositionPrimitives ?? [];
+
+    expect(primitives.length).toBeGreaterThan(1);
+    expect(library.match(/Craft bar:/g)).toHaveLength(primitives.length);
+    expect(trimmed).not.toContain("Craft bar:");
+    for (const primitive of primitives) {
+      for (const detail of primitive.qualityDetails) expect(trimmed).not.toContain(detail);
+      expect(trimmed).toContain(primitive.adaptationGuidance);
+    }
+    // only those lines went: the rest of the library is the same
+    expect(trimmed.split("\n")).toEqual(library.split("\n").filter((line) => !line.trimStart().startsWith("Craft bar:")));
+    // and it works inside a larger context, on either kind of line ending
+    expect(omitCraftBars(`PROJECT REFERENCE DNA\n${library}\n\nTYPOGRAPHY ROLE CONTRACT`))
+      .toBe(`PROJECT REFERENCE DNA\n${trimmed}\n\nTYPOGRAPHY ROLE CONTRACT`);
+    expect(omitCraftBars("- a\r\n  Craft bar: x\r\n- b")).toBe("- a\r\n- b");
+    expect(omitCraftBars("no library here")).toBe("no library here");
   });
 
   it("normalizes analyst-provided primitives for persistence", () => {
