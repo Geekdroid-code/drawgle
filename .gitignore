@@ -9,3 +9,5 @@ coverage/
 !.env.example
 repair-backups/
 .codex-remote-attachments/
+scripts/design-eval/out/
+scripts/curated/out/

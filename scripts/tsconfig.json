@@ -1,0 +1,14 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "incremental": false,
+    "noEmit": true
+  },
+  "include": [
+    "../next-env.d.ts",
+    "../types/**/*.d.ts",
+    "design-eval/**/*.ts",
+    "curated/**/*.ts"
+  ],
+  "exclude": ["../node_modules"]
+}
