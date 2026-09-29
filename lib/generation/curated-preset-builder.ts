@@ -10,12 +10,14 @@ import {
 import { measureReferencePalette } from "@/lib/generation/reference-palette";
 import { boxOf, cropToBox, pickSpecimenScreen } from "@/lib/generation/specimen-build";
 import { extractStyleComponents } from "@/lib/generation/style-component-extraction";
+import { MAX_STYLE_COMPONENTS } from "@/lib/generation/style-components";
 import type {
   DesignTokens,
   PromptImagePayload,
   ReferenceAnalysis,
   ReferenceAnalysisResult,
   ReferenceScreenAnalysis,
+  StyleComponent,
 } from "@/lib/types";
 
 /**
@@ -52,9 +54,13 @@ export type PresetBuildDeps = {
   }): Promise<string>;
 };
 
+/** One phone of the reference, rebuilt with its reusable components marked. */
+export type PresetSpecimen = { screenIndex: number; screenName: string; html: string; image: PromptImagePayload };
+
 export type PresetBuildResult = {
   preset: CuratedStylePreset;
-  specimen: { screenIndex: number; screenName: string; html: string; image: PromptImagePayload };
+  /** The phones that were rebuilt, in the order their components were taken. */
+  specimens: PresetSpecimen[];
   skipped: Array<{ name: string; reason: string }>;
   /** Things worth a look before approving, which are not errors. */
   notes: string[];
@@ -62,6 +68,25 @@ export type PresetBuildResult = {
 
 // The phone is chosen and cropped the same way for an uploaded reference (see specimen-build.ts).
 export { cropToBox, pickSpecimenScreen };
+
+/**
+ * More phones than this in one reference would cost more builds than their components are worth. A preset is
+ * made once, so it learns from every phone of the reference, not from the one with the most components: a
+ * reference's vocabulary (a media card, a calendar strip, a stat tile, a mood row) is spread over its phones.
+ */
+export const MAX_SPECIMEN_PHONES = 4;
+
+/** The phones to learn from: those with a box, the richest first, and at most `MAX_SPECIMEN_PHONES`. */
+export function specimenScreens(analysis: ReferenceAnalysis): ReferenceScreenAnalysis[] {
+  const area = (screen: ReferenceScreenAnalysis) => {
+    const box = boxOf(screen);
+    return box ? box.width * box.height : 0;
+  };
+  return analysis.screenReferences
+    .filter((screen) => boxOf(screen))
+    .sort((left, right) => right.components.length - left.components.length || area(right) - area(left) || left.index - right.index)
+    .slice(0, MAX_SPECIMEN_PHONES);
+}
 
 function assertCompleteAnalysis(result: ReferenceAnalysisResult): ReferenceAnalysis {
   const analysis = result.analysis;
@@ -85,6 +110,70 @@ function assertCompleteAnalysis(result: ReferenceAnalysisResult): ReferenceAnaly
   return analysis;
 }
 
+type Skipped = PresetBuildResult["skipped"];
+
+/**
+ * Rebuilds the phones of the reference, each with its reusable components marked, and takes the components out
+ * of them: the richest phone's first, one of each name, ten at most. A phone whose build fails is left out and
+ * said so; the step fails only when no phone gives a usable component.
+ */
+export async function buildPresetComponents({
+  reference,
+  image,
+  analysis,
+  tokens,
+  deps,
+}: {
+  reference: CuratedStyleReference;
+  image: PromptImagePayload;
+  analysis: ReferenceAnalysis;
+  tokens: DesignTokens;
+  deps: Pick<PresetBuildDeps, "buildSpecimen">;
+}): Promise<{ specimens: PresetSpecimen[]; components: StyleComponent[]; skipped: Skipped; notes: string[] }> {
+  const screens = specimenScreens(analysis);
+  const notes: string[] = [];
+  const settled = await Promise.allSettled(screens.map(async (screen): Promise<PresetSpecimen> => {
+    const specimenImage = await cropToBox(image, boxOf(screen)!);
+    const html = await deps.buildSpecimen({ reference, image: specimenImage, screen, analysis, tokens });
+    return { screenIndex: screen.index, screenName: screen.suggestedRole, html, image: specimenImage };
+  }));
+  const specimens: PresetSpecimen[] = [];
+  settled.forEach((outcome, position) => {
+    // Provider errors can carry request details; only that a phone's build failed is kept.
+    if (outcome.status === "fulfilled") specimens.push(outcome.value);
+    else notes.push(`the build of phone ${screens[position].index} (${screens[position].suggestedRole}) failed and is left out`);
+  });
+  if (specimens.length === 0) {
+    throw new PresetBuildError("specimen", screens.length === 0 ? "no phone of the reference has a box to crop it by" : `none of the ${screens.length} phone builds succeeded`);
+  }
+
+  const components: StyleComponent[] = [];
+  const skipped: Skipped = [];
+  const taken = new Set<string>();
+  for (const specimen of specimens) {
+    const label = `phone ${specimen.screenIndex}`;
+    const extracted = extractStyleComponents(specimen.html);
+    for (const item of extracted.skipped) {
+      if (!skipped.some((known) => known.name === item.name && known.reason === item.reason)) skipped.push(item);
+      notes.push(`${label}: skipped ${item.name}: ${item.reason}`);
+    }
+    for (const component of extracted.components) {
+      if (taken.has(component.name)) continue;
+      if (components.length >= MAX_STYLE_COMPONENTS) {
+        notes.push(`${label}: left out ${component.name}, ${MAX_STYLE_COMPONENTS} components are the most`);
+        continue;
+      }
+      taken.add(component.name);
+      components.push(component);
+    }
+  }
+  if (components.length === 0) {
+    throw new PresetBuildError("specimen", `${specimens.length === 1 ? `the build of "${specimens[0].screenName}"` : `the builds of ${specimens.length} phones`} marked no usable component${skipped.length ? ` (${skipped.map((item) => `${item.name}: ${item.reason}`).join("; ")})` : ""}`);
+  }
+  if (components.length < 4) notes.push(`only ${components.length} component${components.length === 1 ? " was" : "s were"} marked: a second run may serve better`);
+  return { specimens, components, skipped, notes };
+}
+
 export async function buildCuratedPreset({
   reference,
   image,
@@ -96,7 +185,6 @@ export async function buildCuratedPreset({
   deps: PresetBuildDeps;
   builtAt?: string;
 }): Promise<PresetBuildResult> {
-  const notes: string[] = [];
   const bytes = Buffer.from(image.data, "base64");
 
   const analysis = assertCompleteAnalysis(await deps.analyze({ reference, image }));
@@ -111,16 +199,7 @@ export async function buildCuratedPreset({
 
   const tokens = normalizeDesignTokens(await deps.generateTokens({ reference, image, analysis }));
 
-  const screen = pickSpecimenScreen(analysis);
-  const screenBox = boxOf(screen)!;
-  const specimenImage = await cropToBox(image, screenBox);
-  const html = await deps.buildSpecimen({ reference, image: specimenImage, screen, analysis, tokens });
-  const { components, skipped } = extractStyleComponents(html);
-  if (components.length === 0) {
-    throw new PresetBuildError("specimen", `the build of "${screen.suggestedRole}" marked no usable component${skipped.length ? ` (${skipped.map((item) => `${item.name}: ${item.reason}`).join("; ")})` : ""}`);
-  }
-  if (components.length < 4) notes.push(`only ${components.length} components were marked: a richer phone or a second run may serve better`);
-  for (const item of skipped) notes.push(`skipped ${item.name}: ${item.reason}`);
+  const { specimens, components, skipped, notes } = await buildPresetComponents({ reference, image, analysis, tokens, deps });
 
   // A reference with no navigation of its own carries none; the analysis's evidence is otherwise the preset's.
   const evidence = analysis.primaryNavigation;
@@ -145,8 +224,40 @@ export async function buildCuratedPreset({
 
   return {
     preset: parsed.data as unknown as CuratedStylePreset,
-    specimen: { screenIndex: screen.index, screenName: screen.suggestedRole, html, image: specimenImage },
+    specimens,
     skipped,
     notes,
   };
+}
+
+/**
+ * Makes the components of a built preset again, from its own analysis, palette and tokens, and changes nothing
+ * else. It is the cheap way to try another idea for the components (or to redo them after the tokens were
+ * corrected by hand): a build per phone, and no analysis or token call. The result is unapproved.
+ */
+export async function rebuildPresetComponents({
+  reference,
+  image,
+  preset,
+  deps,
+  builtAt = new Date().toISOString(),
+}: {
+  reference: CuratedStyleReference;
+  image: PromptImagePayload;
+  preset: CuratedStylePreset;
+  deps: Pick<PresetBuildDeps, "buildSpecimen">;
+  builtAt?: string;
+}): Promise<PresetBuildResult> {
+  if (preset.catalogHash !== curatedStyleEntryHash(reference)) {
+    throw new PresetBuildError("preset", "it was built from an older version of the catalogue entry; build it again, in full");
+  }
+  const { specimens, components, skipped, notes } = await buildPresetComponents({
+    reference, image, analysis: preset.analysis, tokens: preset.tokens, deps,
+  });
+  const parsed = curatedStylePresetSchema.safeParse({ ...preset, approved: false, components, builtAt });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw new PresetBuildError("preset", `${issue?.path.join(".") || "preset"}: ${issue?.message ?? "not valid"}`);
+  }
+  return { preset: parsed.data as unknown as CuratedStylePreset, specimens, skipped, notes };
 }

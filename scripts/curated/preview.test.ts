@@ -73,9 +73,11 @@ describe("the preset preview", () => {
     const png = await renderPresetPreview({
       browser,
       preset: presetFixture(),
-      specimenHtml: specimen,
-      specimenLabel: "Phone 2: History",
-      specimenReference: { data: (await sharp(Buffer.from((await reference()).data, "base64")).extract({ left: 400, top: 100, width: 350, height: 700 }).png().toBuffer()).toString("base64"), mimeType: "image/png" },
+      specimens: [{
+        html: specimen,
+        label: "Phone 2: History",
+        reference: { data: (await sharp(Buffer.from((await reference()).data, "base64")).extract({ left: 400, top: 100, width: 350, height: 700 }).png().toBuffer()).toString("base64"), mimeType: "image/png" },
+      }],
       reference: await reference(),
       referenceLabel: "mindfulness-meditation-beige-light",
       title: "mindfulness-meditation-beige-light · curated style preset (unapproved)",
@@ -86,5 +88,31 @@ describe("the preset preview", () => {
     // the reference, the phone it recreates, the specimen and the components, side by side
     expect(meta.width).toBeGreaterThan(390 * 3 + 300);
     expect(meta.height).toBeGreaterThan(844);
+  }, 60_000);
+
+  it("shows every rebuilt phone, and leaves the phone crops to the whole reference when there are several", async () => {
+    const png = await renderPresetPreview({
+      browser, preset: presetFixture(), reference: await reference(), referenceLabel: "reference", title: "sheet", offline: true,
+      specimens: [1, 2, 3].map((phone) => ({ html: specimen, label: `Phone ${phone}`, reference: { data: "ignored", mimeType: "image/png" } })),
+    });
+    // the reference, three rebuilt phones and the components: room for four phone-wide columns and the reference
+    expect((await sharp(png).metadata()).width).toBeGreaterThan(390 * 4 + 300);
+  }, 60_000);
+
+  it("draws a screen taller than the phone at its full height, with the fixed bar at its bottom", async () => {
+    const tall = `<div class="w-full dg-bg-primary" style="height:1400px;padding:16px">A long screen</div>`;
+    const html = presetDocument(presetFixture(), tall, { navigation: true });
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    try {
+      const page = await context.newPage();
+      await page.route("**/*", (route) => (route.request().url().startsWith("data:") || route.request().url().startsWith("about:") ? route.continue() : route.abort()));
+      await page.setContent(html, { waitUntil: "domcontentloaded" });
+      await page.setViewportSize({ width: 390, height: 1400 });
+      const bottom = await page.evaluate(`(() => { const nav = document.querySelector('[data-drawgle-primary-nav]'); const box = nav && nav.getBoundingClientRect(); return box ? box.bottom : null; })()`) as number | null;
+      // in a window as tall as the screen the bar is at the bottom of the screen, not at 844px
+      expect(bottom).toBeGreaterThan(1300);
+    } finally {
+      await context.close();
+    }
   }, 60_000);
 });

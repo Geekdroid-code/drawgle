@@ -26,6 +26,44 @@ const DROPPED_ATTRIBUTES = ["data-dg-component", "data-dg-use", "data-drawgle-id
 /** The renderer draws the status bar and the shared navigation, so a screen never copies them. */
 const RENDERER_OWNED = /(^|-)(bottom-nav|bottom-navigation|navigation-bar|nav-bar|navbar|tab-bar|tabbar|dock|status-bar|statusbar|home-indicator)(-|$)|^(nav|navigation)$/;
 
+/**
+ * Arbitrary-value classes that have an exact, shorter utility class in the token runtime (lib/token-runtime.ts).
+ * A build writes either; the component keeps the short one, so it is smaller and reads the same everywhere.
+ */
+const CANONICAL_CLASSES: Record<string, string> = {
+  "rounded-[var(--dg-radii-app)]": "dg-radius-app",
+  "rounded-[var(--dg-radii-inner)]": "dg-radius-inner",
+  "rounded-[var(--dg-radii-pill)]": "dg-radius-pill",
+  "text-[var(--dg-color-text-high-emphasis)]": "dg-text-high",
+  "text-[var(--dg-color-text-medium-emphasis)]": "dg-text-medium",
+  "text-[var(--dg-color-text-low-emphasis)]": "dg-text-low",
+  "bg-[var(--dg-color-surface-card)]": "dg-surface-card",
+  "bg-[var(--dg-color-surface-inset)]": "dg-surface-inset",
+  "bg-[var(--dg-color-background-primary)]": "dg-bg-primary",
+  "bg-[var(--dg-color-background-secondary)]": "dg-bg-secondary",
+  "bg-[var(--dg-color-action-secondary)]": "dg-action-secondary",
+  "shadow-[var(--dg-shadows-surface)]": "dg-shadow-surface",
+  "shadow-[var(--dg-shadows-overlay)]": "dg-shadow-overlay",
+  "px-[var(--dg-mobile-layout-screen-margin)]": "dg-screen-padding",
+  "gap-[var(--dg-mobile-layout-section-gap)]": "dg-section-gap",
+  "gap-[var(--dg-mobile-layout-element-gap)]": "dg-element-gap",
+};
+const ACTION_FILL = "bg-[var(--dg-color-action-primary)]";
+const ACTION_TEXT = "text-[var(--dg-color-action-on-primary-text)]";
+
+/** The classes of one element with each long form swapped for its short one, and no class twice. */
+const canonicalClasses = (value: string) => {
+  const classes = value.split(/\s+/).filter(Boolean);
+  // The token runtime's action class is the fill and its text colour together, so only the pair becomes it.
+  const pair = classes.includes(ACTION_FILL) && classes.includes(ACTION_TEXT);
+  const swapped = classes.flatMap((name) => {
+    if (pair && name === ACTION_TEXT) return [];
+    if (pair && name === ACTION_FILL) return ["dg-action-primary"];
+    return [CANONICAL_CLASSES[name] ?? name];
+  });
+  return [...new Set(swapped)].join(" ");
+};
+
 const kebab = (value: string | undefined) =>
   (value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80);
 
@@ -65,6 +103,8 @@ const cleaned = ($: CheerioAPI, element: Parameters<CheerioAPI>[0]) => {
     for (const attribute of Object.keys($node.attr() ?? {})) {
       if (attribute.startsWith("on")) $node.removeAttr(attribute);
     }
+    const classes = $node.attr("class");
+    if (classes) $node.attr("class", canonicalClasses(classes));
   });
   clone.find("*").addBack().contents().each((_, node) => {
     if (node.type === "text") node.data = sampleText(node.data);

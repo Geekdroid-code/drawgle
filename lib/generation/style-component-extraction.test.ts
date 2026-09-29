@@ -74,6 +74,34 @@ describe("extractStyleComponents", () => {
     expect(extractStyleComponents(specimen).components[1].html.match(/dg-surface-inset/g)).toHaveLength(2);
   });
 
+  it("writes a long token class as its short utility class, and an action fill with its text colour as the action class", () => {
+    const { components } = extractStyleComponents(`
+      <div data-dg-component="search-bar" class="rounded-[var(--dg-radii-app)] bg-[var(--dg-color-surface-card)] px-[var(--dg-mobile-layout-screen-margin)] gap-[var(--dg-mobile-layout-element-gap)] shadow-[var(--dg-shadows-overlay)] flex">
+        <span class="text-[var(--dg-color-text-medium-emphasis)] text-[var(--dg-color-text-medium-emphasis)]">Search</span>
+        <button class="rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-primary)] text-[var(--dg-color-action-on-primary-text)] w-10">Go</button>
+        <button class="bg-[var(--dg-color-action-primary)] w-10">Fill only</button>
+        <i class="bg-[#FFE082] rounded-[12px]">Custom</i>
+      </div>`);
+    expect(components[0].html).toContain('class="dg-radius-app dg-surface-card dg-screen-padding dg-element-gap dg-shadow-overlay flex"');
+    // said twice, kept once
+    expect(components[0].html).toContain('<span class="dg-text-medium">Search</span>');
+    // the fill and its text colour together are the action class; a fill alone is left as it was
+    expect(components[0].html).toContain('<button class="dg-radius-pill dg-action-primary w-10">Go</button>');
+    expect(components[0].html).toContain('<button class="bg-[var(--dg-color-action-primary)] w-10">Fill only</button>');
+    // a value the runtime has no class for stays as the build wrote it
+    expect(components[0].html).toContain('class="bg-[#FFE082] rounded-[12px]"');
+  });
+
+  it("gets a component that was over the size limit only by its long class names under it", () => {
+    const long = "rounded-[var(--dg-radii-app)] bg-[var(--dg-color-surface-card)] text-[var(--dg-color-text-high-emphasis)] shadow-[var(--dg-shadows-overlay)]";
+    const item = `<div class="${long}"><span class="${long}">x</span></div>`;
+    const markup = `<div data-dg-component="row" class="${long} flex">${item.repeat(2)}${item.repeat(1)}</div>`;
+    expect(markup.length - "<div data-dg-component=\"row\" data-dg-use=\"\"></div>".length).toBeGreaterThan(MAX_STYLE_COMPONENT_HTML_CHARS);
+    const { components, skipped } = extractStyleComponents(markup);
+    expect(skipped).toEqual([]);
+    expect(components[0].html.length).toBeLessThanOrEqual(MAX_STYLE_COMPONENT_HTML_CHARS);
+  });
+
   it("skips a component that is still too large to copy, and says why", () => {
     const huge = `<div data-dg-component="chart-panel" class="p-4">${Array.from({ length: 6 }, (_, index) => `<svg viewBox="0 0 10 10"><path d="${"M0 0L1 1".repeat(120)}" data-n="${index}"></path></svg>`).join("")}</div>`;
     const { components, skipped } = extractStyleComponents(`${huge}<div data-dg-component="chip" class="dg-tint-1 dg-radius-pill px-3">Label</div>`);

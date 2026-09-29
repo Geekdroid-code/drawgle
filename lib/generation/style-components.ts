@@ -79,6 +79,8 @@ export const SPECIMEN_MARKING_INSTRUCTION = [
   "SPECIMEN: this build becomes the source of the project's reusable components.",
   'Mark the root element of each reusable component with data-dg-component="<kebab-name>" and data-dg-use="<when to use it, under 12 words>",',
   'for example data-dg-component="calendar-strip" data-dg-use="a week selector at the top of a day view".',
-  "Name a component by what it is, never by the content it shows, and mark one element for each kind of component.",
+  "Name a component by what it is, never by the content it shows, and mark one element for each kind of component this screen shows, at least six when it has them.",
+  "Mark the smallest reusable unit (one row, one tile, one chip, one field, one card), never a whole list, grid or section, and keep each marked element's markup under about 500 characters.",
+  "Leave decorative art (illustrations, sparkles, blurred shapes, chart plots) out of a marked element, and style it with the token classes and variables only, never raw hex colours.",
   "Do not mark the status bar or the bottom navigation.",
 ].join(" ");

@@ -7,13 +7,17 @@ import { describe, expect, it, vi } from "vitest";
 import {
   buildCuratedPreset,
   cropToBox,
+  MAX_SPECIMEN_PHONES,
   pickSpecimenScreen,
   PresetBuildError,
+  rebuildPresetComponents,
+  specimenScreens,
   type PresetBuildDeps,
 } from "@/lib/generation/curated-preset-builder";
 import {
   PRESET_REFERENCE_ID,
   presetAnalysis,
+  presetComponents,
   presetFixture,
   presetNavigation,
   presetReference,
@@ -105,7 +109,7 @@ describe("buildCuratedPreset", () => {
     const { result, stubs } = await build();
     const { preset } = result;
 
-    expect(stubs.calls).toEqual(["analyze", "tokens", "specimen"]);
+    expect(stubs.calls).toEqual(["analyze", "tokens", "specimen", "specimen", "specimen"]);
     expect(curatedStylePresetSchema.safeParse(JSON.parse(JSON.stringify(preset))).success).toBe(true);
     expect(preset.approved).toBe(false);
     expect(preset.catalogHash).toBe(curatedStyleEntryHash(presetReference()));
@@ -121,11 +125,13 @@ describe("buildCuratedPreset", () => {
     expect(preset.tokens.tokens?.radii?.app).toBe("20px");
   });
 
-  it("makes the specimen of the phone with the most components, cropped out of the reference", async () => {
+  it("rebuilds every phone, the one with the most components first, each cropped out of the reference", async () => {
     const { result, stubs } = await build();
-    expect(result.specimen).toMatchObject({ screenIndex: 2, screenName: "History" });
-    const call = (stubs.buildSpecimen as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    expect(call.screen.index).toBe(2);
+    expect(result.specimens.map((specimen) => [specimen.screenIndex, specimen.screenName])).toEqual([[2, "History"], [1, "Dashboard"], [3, "Profile"]]);
+    // the builds run side by side, so the calls are found by phone and not by their order
+    const calls = (stubs.buildSpecimen as ReturnType<typeof vi.fn>).mock.calls.map(([input]) => input);
+    expect(calls.map((input) => input.screen.index).sort()).toEqual([1, 2, 3]);
+    const call = calls.find((input) => input.screen.index === 2);
     const cropped = await sharp(Buffer.from(call.image.data, "base64")).metadata();
     // 0.292 x 0.776 of a 1200x900 image, plus a hair of margin
     expect(cropped.width).toBeGreaterThan(340);
@@ -140,8 +146,37 @@ describe("buildCuratedPreset", () => {
     const { result } = await build();
     expect(result.preset.components.map((component) => component.name)).toEqual(["calendar-strip", "stat-tile-pair", "mood-chips", "donut-card"]);
     expect(result.skipped).toEqual([{ name: "bottom-tab-bar", reason: expect.stringContaining("drawn by the renderer") }]);
-    expect(result.notes.join("\n")).toContain("skipped bottom-tab-bar");
-    expect(result.specimen.html).toContain("data-dg-component");
+    expect(result.notes.join("\n")).toContain("phone 2: skipped bottom-tab-bar");
+    expect(result.specimens[0].html).toContain("data-dg-component");
+  });
+
+  it("learns from every phone, richest first, and keeps one component of each name", async () => {
+    const perPhone: Record<number, string> = {
+      2: specimenHtml,
+      1: `<div class="p-4">
+        <div data-dg-component="stat-tile-pair" data-dg-use="another take on the pair" class="grid"><div class="dg-surface-inset">9</div></div>
+        <div data-dg-component="media-card" data-dg-use="a featured item with a play button" class="dg-surface-card dg-radius-app p-4"><button class="dg-action-primary dg-radius-pill">Play</button></div>
+      </div>`,
+      3: '<div data-dg-component="list-row" data-dg-use="one row of a list" class="dg-surface-card dg-radius-inner flex p-3"><span>Row</span></div>',
+    };
+    const { result } = await build({ buildSpecimen: async ({ screen }) => perPhone[screen.index] });
+    expect(result.preset.components.map((component) => component.name)).toEqual(["calendar-strip", "stat-tile-pair", "mood-chips", "donut-card", "media-card", "list-row"]);
+    // the richest phone's version of a component is the one kept
+    expect(result.preset.components.find((component) => component.name === "stat-tile-pair")?.use).toBe("two counts");
+  });
+
+  it("leaves out a phone whose build fails and says which, and keeps what the others gave", async () => {
+    const { result } = await build({
+      buildSpecimen: async ({ screen }) => {
+        if (screen.index === 1) throw new Error("provider said: key sk-secret was refused");
+        return specimenHtml;
+      },
+    });
+    expect(result.specimens.map((specimen) => specimen.screenIndex)).toEqual([2, 3]);
+    expect(result.notes).toContain("the build of phone 1 (Dashboard) failed and is left out");
+    // a provider's error text can carry request details, so none of it is kept
+    expect(result.notes.join("\n")).not.toContain("sk-secret");
+    expect(result.preset.components).toHaveLength(4);
   });
 
   it("carries no navigation for a reference that shows none, and says so", async () => {
@@ -185,10 +220,17 @@ describe("what the build refuses", () => {
     expect(stubs.buildSpecimen).not.toHaveBeenCalled();
   });
 
-  it("a specimen in which nothing usable was marked", async () => {
+  it("specimens in which nothing usable was marked", async () => {
     const { error } = await refusal({ buildSpecimen: async () => '<div class="p-4">Plain screen</div>' });
     expect(error.stage).toBe("specimen");
     expect(error.message).toContain("marked no usable component");
+  });
+
+  it("phone builds that all fail", async () => {
+    const { error } = await refusal({ buildSpecimen: async () => { throw new Error("quota exceeded"); } });
+    expect(error.stage).toBe("specimen");
+    expect(error.message).toContain("none of the 3 phone builds succeeded");
+    expect(error.message).not.toContain("quota");
   });
 
   it("tokens that are not a calibrated set", async () => {
@@ -221,6 +263,15 @@ describe("choosing and cropping the specimen phone", () => {
     expect(pickSpecimenScreen(analysisOf([screen(1, 4, 0.3), screen(2, 4, 0.3)])).index).toBe(1);
   });
 
+  it("learns from the richest phones, at most four, and from none that has no box", () => {
+    const analysis = analysisOf([
+      screen(1, 3, 0.3), screen(2, 5, 0.2), screen(3, 4, 0.4), screen(4, 2, 0.4), screen(5, 6, 0.1),
+      { ...screen(6, 9, 0.5), boundingBox: null },
+    ]);
+    expect(specimenScreens(analysis).map((phone) => phone.index)).toEqual([5, 2, 3, 1]);
+    expect(specimenScreens(analysis)).toHaveLength(MAX_SPECIMEN_PHONES);
+  });
+
   it("crops a box out of the image and never past its edges", async () => {
     const image = await referenceImage();
     const inside = await sharp(Buffer.from((await cropToBox(image, { x: 0.25, y: 0.25, width: 0.5, height: 0.5 })).data, "base64")).metadata();
@@ -229,6 +280,32 @@ describe("choosing and cropping the specimen phone", () => {
     // the box runs past the edge of the image, so the crop stops at the edge
     expect([edge.width, edge.height]).toEqual([126, 95]);
     await expect(cropToBox(image, { x: 0.5, y: 0.5, width: 0.001, height: 0.001 })).rejects.toThrow("too small");
+  });
+});
+
+describe("making the components of a built preset again", () => {
+  it("replaces the components and nothing else, and leaves the preset unapproved", async () => {
+    const stubs = deps();
+    const preset = presetFixture({ approved: true, components: presetComponents().slice(0, 1) });
+    const result = await rebuildPresetComponents({
+      reference: presetReference(), image: await referenceImage(), preset, deps: stubs, builtAt: "2026-09-30T08:00:00.000Z",
+    });
+    // a build for each phone, and no analysis and no tokens: those are kept as they were
+    expect(stubs.calls).toEqual(["specimen", "specimen", "specimen"]);
+    expect(result.preset.approved).toBe(false);
+    expect(result.preset.builtAt).toBe("2026-09-30T08:00:00.000Z");
+    expect(result.preset.components.map((component) => component.name)).toEqual(["calendar-strip", "stat-tile-pair", "mood-chips", "donut-card"]);
+    expect(result.preset.analysis).toEqual(preset.analysis);
+    expect(result.preset.measured).toEqual(preset.measured);
+    expect(result.preset.tokens).toEqual(preset.tokens);
+    expect(result.preset.navigation).toEqual(preset.navigation);
+    expect(result.specimens).toHaveLength(3);
+  });
+
+  it("refuses a preset built from an older version of the catalogue entry", async () => {
+    await expect(rebuildPresetComponents({
+      reference: presetReference(), image: await referenceImage(), preset: presetFixture({ catalogHash: "a".repeat(64) }), deps: deps(),
+    })).rejects.toThrow("older version");
   });
 });
 

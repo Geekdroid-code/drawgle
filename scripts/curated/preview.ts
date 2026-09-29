@@ -87,7 +87,13 @@ async function screenshotDocument(browser: Browser, html: string, offline: boole
     await page.waitForTimeout(offline ? 50 : 700);
     const scrollHeight = await page.evaluate("document.documentElement.scrollHeight") as number;
     const height = Math.min(1800, Math.max(SCREEN_VIEWPORT.height, scrollHeight));
-    const png = await page.screenshot({ type: "png", fullPage: true, clip: { x: 0, y: 0, width: SCREEN_VIEWPORT.width, height } });
+    // A screen taller than the phone is drawn at its full height, with the window as tall as the screen, so
+    // that the fixed bar sits at the bottom of the screen and not where the phone's own bottom would be.
+    if (height !== SCREEN_VIEWPORT.height) {
+      await page.setViewportSize({ width: SCREEN_VIEWPORT.width, height });
+      await page.waitForTimeout(offline ? 30 : 250);
+    }
+    const png = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: SCREEN_VIEWPORT.width, height } });
     return { png, height };
   } finally {
     await context.close();
@@ -101,12 +107,18 @@ async function phoneCell(image: PromptImagePayload) {
   return { png, height: Math.round(height / 2) };
 }
 
+/** One phone of the reference, rebuilt: what the sheet shows of it. */
+export type PreviewSpecimen = {
+  html: string;
+  label: string;
+  /** The phone the specimen recreates, cropped out of the reference: the side-by-side to judge it against. */
+  reference?: PromptImagePayload | null;
+};
+
 export async function renderPresetPreview({
   browser,
   preset,
-  specimenHtml,
-  specimenLabel,
-  specimenReference = null,
+  specimens,
   reference,
   referenceLabel,
   title,
@@ -114,27 +126,34 @@ export async function renderPresetPreview({
 }: {
   browser: Browser;
   preset: CuratedStylePreset;
-  specimenHtml: string;
-  specimenLabel: string;
-  /** The one phone the specimen recreates, cropped out of the reference: the side-by-side to judge it against. */
-  specimenReference?: PromptImagePayload | null;
-  /** The reference image: the whole thing, so that the specimen can be judged against its phone. */
+  /** The rebuilt phones, in the order their components were taken. */
+  specimens: PreviewSpecimen[];
+  /** The reference image: the whole thing, so that a specimen can be judged against its phone. */
   reference: PromptImagePayload;
   referenceLabel: string;
   title: string;
   offline?: boolean;
 }): Promise<Buffer> {
-  const specimen = await screenshotDocument(browser, presetDocument(preset, specimenHtml, { navigation: true }), offline);
+  const rendered: Array<{ specimen: PreviewSpecimen; shot: Awaited<ReturnType<typeof screenshotDocument>> }> = [];
+  for (const specimen of specimens) {
+    rendered.push({ specimen, shot: await screenshotDocument(browser, presetDocument(preset, specimen.html, { navigation: true }), offline) });
+  }
   const components = await screenshotDocument(browser, presetDocument(preset, componentSheetCode(preset)), offline);
   const extension = reference.mimeType.includes("png") ? "png" : reference.mimeType.includes("webp") ? "webp" : "jpg";
-  const phone = specimenReference ? await phoneCell(specimenReference) : null;
+  // With one phone the sheet shows it beside its rebuild; the whole reference already shows every phone when there are several.
+  const phone = specimens.length === 1 && specimens[0].reference ? await phoneCell(specimens[0].reference) : null;
   return buildContactSheet(browser, {
     title,
     reference: { bytes: Buffer.from(reference.data, "base64"), extension },
     referenceLabel,
     screens: [
       ...(phone ? [{ label: "Reference phone", detail: "the phone the specimen recreates", ...phone }] : []),
-      { label: specimenLabel, detail: "recreate build with its components marked, and the bar the renderer draws", png: specimen.png, height: specimen.height },
+      ...rendered.map(({ specimen, shot }) => ({
+        label: specimen.label,
+        detail: "recreate build with its components marked, and the bar the renderer draws",
+        png: shot.png,
+        height: shot.height,
+      })),
       { label: "Extracted components", detail: `${preset.components.length} of at most 10, as every project's builder will see them`, png: components.png, height: components.height },
     ],
   });
