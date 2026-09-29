@@ -30,9 +30,10 @@ const requirement = (screenName: string, id: string, slotCount = 1): AssetRequir
 });
 
 describe("visual asset planning groups", () => {
-  it("uses an intentional avatar placeholder when no person's image was supplied", async () => {
+  it("uses an intentional avatar placeholder when the user's own image was not supplied", async () => {
+    // sample people and pets are photos (visual-assets-sample-imagery.test.ts); only the user's own identity waits for their image
     const manifest = await resolveProjectAssets({ admin: {} as never, ownerId: "owner", projectId: "project",
-      generationRunId: "run", requirements: [{ ...requirement("Today", "leo-avatar"), role: "avatar",
+      generationRunId: "run", requirements: [{ ...requirement("Today", "leo-avatar"), role: "avatar", origin: "user_specified",
         subject: "Leo's profile portrait", semanticCategory: "person", semanticTags: ["child", "portrait"] }] });
     expect(manifest.assetsByScreen.Today[0]).toMatchObject({ source: "placeholder", placeholder: true });
     expect(manifest.diagnostics?.[0].rejectionCode).toBe("identity_requires_supplied_image");

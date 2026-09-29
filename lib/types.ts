@@ -74,6 +74,11 @@ export type VisualAssetPriority = "critical" | "supporting" | "optional";
 export type VisualAssetRequirementOrigin =
   | "reference_visible"
   | "user_explicit"
+  /**
+   * The user's own identity: their face or their brand's logo. Only they can supply it, so an
+   * avatar of this origin is never faked with a stock photo. Sample people and pets are not.
+   */
+  | "user_specified"
   | "planner_inferred"
   | "heuristic_inferred";
 

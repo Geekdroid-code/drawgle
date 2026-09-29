@@ -82,7 +82,7 @@ const AssetRequirementSchema = z.object({
   slotCount: z.number().int().min(1).max(12),
   reusePolicy: z.enum(["repeat", "distinct"]),
   userAssetId: z.string().uuid().optional(),
-  origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
+  origin: z.enum(["reference_visible", "user_explicit", "user_specified", "planner_inferred", "heuristic_inferred"]).optional(),
 });
 
 const compact = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -111,6 +111,9 @@ const resolveRequirementScreenName = (screens: ScreenPlan[], requestedScreenName
 const isCriticalRequirement = (requirement: AssetRequirement) =>
   requirement.priority === "critical" &&
   (requirement.origin === "reference_visible" || requirement.origin === "user_explicit");
+
+/** The user's own face or logo: the one image no stock photo can stand in for. */
+export const isUserIdentity = (requirement: Pick<AssetRequirement, "origin">) => requirement.origin === "user_specified";
 
 const isAssetVisibleToProject = (asset: VisualAssetRow, ownerId: string, projectId: string) => {
   const visibility = (asset.visibility ?? "owner_private") as VisualAssetVisibility;
@@ -194,10 +197,16 @@ const normalizeRequirement = (
   const reusePolicy = shouldUseDistinctAssets(screen, need, normalizedRole)
     ? "distinct"
     : need.reusePolicy ?? "repeat";
+  // A sample avatar (a family member, a pet) is a square photograph. Stock photos are rarely
+  // transparent, and a circular avatar does not need it.
+  const avatar = normalizedRole === "avatar";
   const candidate = {
     ...need,
     role: normalizedRole,
     screenName,
+    assetType: avatar && need.assetType === "transparent_png" ? "photo" as const : need.assetType,
+    transparentBackground: avatar ? false : need.transparentBackground,
+    desiredAspectRatio: avatar ? "1:1" as const : need.desiredAspectRatio,
     semanticCategory: normalizedCategory,
     semanticTags: normalizeSemanticTags(
       [...(need.semanticTags ?? []), screen.name, need.subject],
@@ -209,9 +218,12 @@ const normalizeRequirement = (
     priority: userExplicitImagery && ["photo", "illustration"].includes(need.assetType)
       ? "critical"
       : need.priority,
-    origin: userExplicitImagery && ["photo", "illustration"].includes(need.assetType)
-      ? "user_explicit"
-      : need.origin ?? (need.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
+    // The user's own identity stays the user's, whatever else the prompt asks for.
+    origin: need.origin === "user_specified"
+      ? "user_specified"
+      : userExplicitImagery && ["photo", "illustration"].includes(need.assetType)
+        ? "user_explicit"
+        : need.origin ?? (need.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
   } satisfies AssetRequirement;
   const parsed = AssetRequirementSchema.safeParse(candidate);
   return parsed.success ? { ...parsed.data, reuseKey: stableReuseKey(parsed.data) } : null;
@@ -288,10 +300,12 @@ const inferExplicitImageryRequirements = ({
     if (!hasPositiveImageryRequest(plannerDescription)) continue;
 
     const role = inferHeuristicAssetRole(screen, plannerDescription);
+    // The subject says what the image shows, and it becomes the image's alt text, so it is built from the
+    // product type and the screen. The app prompt only helps to choose the category; it was once the alt text.
     const subject = compact(
-      `${prompt.slice(0, 180)} ${screen.name} premium ${role.replace(/_/g, " ")}`,
+      [charter?.appType, screen.name, role.replace(/_/g, " ")].filter(Boolean).join(" "),
     ).slice(0, 260);
-    const semanticCategory = inferSemanticCategory(subject, role);
+    const semanticCategory = inferSemanticCategory(`${prompt.slice(0, 180)} ${subject}`, role);
     const requirement: AssetRequirement = {
       id: slugify(`${screen.name}-${role}-explicit-imagery`),
       screenName: screen.name,
@@ -391,7 +405,9 @@ const manifestFromAsset = (
   width: asset.width,
   height: asset.height,
   hasAlpha: asset.has_alpha,
-  alt: compact(asset.subject || requirement.subject),
+  // What this requirement asks the image to show. The asset's own subject belongs to whichever project
+  // saved it first, and a reused asset would carry that project's words into this one.
+  alt: compact(requirement.subject),
   placementHint: requirement.placementHint,
   objectFit: asset.has_alpha ? "contain" : objectFitForRequirement({ ...requirement, transparentBackground: false, assetType: "photo" }),
   objectPosition: objectPositionForRequirement(requirement),
@@ -452,7 +468,7 @@ const placeholderManifest = (
   height: 1024,
   hasAlpha: false,
   alt: compact(requirement.subject),
-  placementHint: `${requirement.placementHint} Placeholder reason: ${reason}${requirement.role === "avatar" ? " Use initials or a person icon." : ""}`,
+  placementHint: `${requirement.placementHint} Placeholder reason: ${reason}${requirement.role === "avatar" && requirement.semanticCategory === "person" ? " Use initials or a person icon." : ""}`,
   objectFit: objectFitForRequirement(requirement),
   objectPosition: objectPositionForRequirement(requirement),
   source: "placeholder",
@@ -578,8 +594,21 @@ const fetchRemoteBytes = async (url: string) => {
   return new Uint8Array(await response.arrayBuffer());
 };
 
-const normalizeAssetBytes = async (bytes: Uint8Array, preserveAlpha: boolean) => {
-  const pipeline = sharp(Buffer.from(bytes)).rotate().resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true });
+export const normalizeAssetBytes = async (bytes: Uint8Array, preserveAlpha: boolean, squareCrop = false) => {
+  const input = Buffer.from(bytes);
+  let pipeline = sharp(input).rotate();
+  if (squareCrop) {
+    // A face or a pet sits in a square well, so the image is cropped to one here instead of trusting every
+    // slot to. The crop follows the most salient region, which keeps a face or an animal in frame.
+    const { width = 0, height = 0, orientation = 1 } = await sharp(input).metadata();
+    const turned = orientation >= 5;
+    const side = Math.min(1024, turned ? height : width, turned ? width : height);
+    pipeline = side > 0
+      ? pipeline.resize({ width: side, height: side, fit: "cover", position: sharp.strategy.attention })
+      : pipeline.resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true });
+  } else {
+    pipeline = pipeline.resize({ width: 1024, height: 1024, fit: "inside", withoutEnlargement: true });
+  }
   const output = preserveAlpha
     ? await pipeline.png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer({ resolveWithObject: true })
     : await pipeline.webp({ quality: 84, effort: 5 }).toBuffer({ resolveWithObject: true });
@@ -636,7 +665,12 @@ const saveNormalizedAsset = async ({
     if (data) return { asset: data as VisualAssetRow, displayVariant: null };
   }
 
-  const normalized = await normalizeAssetBytes(bytes, requirement.transparentBackground);
+  const normalized = await normalizeAssetBytes(
+    bytes,
+    requirement.transparentBackground,
+    // an opaque avatar photo is cropped square; a transparent cutout keeps its own shape
+    requirement.role === "avatar" && !requirement.transparentBackground,
+  );
   const contentHash = sha256Hex(normalized.bytes);
   const { data: duplicate } = await admin
     .from("visual_assets")
@@ -696,7 +730,7 @@ const saveNormalizedAsset = async ({
   return { asset: data as VisualAssetRow, displayVariant: null };
 };
 
-type StockCandidate = {
+export type StockCandidate = {
   provider: "pexels" | "pixabay";
   providerAssetId: string;
   imageUrl: string;
@@ -709,9 +743,12 @@ type StockCandidate = {
   height: number | null;
 };
 
+// A candidate has to mention one of a category's terms, and the first term is what a search starts with.
+// Stock captions name the subject ("Brown rabbit on grass", "Smiling woman"), not the category, so the
+// common pets and the people words are listed too, or most sample portraits and pets would be filtered out.
 const STOCK_CATEGORY_TERMS: Partial<Record<VisualAssetSemanticCategory, readonly string[]>> = {
-  person: ["person", "portrait", "face", "headshot"],
-  animal: ["animal", "pet", "dog", "cat"],
+  person: ["person", "portrait", "face", "headshot", "man", "woman", "boy", "girl", "child", "kid", "adult", "senior", "teenager"],
+  animal: ["animal", "pet", "dog", "cat", "puppy", "kitten", "rabbit", "bunny", "bird", "parrot", "hamster", "guinea", "turtle"],
   food: ["food", "meal", "restaurant", "bakery", "dessert"],
   fashion: ["fashion", "clothing", "shoe", "bag", "watch"],
   electronics: ["technology", "device", "phone", "laptop", "audio"],
@@ -741,13 +778,20 @@ const STOCK_PRODUCT_TERMS: Partial<Record<VisualAssetSemanticCategory, readonly 
   generic_product: ["product", "item", "merchandise", "packaging"],
 };
 
+const isPersonOrPet = (requirement: Pick<AssetRequirement, "semanticCategory">) =>
+  requirement.semanticCategory === "person" || requirement.semanticCategory === "animal";
+
 export const stockSearchQuery = (requirement: AssetRequirement) => {
   const subjectTokens = Array.from(semanticTokens([requirement.subject])).slice(0, 7);
   const categoryTerms = STOCK_CATEGORY_TERMS[requirement.semanticCategory] ?? [];
   const categoryTerm = categoryTerms.find((term) =>
     semanticTokens([requirement.subject, ...requirement.semanticTags]).has(normalizeSemanticTags([term], requirement.semanticCategory)[0]))
     ?? categoryTerms[0];
-  const roleTerm = STOCK_ROLE_TERMS[requirement.role]?.[0];
+  // A person or a pet is photographed as a portrait, whatever role a planner gave it. Left to its role, a pet
+  // planned as a "product cutout" was searched for as an "isolated product".
+  const roleTerm = isPersonOrPet(requirement) && !["section_photo", "background_photo"].includes(requirement.role)
+    ? "portrait"
+    : STOCK_ROLE_TERMS[requirement.role]?.[0];
   return compact(
     [categoryTerm, ...subjectTokens, roleTerm]
       .filter(Boolean)
@@ -836,8 +880,12 @@ export const rankStockCandidates = (requirement: AssetRequirement, candidates: S
     ...categoryTerms,
     requirement.semanticCategory,
   ]);
-  const productRole = ["product_photo", "product_cutout"].includes(requirement.role)
-    || (requirement.role === "section_photo" && Boolean(STOCK_PRODUCT_TERMS[requirement.semanticCategory]));
+  // A person or a pet is never a "product", so its caption is not asked to say so: a pet planned as a
+  // product cutout matched no stock photo at all, because no caption of a dog says "product" or "item".
+  const productRole = !isPersonOrPet(requirement) && (
+    ["product_photo", "product_cutout"].includes(requirement.role)
+    || (requirement.role === "section_photo" && Boolean(STOCK_PRODUCT_TERMS[requirement.semanticCategory]))
+  );
   const productAnchors = semanticTokens([
     ...(STOCK_PRODUCT_TERMS[requirement.semanticCategory] ?? ["product", "item"]),
   ]);
@@ -881,6 +929,31 @@ export const rankStockCandidates = (requirement: AssetRequirement, candidates: S
 export const shouldQueryPixabayFallback = (qualifiedPexelsCount: number, desiredCount: number) =>
   qualifiedPexelsCount < desiredCount;
 
+/**
+ * The stock photos that qualify for a requirement, best first: Pexels, and Pixabay only when Pexels
+ * cannot fill it. Nothing is downloaded or saved, so it is also how a person can review what a search finds.
+ */
+export const findStockCandidates = async (
+  requirement: AssetRequirement,
+  count: number,
+  diagnostic: AssetResolutionDiagnostic = createDiagnostic(requirement, Date.now()),
+) => {
+  const stockRequirement: AssetRequirement = {
+    ...requirement,
+    assetType: "photo",
+    transparentBackground: false,
+    reuseKey: stableReuseKey(requirement),
+  };
+  const pexels = rankStockCandidates(stockRequirement, await pexelsCandidates(stockRequirement, count, diagnostic));
+  const pixabay = shouldQueryPixabayFallback(pexels.length, count)
+    ? rankStockCandidates(stockRequirement, await pixabayCandidates(stockRequirement, count - pexels.length, diagnostic))
+    : [];
+  return [...pexels, ...pixabay].filter((candidate, index, all) =>
+    all.findIndex((other) =>
+      other.provider === candidate.provider
+      && other.providerAssetId === candidate.providerAssetId) === index);
+};
+
 const resolveStockAssets = async ({
   admin,
   requirement,
@@ -899,14 +972,7 @@ const resolveStockAssets = async ({
     transparentBackground: false,
     reuseKey: stableReuseKey(requirement),
   };
-  const pexels = rankStockCandidates(stockRequirement, await pexelsCandidates(stockRequirement, count, diagnostic));
-  const pixabay = shouldQueryPixabayFallback(pexels.length, count)
-    ? rankStockCandidates(stockRequirement, await pixabayCandidates(stockRequirement, count - pexels.length, diagnostic))
-    : [];
-  const candidates = [...pexels, ...pixabay].filter((candidate, index, all) =>
-    all.findIndex((other) =>
-      other.provider === candidate.provider
-      && other.providerAssetId === candidate.providerAssetId) === index);
+  const candidates = await findStockCandidates(requirement, count, diagnostic);
   const assets: VisualAssetRow[] = [];
   for (const candidate of candidates) {
     if (assets.length >= count) break;
@@ -1019,7 +1085,9 @@ const resolveRequirement = async ({
     };
   }
 
-  if (requirement.role === "avatar") {
+  // Only the user's own face or logo needs their image. A family member or a pet in a mockup is sample
+  // content, and goes through the same chain as any other photo.
+  if (requirement.role === "avatar" && isUserIdentity(requirement)) {
     diagnostic.selectedVia = "placeholder";
     diagnostic.selectedSource = "placeholder";
     diagnostic.rejectionCode = "identity_requires_supplied_image";
@@ -1290,6 +1358,8 @@ export async function importCuratedVisualAssetFromBytes({
   tags = [],
   reuseKey,
   license = "Drawgle curated internal library",
+  attribution,
+  sourceUrl,
   width,
   height,
 }: {
@@ -1304,6 +1374,10 @@ export async function importCuratedVisualAssetFromBytes({
   tags?: string[];
   reuseKey?: string;
   license?: string | null;
+  /** Who to credit, for an image that came from a photographer or a provider. */
+  attribution?: string | null;
+  /** Where the image was found. */
+  sourceUrl?: string | null;
   width?: number | null;
   height?: number | null;
   metadata?: Record<string, unknown>;
@@ -1318,6 +1392,8 @@ export async function importCuratedVisualAssetFromBytes({
     source: "internal_library",
     provider: "drawgle_r2",
     license,
+    attribution,
+    sourceUrl,
     tags,
     visibility: "public_reusable",
   });
@@ -1338,6 +1414,8 @@ export async function importCuratedVisualAsset({
   tags?: string[];
   reuseKey?: string;
   license?: string | null;
+  attribution?: string | null;
+  sourceUrl?: string | null;
   width?: number | null;
   height?: number | null;
   metadata?: Record<string, unknown>;

@@ -323,7 +323,9 @@ const AssetNeedSchema = z.object({
     z.enum(["repeat", "distinct"]),
   ).optional(),
   userAssetId: z.preprocess(normalizePlannerUserAssetId, z.string().uuid().optional()),
-  origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
+  origin: z.enum(["reference_visible", "user_explicit", "user_specified", "planner_inferred", "heuristic_inferred"]).optional(),
+  /** The signed-in user's own face or their brand's logo. Sample people and pets leave it unset. */
+  userIdentity: z.preprocess((value) => coerceBooleanish(value) ?? false, z.boolean()).optional(),
 });
 
 const ScreenLayoutContractSchema = z.object({
@@ -2258,6 +2260,7 @@ export const normalizeScreenAssetNeeds = (screenName: string, value: unknown): N
             reusePolicy: item.reusePolicy ?? item.reuse_policy,
             userAssetId: item.userAssetId ?? item.user_asset_id,
             origin: item.origin,
+            userIdentity: item.userIdentity ?? item.user_identity,
           }
         : item;
       const parsed = AssetNeedSchema.safeParse(input);
@@ -2265,19 +2268,23 @@ export const normalizeScreenAssetNeeds = (screenName: string, value: unknown): N
         return null;
       }
 
+      const { userIdentity, ...need } = parsed.data;
       return {
-        ...parsed.data,
-        id: parsed.data.id ?? roadmapSlug(
-          `${screenName}-${parsed.data.role}-${index + 1}`,
+        ...need,
+        id: need.id ?? roadmapSlug(
+          `${screenName}-${need.role}-${index + 1}`,
           `asset-${index + 1}`,
         ),
         screenName,
-        reuseKey: parsed.data.reuseKey ?? `${parsed.data.role}-${parsed.data.subject}`,
-        semanticCategory: parsed.data.semanticCategory ?? inferSemanticCategory(parsed.data.subject, parsed.data.role),
-        semanticTags: parsed.data.semanticTags ?? [],
-        slotCount: parsed.data.slotCount ?? 1,
-        reusePolicy: parsed.data.reusePolicy ?? "repeat",
-        origin: parsed.data.origin ?? (parsed.data.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
+        reuseKey: need.reuseKey ?? `${need.role}-${need.subject}`,
+        semanticCategory: need.semanticCategory ?? inferSemanticCategory(need.subject, need.role),
+        semanticTags: need.semanticTags ?? [],
+        slotCount: need.slotCount ?? 1,
+        reusePolicy: need.reusePolicy ?? "repeat",
+        // The user's own identity is the one kind of person or logo that no stock image can stand in for.
+        origin: userIdentity
+          ? "user_specified"
+          : need.origin ?? (need.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
       };
     })
     .filter((item): item is NonNullable<ScreenPlan["assetNeeds"]>[number] => Boolean(item));

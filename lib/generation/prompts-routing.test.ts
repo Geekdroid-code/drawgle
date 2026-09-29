@@ -229,6 +229,14 @@ describe("state-scoped prompt construction", () => {
     expect(style).toContain("the plan names structure and intent, never values");
   });
 
+  it("plans sample people and pets as photos and flags only the user's own identity", () => {
+    for (const mode of modes) {
+      const instruction = plannerScreenBriefStepInstruction(mode);
+      expect(instruction).toContain("Sample people and pets (family members, pet profiles, team avatars) are planned like any other photo: role avatar, assetType photo, desiredAspectRatio 1:1.");
+      expect(instruction).toContain("Set userIdentity true only for the signed-in user's own face or their brand's logo, which only they can supply.");
+    }
+  });
+
   it("gives a style reference the art direction instead of a second creative direction", () => {
     const withReference = plannerBlueprintStepInstruction("style", { referenceDrivesDirection: true });
     const withoutReference = plannerBlueprintStepInstruction("style");
