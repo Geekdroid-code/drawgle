@@ -144,7 +144,8 @@ When navigation is enabled, design is REQUIRED and must use this shape:
   "icon_size_px": "integer 16-26",
   "border": "boolean",
   "elevation": "none | low | medium",
-  "center_action_item_id": "matching item id only for a true center action, otherwise null"
+  "center_action_item_id": "matching item id only for a true center action, otherwise null",
+  "inactive_treatment": "plain | well (well draws other destinations as circular icon wells)"
 }`;
 
 const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
@@ -297,8 +298,10 @@ ${plannerBlueprintModeRules(mode)}
 const plannerScreenModeRule = (mode: GenerationPromptMode) => mode === "recreate"
   ? `- Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. In recreate collages, map visible screens left-to-right unless instructed otherwise. A visible structural-reference state may set explicitly_requested and default_selected true. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.`
   : mode === "style"
-    ? `- Mode cues: style mode needs at least 3 borrowed visual invariants from material, typography, edge/depth, iconography, or density. reference_transfer.layout_source MUST be "screen-purpose". Put source-only section order, component topology, hero scaffolds, connector/decorative systems, and object positions in reject unless the target screen's task independently requires them. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.`
-    : `- Mode cues: prompt-only mode needs at least 3 concrete cues traceable to the user brief and Creative Direction, including one product-specific composition or component-construction decision. Do not claim that any cue was observed in an image.`;
+    ? `- Mode cues: style mode needs at least 3 borrowed visual invariants from material, typography, edge/depth, iconography, or density. reference_transfer.layout_source MUST be "screen-purpose". Put source-only section order, component topology, hero scaffolds, connector/decorative systems, and object positions in reject unless the target screen's task independently requires them. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.
+- The builder sees the reference image and owns visual treatment. In PREMIUM DESIGN DECISIONS, say which reference devices this screen uses and for which content (its focal device, control vocabulary such as chips, icon wells, or sliders, and its depth treatment). Say what must stand out, never how to decorate it: do not prescribe colored side borders, stripe indicators, or outlined boxes the reference does not show.`
+    : `- Mode cues: prompt-only mode needs at least 3 concrete cues traceable to the user brief and Creative Direction, including one product-specific composition or component-construction decision. Do not claim that any cue was observed in an image.
+- Say what must stand out, never how to decorate it: do not prescribe colored side borders, stripe indicators, or outlined boxes for status or priority.`;
 
 export const plannerScreenBriefStepInstruction = (mode: GenerationPromptMode) => `${buildPlannerModeInstruction(mode)}
 
@@ -445,6 +448,10 @@ Return strictly valid JSON in this format after inspecting the image with an exp
     "anatomy": "floating-dock",
     "geometry": "Observed width, height, inset, radius, padding, and item spacing.",
     "labels": "always",
+    "activeTreatment": "icon-fill | tint | underline | compact-chip",
+    "inactiveTreatment": "plain | well",
+    "width": "content | inset | full",
+    "material": "solid | translucent | glass",
     "activeState": "Observed active icon, label, fill, indicator, and contrast treatment.",
     "elevation": "Observed border, shadow, blur, or attached-surface treatment.",
     "safeAreaRelationship": "Observed distance from bottom edge and home indicator.",
@@ -497,7 +504,7 @@ Rules:
 - Structural language: use precise terms such as surface, layer, container, group, control, content cluster, media plane, navigation surface, overlay, text group, icon well, chart plane, map plane, and floating affordance. Do not flatten nested/grouped UI into generic "card/header/list/section/panel/button"; describe wrappers and children separately.
 - Arrangement: explain row/column/grid/stack/absolute/floating layout, alignment, gaps, padding, insets, overlap, clipping, anchors, top/middle/bottom regions, proportions, active states, icon/label treatment, repeated motifs, and parent-child rebuild structure. Use approximate px-like values when helpful; do not invent false precision.
 - Material/depth: describe overlap, layering, floating surfaces, bottom sheets, tabs, charts, gauges, avatar stacks, map regions, large type, image cutouts, control bars, CTA construction, shadow color/blur/spread, border visibility, surface finish, and light interaction. Avoid vague labels like "soft shadow", "modern glass", or "modern UI" unless immediately explained by observable anatomy.
-- Navigation: populate primaryNavigation from visible evidence only. Capture item count/order, labels, icon meaning, repeated-shell evidence, per-screen active item, supported anatomy, geometry, label rhythm, active-state shape, elevation, and safe-area relationship. Use present false when no persistent primary navigation is visible.
+- Navigation: populate primaryNavigation from visible evidence only. Capture item count/order, labels, icon meaning, repeated-shell evidence, per-screen active item, supported anatomy, geometry, label rhythm, active-state shape, elevation, and safe-area relationship. activeTreatment compact-chip means the active destination sits in a filled chip or capsule; inactiveTreatment well means the other destinations sit in circular icon wells. Use present false when no persistent primary navigation is visible.
 - Charts/maps/media: name constructed geometry such as bars, route curves, grid blocks, pins, sheets, overlays, legends, rings, gauges, crops/cutouts; capture container height, padding, clipping, bounds, labels/axes, and breathing room to avoid empty or clipped visuals.
 - Truthfulness/placeholders: do not invent hidden screens, unseen features, backend behavior, or micro-details. Use placeholders only for volatile literal values; preserve visible layout anchors that affect composition.
 - Detail budget: length follows visual density. Rich references need detailed implementationNotes, stylingCues, and components; minimal references stay shorter but precise.
@@ -549,6 +556,19 @@ Return strictly valid JSON in this format:
       "sourceScreenIndex": 1
     }
   ],
+  "primaryNavigation": {
+    "present": true,
+    "anatomy": "fixed-tab-rail | floating-dock | glass-dock | compact-icon-rail | center-action-dock",
+    "labels": "always | active-only | hidden",
+    "activeTreatment": "icon-fill | tint | underline | compact-chip",
+    "inactiveTreatment": "plain | well",
+    "width": "content | inset | full",
+    "material": "solid | translucent | glass",
+    "geometry": "Observed height, inset, radius, padding, and item spacing",
+    "activeState": "Observed active icon, label, fill, and contrast treatment",
+    "elevation": "Observed border, shadow, blur, or attached-surface treatment",
+    "safeAreaRelationship": "Observed distance from the bottom edge"
+  },
   "designSystemSignals": {
     "palette": "Reusable palette and accent behavior",
     "typography": "Reusable font personality, scale, and emphasis behavior",
@@ -577,6 +597,7 @@ Rules:
 - Extract reusable layout instincts without cloning coordinates: content rail width, safe-area handling, section rhythm, card/internal padding relationship, bottom-nav clearance, media/chart breathing room, and overflow avoidance.
 - For charts, maps, media, or large visuals, describe the reusable treatment: geometry style, crop behavior, label density, axis/legend subtlety, container padding, clipping discipline, and how the visual remains legible inside a mobile viewport.
 - Name anti-patterns to avoid when applying this style to another product, such as flattening layered surfaces, using generic gray cards, overusing the accent color, making all cards equal weight, or turning crafted navigation into a default tab bar.
+- primaryNavigation records how the visible persistent navigation is built, in the vocabulary above: compact-chip means the active destination sits in a filled chip or capsule; well means the other destinations sit in circular icon wells; content width means the bar hugs its items. Its destinations are not reusable. Return {"present": false} when no persistent navigation is visible.
 - Identify what would make another product feel similarly premium without making it a clone.
 - The downstream planner and builder will create app-specific layouts from the user prompt, so your analysis must separate visual craft from layout template.`;
 
@@ -1013,6 +1034,30 @@ const hasChartBuildIntent = ({
     || /\b(?:bar\s+(?:chart|graph|plot|visuali[sz]ation)|(?:chart|graph|plot)\s+bars?|bars?\s+in\s+(?:this\s+)?(?:chart|graph|plot))\b/i.test(text);
 };
 
+/**
+ * The designer's thought process the builder applies before writing HTML.
+ * Constraints elsewhere keep a screen valid; this is what makes it good.
+ * Recreate mode reproduces the source, so it has no design latitude to steer.
+ */
+const buildDesignThinking = (mode: GenerationPromptMode) => {
+  if (mode === "recreate") return "";
+  const source = mode === "style" ? "the reference" : "the creative direction";
+  return [
+    "DESIGN THINKING (work through this silently before writing HTML):",
+    mode === "style"
+      ? "1. Read the reference as its designer would. Name its signature moves to yourself: the focal device (for example one saturated accent block, an oversized display line, or a layered stack), how surfaces separate (tone, soft elevation, and blur rather than lines), its control vocabulary (chips with counts, circular icon wells, sliders, capsules, avatar stacks), and its type contrast."
+      : "1. Read the creative direction and tokens as a designer would. Commit to this product's signature moves: one focal device, how surfaces separate (tone and soft elevation rather than lines), a small control vocabulary, and a clear type contrast.",
+    `2. Give this screen one focal element for its main job and build it with ${source}'s focal device. Everything else recedes through size, tone, and spacing.`,
+    `3. Wherever this screen needs a filter, secondary action, status, progress, or completion control, use ${source}'s version of that control instead of a stock widget.`,
+    "4. Build hierarchy from scale, weight, and tone with at most three levels. Group content into calm islands: generous space between groups, tight spacing inside them.",
+    "5. Show status and priority with small devices (chips, dots, tinted pills, icons), never with colored side borders or edge stripes.",
+    mode === "style"
+      ? "6. Final check: would this screen sit next to the reference as the same product by the same designer? Redesign any region that looks like a generic admin template."
+      : "6. Final check: would a design lead ship this in a premium app today? Redesign any region that looks like a generic admin template.",
+    `Avoid these dated habits unless ${source} explicitly shows them: colored left or side borders on cards and rows; stacks of identical white cards with equal weight; divider lines under every row; outlined boxes around every section; many competing status colors; heavy shadows on every surface.`,
+  ].join("\n");
+};
+
 const stripRendererOwnedNavigationFromBrief = (description: string) => {
   const navAnatomyPattern = /\b(?:bottom[-\s]*(?:tabs?|nav(?:igation)?|bar)|tab\s*bar|footer\s*nav(?:igation)?|floating\s+(?:dock|nav(?:igation)?|tab)|navigation\s+(?:dock|pill|bar|surface|shell)|dock\s+navigation|shared\s+shell\s+simulation|primary\s+navigation\s+shell)\b/i;
   const protectedLines = description
@@ -1077,11 +1122,10 @@ const buildScreenInstruction = ({
     : mode === "style"
       ? [
         "MODE CONTRACT: STYLE_REFERENCE. The application has confirmed reusable visual evidence from an attached image, approved style contract, or project reference memory.",
-        "Build from the screen brief, charter, navigation plan, creative direction, and tokens.",
-        "When a style reference image is attached, inspect it directly as visual evidence and preserve its material quality, shadows, radii, typography character, color rhythm, icon weight, navigation feel, component construction, density, and illustration character.",
-        "An inferred screen brief can describe a different page tint or decorative card border. Keep that screen's task and information hierarchy, but follow the actual reference and project tokens for the visual system. Do not add colored leading borders to ordinary cards or change the page background per route unless explicit user requirements or the reference support it.",
-        "Use the written reference analysis as a construction contract, but prefer observable image evidence when prose is vague.",
-        "Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
+        "Authority: the Screen Description decides what this screen does (its job, content, information hierarchy, states and interactions). The reference decides how it looks (material, depth, color rhythm, typography character, icon weight, control vocabulary and component craft).",
+        "When a style reference image is attached, it is the strongest evidence: inspect it directly and prefer it over any prose that describes it. Without an image, use the style contract, reference analysis and project memory.",
+        "When the Screen Description prescribes a visual device the reference does not use, such as a page tint, a colored or decorative border, an outlined box or a stock control, build that region with the reference's own devices and the project tokens instead.",
+        "The reference is a different screen with a different job. Transfer its design language to this screen's own structure. Do not clone a curated or uploaded style screenshot's domain content, section order, object positions, or full layout anatomy.",
       ].join(" ")
       : [
         "MODE CONTRACT: PROMPT_ONLY. The application has confirmed that no reference image or style contract exists for this invocation. Do not invent image-observed details.",
@@ -1104,10 +1148,12 @@ ${mode === "recreate" && screenPlan.referenceScreenIndex && screenPlan.reference
 ${chartBuildInstruction}
 ${modeInstruction}
 
+${buildDesignThinking(mode)}
+
 CRITICAL INSTRUCTION 0: SCREEN SPEC FIDELITY
-Treat Screen Description as a concrete implementation spec, not loose inspiration.
+Treat Screen Description as a concrete spec for this screen's job, content, hierarchy, and interactions, not loose inspiration. In style mode, its visual prescriptions yield to the reference as stated in the mode contract.
 Before using it, reconcile it against REFERENCE TRANSFER CONTRACT. If a brief or project-memory phrase asks for a rejected source motif, the reject rule wins: redesign that region from the target screen's user task while preserving the approved visual invariants.
-In style mode, family resemblance MUST come from tokens, typography, materials, iconography, density, and interaction tone, not repeated section order, card topology, connector lines, hero scaffolds, or decorative geometry from another screen.
+In style mode, family resemblance comes from the reference's design language (materials, typography, color rhythm, iconography, control vocabulary, focal devices, and density) applied to this screen's own structure, never from repeating another screen's section order or page scaffold.
 The target screen's content model owns composition: conversations should be designed as conversations, forms as forms, editorial feeds as reading systems, maps as spatial tools, and dashboards as decision surfaces.
 
 If it describes relative placement, overlap, floating surfaces, nested containment, bottom sheets, large typography, map backgrounds, charts, progress rings, segmented controls, avatar stacks, icon/text groups, edge treatments, bevels, glass/frosting, or CTA construction, you MUST recreate those details faithfully.

@@ -7,21 +7,22 @@ import type { PromptImagePayload, ReferenceMode } from "@/lib/types";
 export const shouldAttachReferenceImage = ({
   engineVersion,
   screenGuidance = false,
-  familyAnchor = false,
+  projectReference = false,
   image,
   referenceMode,
 }: {
   engineVersion: "v1" | "v2";
   screenGuidance?: boolean;
-  familyAnchor?: boolean;
+  projectReference?: boolean;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
 }) => {
-  // One first-screen style anchor lets the builder see the actual visual
-  // evidence. Later siblings use the accepted family, avoiding repeated image
-  // input and layout copying across the whole batch.
+  // The builder is the only step that turns pixels into UI, so every screen of
+  // a project built from a style reference sees it: prose summaries lose the
+  // design decisions that make the reference premium. The builder instructions
+  // keep each layout screen-specific, and a 1024px image is about 1k tokens.
   return (referenceMode === "user_recreate" || screenGuidance
-    || (familyAnchor && engineVersion === "v2"
+    || (projectReference && engineVersion === "v2"
       && (referenceMode === "curated_style" || referenceMode === "user_style")))
     && Boolean(image);
 };

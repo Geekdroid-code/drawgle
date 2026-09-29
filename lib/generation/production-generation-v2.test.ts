@@ -113,13 +113,13 @@ describe("production generation V2 contracts", () => {
     expect(result.validationIssues).toContain("screenCountEstimate must equal the number of screenReferences entries.");
   });
 
-  it("uses style pixels only for the first family anchor", () => {
+  it("uses style pixels for every screen of a project-scope build", () => {
     expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "user_style" })).toBe(false);
     expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "curated_style" })).toBe(false);
-    expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "curated_style", familyAnchor: true })).toBe(true);
-    expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "user_style", familyAnchor: true })).toBe(true);
-    expect(shouldAttachReferenceImage({ engineVersion: "v1", image, referenceMode: "user_style", familyAnchor: true })).toBe(false);
-    expect(shouldAttachReferenceImage({ engineVersion: "v2", referenceMode: "curated_style", familyAnchor: true })).toBe(false);
+    expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "curated_style", projectReference: true })).toBe(true);
+    expect(shouldAttachReferenceImage({ engineVersion: "v2", image, referenceMode: "user_style", projectReference: true })).toBe(true);
+    expect(shouldAttachReferenceImage({ engineVersion: "v1", image, referenceMode: "user_style", projectReference: true })).toBe(false);
+    expect(shouldAttachReferenceImage({ engineVersion: "v2", referenceMode: "curated_style", projectReference: true })).toBe(false);
     expect(shouldAttachReferenceImage({ engineVersion: "v1", image, referenceMode: "user_style" })).toBe(false);
     expect(shouldAttachReferenceImage({ engineVersion: "v1", image, referenceMode: "user_recreate" })).toBe(true);
   });

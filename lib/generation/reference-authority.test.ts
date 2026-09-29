@@ -25,11 +25,11 @@ describe("reference authority", () => {
     state.phase = "canvas";
     expect(productReferenceExecution(state)).toMatchObject({ policy: "project_reference", mode: "user_style", source: "project_upload" });
   });
-  it("passes style pixels only for explicit local guidance or the first family anchor", () => {
+  it("passes style pixels for explicit local guidance and every project-scope screen, never for inherited canvas references", () => {
     const input = { engineVersion: "v2" as const, referenceMode: "user_style" as const, image: { data: "pixels", mimeType: "image/png" } };
     expect(shouldAttachReferenceImage(input)).toBe(false);
     expect(shouldAttachReferenceImage({ ...input, screenGuidance: true })).toBe(true);
-    expect(shouldAttachReferenceImage({ ...input, familyAnchor: true })).toBe(true);
+    expect(shouldAttachReferenceImage({ ...input, projectReference: true })).toBe(true);
     expect(shouldAttachReferenceImage({ ...input, referenceMode: "user_recreate" })).toBe(true);
   });
 });

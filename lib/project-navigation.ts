@@ -172,6 +172,7 @@ export function normalizeNavigationDesignContract(
     centerActionItemId: typeof candidate.centerActionItemId === "string" && candidate.centerActionItemId.trim()
       ? slugify(candidate.centerActionItemId, "")
       : null,
+    inactiveTreatment: candidate.inactiveTreatment === "well" ? "well" : "plain",
   };
 }
 const disabledNavigationPlan = (
@@ -218,8 +219,24 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const centerActionItemId = design.anatomy === "center-action-dock"
     ? design.centerActionItemId ?? navItems[Math.floor(itemCount / 2)]?.id ?? null
     : null;
+  // Active-only labels on a chip is the expanding-capsule pattern: the active
+  // destination is a capsule with its icon and label inline, the others are
+  // compact round targets. Equal grid cells cannot draw it.
+  const capsule = design.labels === "active-only" && design.activeTreatment === "compact-chip"
+    && design.anatomy !== "fixed-tab-rail" && design.anatomy !== "center-action-dock";
 
-  const anatomyLayout = (() => {
+  const anatomyLayout = capsule ? {
+    key: "expanding-capsule",
+    width: design.width === "content" ? "fit-content" : design.width === "full" ? "100%" : "calc(100% - 32px)",
+    height: "64px",
+    margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
+    padding: "8px",
+    radius: design.radiusPx >= 24 ? "var(--dg-radii-pill,9999px)" : `var(--dg-radii-app,${design.radiusPx}px)`,
+    innerDisplay: `flex;justify-content:${design.width === "content" ? "center" : "space-between"}`,
+    itemDirection: "row",
+    itemPadding: "0",
+    iconBox: 48,
+  } : (() => {
     switch (design.anatomy) {
       case "fixed-tab-rail":
         return {
@@ -314,6 +331,17 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const activeOnlyCss = design.labels === "active-only"
     ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-label{display:block;}"
     : "";
+  const capsuleCss = capsule
+    ? [
+        "[data-drawgle-primary-nav] .dg-nav-item{flex:0 0 auto;width:48px;height:48px;border-radius:var(--dg-radii-pill,9999px);}",
+        "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{width:auto;padding:0 18px 0 14px;gap:8px;}",
+        "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-icon{height:auto;width:auto;flex-basis:auto;background:transparent;box-shadow:none;}",
+        "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-label{max-width:112px;font-size:14px;font-weight:600;line-height:1.1;}",
+      ].join("")
+    : "";
+  const wellCss = design.inactiveTreatment === "well"
+    ? "[data-drawgle-primary-nav] .dg-nav-item:not([data-active=\"true\"]) .dg-nav-icon{background:color-mix(in srgb,var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8)) 7%,var(--dg-navigation-surface,var(--dg-color-surface-card,#fff)));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--dg-navigation-border,var(--dg-color-border-divider,#e5e7eb)) 90%,transparent);}"
+    : "";
   const activeCss = design.activeTreatment === "underline"
     ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]::after{content:\"\";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
     : design.activeTreatment === "compact-chip"
@@ -351,6 +379,8 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     `[data-drawgle-primary-nav] .dg-nav-label{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;${labelCss}}`,
     activeOnlyCss,
     activeCss,
+    capsuleCss,
+    wellCss,
     "[data-drawgle-primary-nav] .dg-nav-item-center-action{transform:translateY(-14px);overflow:visible;}",
     "[data-drawgle-primary-nav] .dg-nav-item-center-action .dg-nav-icon{height:48px;width:48px;flex-basis:48px;border:5px solid var(--dg-navigation-surface,var(--dg-color-surface-card,#fff));box-shadow:0 8px 20px rgba(15,23,42,.16);background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}",
     "</style>",
@@ -438,6 +468,35 @@ export function applyReferenceNavigationRolesToScreens(
 
     return { ...screen, type: "root" as const };
   });
+}
+
+/**
+ * A reference's visible navigation decides how the shared navigation is
+ * built; the product still decides its destinations. Used for style
+ * references, whose navigation is craft evidence rather than architecture.
+ */
+export function applyReferenceNavigationStyle(
+  navigationPlan: NavigationPlan,
+  evidence?: ReferenceAnalysis["primaryNavigation"],
+): NavigationPlan {
+  if (!navigationPlan.enabled || !evidence?.present) return navigationPlan;
+  const base = normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief);
+  const observed = [evidence.geometry, evidence.activeState, evidence.elevation].join(". ");
+  const design: NavigationDesignContract = {
+    ...base,
+    anatomy: evidence.anatomy ?? base.anatomy,
+    labels: evidence.labels ?? base.labels,
+    activeTreatment: evidence.activeTreatment ?? base.activeTreatment,
+    inactiveTreatment: evidence.inactiveTreatment ?? base.inactiveTreatment,
+    width: evidence.width ?? base.width,
+    surface: evidence.material ?? base.surface,
+    centerActionItemId: evidence.anatomy === "center-action-dock" ? base.centerActionItemId : null,
+  };
+  return {
+    ...navigationPlan,
+    design: normalizeNavigationDesignContract(design, navigationPlan.visualBrief),
+    visualBrief: `Built like the reference navigation: ${observed}`.slice(0, 600),
+  };
 }
 
 export function deriveReferenceNavigationPlan({

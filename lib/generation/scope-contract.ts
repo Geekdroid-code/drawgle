@@ -86,6 +86,11 @@ const readField = (record: Record<string, unknown>, keys: string[]) => {
   return undefined;
 };
 
+const oneOf = <T extends string>(value: unknown, allowed: readonly T[]): T | null =>
+  typeof value === "string" && (allowed as readonly string[]).includes(value.trim().toLowerCase())
+    ? value.trim().toLowerCase() as T
+    : null;
+
 const textField = (record: Record<string, unknown>, keys: string[], fallback: string, maxLength: number) => {
   const value = readField(record, keys);
   if (typeof value !== "string") {
@@ -606,6 +611,12 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
               itemIndex: clampScopeScreenCount(readField(entry, ["itemIndex", "item_index"])),
             }))
           : [],
+        activeTreatment: oneOf(readField(primaryNavigationRecord, ["activeTreatment", "active_treatment"]),
+          ["icon-fill", "tint", "underline", "compact-chip"] as const),
+        inactiveTreatment: oneOf(readField(primaryNavigationRecord, ["inactiveTreatment", "inactive_treatment"]),
+          ["plain", "well"] as const),
+        width: oneOf(readField(primaryNavigationRecord, ["width", "widthMode", "width_mode"]), ["content", "inset", "full"] as const),
+        material: oneOf(readField(primaryNavigationRecord, ["material"]), ["solid", "translucent", "glass"] as const),
       }
     : null;
   const rawCount = readField(raw, ["screenCountEstimate", "screen_count_estimate", "visibleScreenCount", "visible_screen_count", "screenCount", "screen_count"]);

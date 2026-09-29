@@ -36,7 +36,7 @@ import { runProposalPlanner, type PlanningRequest } from "./proposal-runner";
 import type { FunctionalItem } from "./functional-plan";
 import { projectDesignTaskIdentity } from "./project-design-task";
 import { enqueueScopePreparation } from "./scope-preparation-task";
-import { progressiveGenerationEnabled } from "./generation-flags";
+import { scopePreparationEnabled } from "./generation-flags";
 import { proposalPlannerEnabled } from "./planner-mode";
 
 export async function runProductDesigner({ admin, projectId, ownerId, prompt, originalPrompt, image, imageReferenceMode = "style", clientTurnId, productAnswers, initialize = false, resumeReview = false, existingUserMessageId, onTrace, enqueueMemory = true }: {
@@ -525,7 +525,7 @@ export async function runProductDesigner({ admin, projectId, ownerId, prompt, or
     await persist({ ...state, initialTurnComplete: true, lease: null });
     await enqueueProjectDesign();
     if (state.scope?.status === "proposed" && state.phase === "discovery"
-      && progressiveGenerationEnabled()) {
+      && scopePreparationEnabled()) {
       await tasks.trigger("prepare-product-scope", { projectId, ownerId, contentRevision: state.contentRevision ?? 0,
         queuedAt: new Date().toISOString() }, {
         idempotencyKey: `scope-preparation:${projectId}:${state.contentRevision ?? 0}`,

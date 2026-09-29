@@ -190,8 +190,8 @@ export function createReferenceTransferContract({
       ], 8),
       reject: unique([
         ...rejected.map((decision) => `${decision.primitiveId}: ${decision.rationale}`),
-        "Do not reuse any reference screen's section order, object positions, or role-specific component arrangement.",
-        "Do not repeat a source decorative motif, connector, hero scaffold, or card topology unless a suitability decision explicitly approves its underlying function.",
+        "Do not reuse any reference screen's section order, object positions, or domain content.",
+        "Do not copy a source connector, decorative motif, or hero scaffold as page structure. Its focal devices and components may be reused wherever this screen's own job needs them.",
       ], 10),
       rationale: "Style-reference mode transfers visual craft and suitable composition logic; the target screen's user job owns layout, geometry, and information architecture.",
       ...semanticPlan,

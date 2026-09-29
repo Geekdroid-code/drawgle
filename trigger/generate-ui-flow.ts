@@ -20,7 +20,7 @@ import { indexScreenCode } from "@/lib/generation/block-index";
 import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
 import { runRollingBuilds } from "@/lib/generation/build-scheduler";
 import { acceptedScreenFamily } from "@/lib/generation/accepted-screen-family";
-import { inspectScreenViewport } from "@/lib/generation/viewport-health";
+import { inspectScreenViewport, type ViewportIssue } from "@/lib/generation/viewport-health";
 import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
@@ -293,7 +293,7 @@ const recordPerformanceAiUsage = (
 type GenerationAttemptDiagnostics = {
   attempt: number;
   task: "screen_build";
-  retryReason: "initial" | "completion_retry" | "structural_retry" | "viewport_repair";
+  retryReason: "initial" | "completion_retry" | "structural_retry";
   streamed: boolean;
   model: string;
   maxOutputTokens: number | null;
@@ -323,6 +323,8 @@ type GenerationAttemptDiagnostics = {
   navigationClearanceAmbiguousOwnerCount: number;
   htmlNormalized: boolean;
   htmlParseErrors: string[];
+  viewportIssues?: ViewportIssue[];
+  viewportInspection?: "unavailable";
 };
 
 const collectUsageMetadata = (chunk: unknown, usage: GeminiUsageMetadata) => {
@@ -1641,11 +1643,11 @@ export const buildScreenTask = task({
       });
     }
 
-    let assetHydration = hydrateScreenAssetSlots({
+    const assetHydration = hydrateScreenAssetSlots({
       code: finalized.code,
       assetManifest: payload.assetManifest,
     });
-    let assetSanitization = sanitizeScreenAssetUsage({
+    const assetSanitization = sanitizeScreenAssetUsage({
       code: assetHydration.code,
       assetManifest: payload.assetManifest,
     });
@@ -1681,10 +1683,10 @@ export const buildScreenTask = task({
       });
     }
 
-    let health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
-    let assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
+    const health = detectScreenHealth({ code, screenPrompt: payload.screenPlan.description });
+    const assetPolicy = validateScreenAssetPolicy({ code, assetManifest: payload.assetManifest });
     let blockIndex = indexScreenCode(code);
-    let screenStatus = screenStatusForHealth(health);
+    const screenStatus = screenStatusForHealth(health);
 
     logger.info("Screen generation diagnostics", {
       screenId: payload.screenId,
@@ -1748,65 +1750,6 @@ export const buildScreenTask = task({
           health,
         },
       });
-    }
-    if (progressiveGenerationEnabled() && payload.referenceMode !== "user_recreate") {
-      const viewportInput = (candidate: string) => ({ code: candidate, tokens: payload.designTokens ?? null,
-        navigationPlan: payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId
-          ? payload.navigationPlan ?? null : null,
-        navigationItemId: payload.screenPlan.navigationItemId ?? null });
-      const sharedNavigationActive = Boolean(payload.navigationPlan?.enabled
-        && (payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId));
-      const viewportIssues = await inspectScreenViewport(viewportInput(code));
-      if (sharedNavigationActive && localNavigation.hasLocalNavigation) viewportIssues.push({
-        width: 390, height: 844, code: "duplicate_navigation",
-        detail: "The screen contains its own primary navigation as well as the shared shell.",
-      });
-      if (viewportIssues.length) {
-        let viewportAccepted = false;
-        const repairPlan: ScreenPlan = { ...payload.screenPlan, description: [payload.screenPlan.description,
-          "VIEWPORT GEOMETRY REPAIR ONLY: Preserve the same screen task, content, visual family, and asset slots. Fix these measured mobile defects at 390x844 and 320x640:",
-          JSON.stringify(viewportIssues),
-          "Return complete static HTML ending with <!-- DRAWGLE_GENERATION_COMPLETE -->. Correct the previous source rather than redesigning the screen:",
-          code,
-        ].join("\n\n") };
-        const repaired = await collectNonStreamingScreenBuild({ ...buildPayload, projectContext: null }, repairPlan);
-        const repairedCompletion = validateSourceCompletion({ code: repaired.extractedCode, requireSentinel: true,
-          finishReasons: repaired.finishReasons });
-        attempts.push(buildAttemptDiagnostics({ attempt: attempts.length + 1, retryReason: "viewport_repair",
-          streamed: false, build: repaired, completion: repairedCompletion }));
-        if (repairedCompletion.valid) {
-          const normalized = normalizeStaticDrawgleHtml(stripGenerationCompleteSentinel(repaired.extractedCode));
-          if (normalized.valid) {
-            const sanitized = sanitizeStaticDrawgleHtml(normalized.code);
-            const staticCheck = validateStaticDrawgleHtml({ code: sanitized.code, requireSingleScreenRoot: true });
-            const qualityCheck = validateGeneratedScreenCode({ code: sanitized.code, screenPlan: payload.screenPlan });
-            if (staticCheck.valid && qualityCheck.valid) {
-              const repairedCode = finalizeGeneratedCode(sanitized.code).code;
-              const repairedHydration = hydrateScreenAssetSlots({ code: repairedCode, assetManifest: payload.assetManifest });
-              const repairedAssets = sanitizeScreenAssetUsage({ code: repairedHydration.code, assetManifest: payload.assetManifest });
-              const repairedHealth = detectScreenHealth({ code: repairedAssets.code, screenPrompt: payload.screenPlan.description });
-              const repairedPolicy = validateScreenAssetPolicy({ code: repairedAssets.code, assetManifest: payload.assetManifest });
-              if (!isBlockingScreenHealthFailure(repairedHealth) && repairedPolicy.valid
-                && (!sharedNavigationActive || !detectLocalNavigationMarkup(repairedAssets.code).hasLocalNavigation)
-                && (await inspectScreenViewport(viewportInput(repairedAssets.code))).length === 0) {
-                code = repairedAssets.code;
-                assetHydration = repairedHydration;
-                assetSanitization = repairedAssets;
-                health = repairedHealth;
-                assetPolicy = repairedPolicy;
-                blockIndex = indexScreenCode(code);
-                screenStatus = screenStatusForHealth(health);
-                viewportAccepted = true;
-              }
-            }
-          }
-        }
-        if (!viewportAccepted) {
-          await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
-          return failAfterSavingGeneratedCode({ error: "[screen_generation:viewport] Mobile layout failed a measured viewport check after one repair. Retry this screen; the previous accepted design is preserved.",
-            code, blockIndex, metadata: { attempts, viewportIssues } });
-        }
-      }
     }
     // Persist the final code directly so the parent only polls for status.
     const summary =
@@ -1928,14 +1871,52 @@ export const buildScreenTask = task({
       };
     }
 
-    await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
-
     const topChromeEvidence = extractTopChromeContinuityEvidence({
       screenName: payload.screenPlan.name,
       chromeKind: payload.screenPlan.chromePolicy?.chrome,
       code,
       blockIndex,
     });
+
+    // Rendered mobile geometry is measured after the screen is saved and kept
+    // as diagnostics. It never pays for a rebuild or rejects a paid screen, and
+    // a fault in the measuring browser cannot discard finished output.
+    if (progressiveGenerationEnabled() && payload.referenceMode !== "user_recreate") {
+      const latestAttempt = attempts.at(-1);
+      const showsSharedNavigation = Boolean(
+        payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId,
+      );
+      try {
+        const viewportIssues = await inspectScreenViewport({
+          code,
+          tokens: payload.designTokens ?? null,
+          navigationPlan: showsSharedNavigation ? payload.navigationPlan ?? null : null,
+          navigationItemId: payload.screenPlan.navigationItemId ?? null,
+        });
+        if (payload.navigationPlan?.enabled && showsSharedNavigation && localNavigation.hasLocalNavigation) {
+          viewportIssues.push({
+            width: 390, height: 844, code: "duplicate_navigation",
+            detail: "The screen contains its own primary navigation as well as the shared shell.",
+          });
+        }
+        if (latestAttempt) latestAttempt.viewportIssues = viewportIssues;
+        if (viewportIssues.length > 0) {
+          logger.warn("Screen saved with measured viewport diagnostics", {
+            screenId: payload.screenId,
+            screenName: payload.screenPlan.name,
+            viewportIssues,
+          });
+        }
+      } catch (error) {
+        if (latestAttempt) latestAttempt.viewportInspection = "unavailable";
+        logger.warn("Viewport inspection unavailable; the saved screen is unaffected", {
+          screenId: payload.screenId,
+          error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+        });
+      }
+    }
+
+    await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
     logger.info("Top chrome continuity capture", {
       screenName: payload.screenPlan.name,
       chromeKind: payload.screenPlan.chromePolicy?.chrome ?? null,
@@ -1948,7 +1929,10 @@ export const buildScreenTask = task({
     await enrichScreenMemoryTask.trigger(
       { screenId: payload.screenId },
       { concurrencyKey: `screen-memory-${payload.screenId}` },
-    );
+    ).catch((error) => logger.warn("Screen memory refresh could not be queued; the saved screen is unaffected", {
+      screenId: payload.screenId,
+      error: error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300),
+    }));
 
     logger.info("Built screen", {
       screenId: payload.screenId,
@@ -3438,6 +3422,12 @@ export const generateUiFlowTask = task({
     }
 
     const screenEntries = screenPlans.map((screenPlan, index) => ({ screenPlan, index }));
+    // One normalized copy of the style reference serves every screen build.
+    let normalizedStyleReference: Promise<PromptImagePayload> | null = null;
+    const styleReferenceImage = (image: PromptImagePayload) => {
+      normalizedStyleReference ??= normalizeReferenceImage(image, "style").then((result) => result.image);
+      return normalizedStyleReference;
+    };
     const needsAcceptedAnchor = referenceMode !== "user_recreate" && payload.isNewProject === true;
     let anchorAttempted = false;
     await runRollingBuilds(screenEntries, async ({ screenPlan, index }) => {
@@ -3463,14 +3453,14 @@ export const generateUiFlowTask = task({
         if (currentRun.status === "canceled") return;
         const attachReferenceImage = shouldAttachReferenceImage({
           screenGuidance: screenScoped && referencePolicy === "user_upload",
-          familyAnchor: needsAcceptedAnchor && index === 0 && !screenScoped,
+          projectReference: !screenScoped,
           engineVersion: generationEngineVersion,
           image: promptImage,
           referenceMode,
         });
         const builderReferenceImage = attachReferenceImage && promptImage
-          ? needsAcceptedAnchor && index === 0 && referenceMode !== "user_recreate"
-            ? (await normalizeReferenceImage(promptImage, "style")).image
+          ? !screenScoped && referenceMode !== "user_recreate"
+            ? await styleReferenceImage(promptImage)
             : promptImage
           : null;
         generationJournal.screens = generationJournal.screens?.map((screen) =>
@@ -3554,7 +3544,7 @@ export const generateUiFlowTask = task({
             designTokens,
             image: builderReferenceImage,
             referenceScope,
-            sourceDetail: !screenScoped && attachReferenceImage && promptImage ? await loadSourceDetail(admin, payload.ownerId, promptImage, productPlanning?.experience, screenPlan.referenceScreenIndex ?? index + 1) : null,
+            sourceDetail: !screenScoped && referenceMode === "user_recreate" && attachReferenceImage && promptImage ? await loadSourceDetail(admin, payload.ownerId, promptImage, productPlanning?.experience, screenPlan.referenceScreenIndex ?? index + 1) : null,
             referenceMode,
             referenceSource,
             referenceId,
@@ -3668,142 +3658,29 @@ export const generateUiFlowTask = task({
           postBuildAssetOutcomes[screenPlan.name] = buildOutput.assetOutcomes;
         }
 
-        if (result?.status === "COMPLETED") {
-          const { data: completedScreen } = await admin
-            .from("screens")
-            .select("status, error, code")
-            .eq("id", screenId)
-            .maybeSingle();
+        // The saved row is the outcome. A builder that saved the screen and then
+        // failed on later bookkeeping still delivered it; a builder that crashed
+        // before saving did not, whatever its stream showed.
+        const { data: completedScreen } = await admin
+          .from("screens")
+          .select("status, error, code")
+          .eq("id", screenId)
+          .maybeSingle();
 
-          if (completedScreen?.status !== "ready") {
-            failedScreens += 1;
-            const completedScreenError = toUserFacingScreenError(
-              completedScreen?.error
-                ?? "Screen builder completed without a durably saved ready screen.",
-            );
-            await serializeSettlement(() => releaseGenerationCredit({
-              admin,
-              ownerId: payload.ownerId,
-              generationRunId: payload.generationRunId,
-              outputKey,
-              reason: completedScreenError,
-            })).catch((creditError) => logger.error("Failed to release rejected screen credit", {
-              outputKey,
-              error: creditError,
-            }));
-            await serializeSettlement(() => markRoadmapItemForScreen({
-              admin,
-              roadmapItemId: screenPlan.roadmapItemId,
-              screenId,
-              status: "failed",
-            })).catch((roadmapError) => logger.error("Failed to settle rejected screen roadmap item", {
-              outputKey,
-              error: roadmapError,
-            }));
-            // Only overwrite code when the child left placeholder/empty content.
-            // Never clobber generated HTML with a raw technical error card.
-            const { data: failedRow } = await admin
-              .from("screens")
-              .select("code, design_revision")
-              .eq("id", screenId)
-              .maybeSingle();
-            const existingCode = typeof failedRow?.code === "string" ? failedRow.code : "";
-            const looksLikeGeneratedHtml =
-              existingCode.includes("data-drawgle-id") ||
-              (existingCode.includes("<div") && !existingCode.includes("Generation failed"));
-            const failurePatch = buildScreenPersistPatch({
-              code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(completedScreenError),
-              status: "failed",
-              error: completedScreenError,
-            });
-            await admin
-              .from("screens")
-              .update(failurePatch)
-              .eq("id", screenId)
-              .eq("generation_run_id", payload.generationRunId)
-              .eq("design_revision", failedRow?.design_revision ?? -1)
-              .neq("status", "ready");
-            generationJournal.screens = generationJournal.screens?.map((screen) =>
-              screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
-            );
-            await postGenerationJournalSerial();
-
-            await postStatusMessage(
-              admin,
-              payload.projectId,
-              payload.ownerId,
-              humanizeScreenBuildFailure(screenPlan.name, completedScreenError),
-              "error",
-              {
-                generationRunId: payload.generationRunId,
-                screenName: screenPlan.name,
-                activityKey: screenBuildActivityKey(screenId),
-                error: completedScreenError,
-              },
-              screenId,
-            );
-          } else {
-            successfulScreens += 1;
-            capturedTopChromeEvidence = buildOutput?.topChromeEvidence ?? null;
-            if (!acceptedFamily && referenceMode !== "user_recreate" && typeof completedScreen.code === "string") {
-              acceptedFamily = acceptedScreenFamily(completedScreen.code, screenPlan.name,
-                plan.screenFamilyContract ?? plan.charter.referenceDna?.screenFamilyContract ?? null);
-            }
-            if (index === 0) {
-              await mergeGenerationPerformance(admin, payload.generationRunId, { firstReadyAt: now() });
-            }
-            if (screenPlan.roadmapItemId) successfulRoadmapItemIds.add(screenPlan.roadmapItemId);
-            readyParentScreenIds.set(parentRoadmapStableKey, screenId);
-            await serializeSettlement(() => captureGenerationCredit({
-              admin,
-              ownerId: payload.ownerId,
-              generationRunId: payload.generationRunId,
-              outputKey,
-              screenId,
-            })).catch((creditError) => logger.error("Screen was saved but credit capture will need reconciliation", {
-              outputKey,
-              screenId,
-              error: creditError,
-            }));
-            await serializeSettlement(() => markRoadmapItemForScreen({
-              admin,
-              roadmapItemId: screenPlan.roadmapItemId,
-              screenId,
-              status: "ready",
-            })).catch((roadmapError) => logger.error("Screen was saved but roadmap settlement failed", {
-              outputKey,
-              screenId,
-              error: roadmapError,
-            }));
-            generationJournal.screens = generationJournal.screens?.map((screen) =>
-              screen.name === screenPlan.name ? { ...screen, status: "ready" } : screen,
-            );
-            await postGenerationJournalSerial();
-
-            await postStatusMessage(
-              admin,
-              payload.projectId,
-              payload.ownerId,
-              `${screenPlan.name} ready`,
-              "generation_completed",
-              {
-                generationRunId: payload.generationRunId,
-                screenName: screenPlan.name,
-                activityKey: screenBuildActivityKey(screenId),
-              },
-              screenId,
-            );
-          }
-        } else {
+        if (completedScreen?.status !== "ready") {
           failedScreens += 1;
-          const message = toUserFacingScreenError(result?.error?.message ?? result?.error ?? "Unknown error");
+          const completedScreenError = toUserFacingScreenError(
+            completedScreen?.error
+              ?? result?.error?.message
+              ?? "Screen builder completed without a durably saved ready screen.",
+          );
           await serializeSettlement(() => releaseGenerationCredit({
             admin,
             ownerId: payload.ownerId,
             generationRunId: payload.generationRunId,
             outputKey,
-            reason: message,
-          })).catch((creditError) => logger.error("Failed to release unsuccessful screen credit", {
+            reason: completedScreenError,
+          })).catch((creditError) => logger.error("Failed to release rejected screen credit", {
             outputKey,
             error: creditError,
           }));
@@ -3812,14 +3689,12 @@ export const generateUiFlowTask = task({
             roadmapItemId: screenPlan.roadmapItemId,
             screenId,
             status: "failed",
-          })).catch((roadmapError) => logger.error("Failed to settle unsuccessful screen roadmap item", {
+          })).catch((roadmapError) => logger.error("Failed to settle rejected screen roadmap item", {
             outputKey,
             error: roadmapError,
           }));
-          generationJournal.screens = generationJournal.screens?.map((screen) =>
-            screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
-          );
-          await postGenerationJournalSerial();
+          // Only overwrite code when the child left placeholder/empty content.
+          // Never clobber generated HTML with a raw technical error card.
           const { data: failedRow } = await admin
             .from("screens")
             .select("code, design_revision")
@@ -3829,31 +3704,85 @@ export const generateUiFlowTask = task({
           const looksLikeGeneratedHtml =
             existingCode.includes("data-drawgle-id") ||
             (existingCode.includes("<div") && !existingCode.includes("Generation failed"));
+          const failurePatch = buildScreenPersistPatch({
+            code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(completedScreenError),
+            status: "failed",
+            error: completedScreenError,
+          });
           await admin
             .from("screens")
-            .update(
-              buildScreenPersistPatch({
-                code: looksLikeGeneratedHtml ? existingCode : buildErrorCode(message),
-                status: "failed",
-                error: message,
-              }),
-            )
+            .update(failurePatch)
             .eq("id", screenId)
             .eq("generation_run_id", payload.generationRunId)
             .eq("design_revision", failedRow?.design_revision ?? -1)
             .neq("status", "ready");
+          generationJournal.screens = generationJournal.screens?.map((screen) =>
+            screen.name === screenPlan.name ? { ...screen, status: "failed" } : screen,
+          );
+          await postGenerationJournalSerial();
 
           await postStatusMessage(
             admin,
             payload.projectId,
             payload.ownerId,
-            humanizeScreenBuildFailure(screenPlan.name, message),
+            humanizeScreenBuildFailure(screenPlan.name, completedScreenError),
             "error",
             {
               generationRunId: payload.generationRunId,
               screenName: screenPlan.name,
               activityKey: screenBuildActivityKey(screenId),
-              error: message,
+              error: completedScreenError,
+            },
+            screenId,
+          );
+        } else {
+          successfulScreens += 1;
+          capturedTopChromeEvidence = buildOutput?.topChromeEvidence ?? null;
+          if (!acceptedFamily && referenceMode !== "user_recreate" && typeof completedScreen.code === "string") {
+            acceptedFamily = acceptedScreenFamily(completedScreen.code, screenPlan.name,
+              plan.screenFamilyContract ?? plan.charter.referenceDna?.screenFamilyContract ?? null);
+          }
+          if (index === 0) {
+            await mergeGenerationPerformance(admin, payload.generationRunId, { firstReadyAt: now() });
+          }
+          if (screenPlan.roadmapItemId) successfulRoadmapItemIds.add(screenPlan.roadmapItemId);
+          readyParentScreenIds.set(parentRoadmapStableKey, screenId);
+          await serializeSettlement(() => captureGenerationCredit({
+            admin,
+            ownerId: payload.ownerId,
+            generationRunId: payload.generationRunId,
+            outputKey,
+            screenId,
+          })).catch((creditError) => logger.error("Screen was saved but credit capture will need reconciliation", {
+            outputKey,
+            screenId,
+            error: creditError,
+          }));
+          await serializeSettlement(() => markRoadmapItemForScreen({
+            admin,
+            roadmapItemId: screenPlan.roadmapItemId,
+            screenId,
+            status: "ready",
+          })).catch((roadmapError) => logger.error("Screen was saved but roadmap settlement failed", {
+            outputKey,
+            screenId,
+            error: roadmapError,
+          }));
+          generationJournal.screens = generationJournal.screens?.map((screen) =>
+            screen.name === screenPlan.name ? { ...screen, status: "ready" } : screen,
+          );
+          await postGenerationJournalSerial();
+
+          await postStatusMessage(
+            admin,
+            payload.projectId,
+            payload.ownerId,
+            `${screenPlan.name} ready`,
+            "generation_completed",
+            {
+              generationRunId: payload.generationRunId,
+              screenName: screenPlan.name,
+              activityKey: screenBuildActivityKey(screenId),
             },
             screenId,
           );
