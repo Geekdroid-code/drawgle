@@ -31,11 +31,26 @@ describe("evidence assessment boundary", () => {
     expect(assessment.gaps).toEqual([]);
     expect(evidenceAllowsProposal(assessment)).toBe(true);
   });
-  it("drops fabricated delegation after one internal repair without stopping prompt-only planning", async () => {
+  it("drops fabricated delegation without paying for another model call", async () => {
     mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, delegation: "Decide everything" }) });
     const result = await assessProductEvidence({ state: designerFixture(), prompt: "Premium", turnId: "turn", history: [], reference: null });
     expect(result).toMatchObject({ productReady: true, gaps: [], delegation: "" });
-    expect(mocks.generate).toHaveBeenCalledTimes(2);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+  });
+  it("normalizes long preview lines, odd keys and missing reasons instead of rejecting the assessment", async () => {
+    mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, productReady: false,
+      screenFlowPreview: ["Today: " + "see every chore for the whole family with who owns it and when it is due ".repeat(4)],
+      recommendations: [{ decisionKey: "Visual Style", recommendation: "Use warm neutrals", rationale: "" }],
+      gaps: [{ area: "product", decisionKey: "Home Entry!", decisionType: "screen_flow", question: "Which screen should families see first?",
+        consequence: "Changes the visible flow", choices: [{ label: "Today", description: "Today's chores" },
+          { label: "Family", description: "Each member" }, { label: "Calendar", description: "The week" }] }] }) });
+    const result = await assessProductEvidence({ state: designerFixture(), prompt: "Design a family chore app", turnId: "turn", history: [], reference: null });
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(result.screenFlowPreview?.[0].length).toBeLessThanOrEqual(180);
+    expect(result.recommendations?.[0]).toMatchObject({ decisionKey: "visual_style", recommendation: "Use warm neutrals" });
+    expect(result.gaps).toHaveLength(1);
+    expect(result.gaps[0]).toMatchObject({ decisionKey: "home_entry", requiresUserInput: true, whyUserMustDecide: "Changes the visible flow" });
+    expect(evidenceAllowsProposal(result)).toBe(false);
   });
   it("never returns a blocking question without renderable choices", async () => {
     mocks.generate.mockResolvedValue({ text: JSON.stringify({ ...ready, productReady: false, gaps: [{
@@ -45,7 +60,7 @@ describe("evidence assessment boundary", () => {
     }] }) });
     const result = await assessProductEvidence({ state: designerFixture(), prompt: "Design a family app", turnId: "turn", history: [], reference: null });
     expect(result).toMatchObject({ productReady: true, experienceReady: true, gaps: [] });
-    expect(mocks.generate).toHaveBeenCalledTimes(2);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
   it("keeps exact recreation strict when frame assessment cannot be validated", async () => {
     const state = designerFixture();
@@ -72,19 +87,25 @@ describe("evidence assessment boundary", () => {
     expect(result.modeChangeEvidence).toBe("");
     expect(result.gaps).toEqual([]);
   });
-  it("repairs invalid mode questions internally instead of showing them", async () => {
-    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ...ready, gaps: [{ area: "mode", question: "Recreate supplied images?", consequence: "Which mode?" }] }) })
-      .mockResolvedValueOnce({ text: JSON.stringify(ready) });
+  it("drops invalid mode questions without another model call", async () => {
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ...ready, gaps: [{ area: "mode", question: "Recreate supplied images?", consequence: "Which mode?" }] }) });
     const result = await assessProductEvidence({ state: designerFixture(), prompt: "My product", turnId: "turn", history: [], reference: null });
     expect(result.gaps).toEqual([]);
-    expect(mocks.generate).toHaveBeenCalledTimes(2);
-    expect(JSON.stringify(mocks.generate.mock.calls[1][0].contents)).toContain("authoritative referenceContext");
+    expect(evidenceAllowsProposal(result)).toBe(true);
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
   });
-  it("repairs a paraphrased delegation quote once without inventing user approval", async () => {
+  it("keeps only an exact user delegation quote and never invents user approval", async () => {
     mocks.generate.mockResolvedValueOnce({ text: JSON.stringify({ ...ready, delegation: "Please make every product decision for me" }) })
       .mockResolvedValueOnce({ text: JSON.stringify({ ...ready, delegation: "Make low-risk assumptions" }) });
-    const result = await assessProductEvidence({ state: designerFixture(), prompt: "Make low-risk assumptions", turnId: "turn", history: [], reference: null });
-    expect(result.delegation).toBe("Make low-risk assumptions");
+    expect((await assessProductEvidence({ state: designerFixture(), prompt: "Make low-risk assumptions", turnId: "turn", history: [], reference: null })).delegation).toBe("");
+    expect((await assessProductEvidence({ state: designerFixture(), prompt: "Make low-risk assumptions", turnId: "turn", history: [], reference: null })).delegation).toBe("Make low-risk assumptions");
+    expect(mocks.generate).toHaveBeenCalledTimes(2);
+  });
+  it("retries a transient provider fault instead of dropping the assessment", async () => {
+    mocks.generate.mockRejectedValueOnce(Object.assign(new Error("overloaded"), { status: 503 }))
+      .mockResolvedValueOnce({ text: JSON.stringify({ ...ready, screenFlowPreview: ["Today: review chores"] }) });
+    const result = await assessProductEvidence({ state: designerFixture(), prompt: "Design a chore app", turnId: "turn", history: [], reference: null });
+    expect(result.screenFlowPreview).toEqual(["Today: review chores"]);
     expect(mocks.generate).toHaveBeenCalledTimes(2);
   });
 });

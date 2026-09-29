@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { applyProductPatch, createProductPlanning, productPatchSchema } from "./model";
-import { candidateFactPatch, candidateRoadmap, designFlowCandidateSchema, reconcileCandidateFactEvidence } from "./proposal-candidate";
-import { flowPreflight } from "./flow-preflight";
+import { candidateFactPatch, candidateRoadmap, designFlowCandidateSchema, ensureStructuralFacts, normalizeDesignFlowCandidate,
+  reconcileCandidateFactEvidence } from "./proposal-candidate";
+import { validateFunctionalPlan } from "./functional-plan";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const turnId = "first-turn";
@@ -30,11 +31,12 @@ function candidate(overrides: Record<string, unknown> = {}) {
   });
 }
 
-function materialize(value = candidate()) {
-  const previous = base();
-  const ids = candidateFactPatch(value, previous, projectId, turnId);
-  const state = applyProductPatch(previous, { operations: ids.args.facts.map(fact => ({ op: "put_fact", fact })) }, messageId);
-  const mapped = candidateRoadmap(value, state, [], ids.aliases, ids.superseded, projectId, turnId);
+function materialize(value = candidate(), previous = base()) {
+  const structured = ensureStructuralFacts(value, previous, "Design a family planner");
+  const ids = candidateFactPatch(structured, previous, projectId, turnId);
+  const state = ids.args.facts.length
+    ? applyProductPatch(previous, { operations: ids.args.facts.map(fact => ({ op: "put_fact", fact })) }, messageId) : previous;
+  const mapped = candidateRoadmap(structured, state, [], ids.aliases, ids.superseded, projectId, turnId);
   return { state: { ...state, scope: mapped.scope }, mapped, ids };
 }
 
@@ -44,15 +46,93 @@ describe("single-candidate screen-flow mapping", () => {
     const again = materialize();
     expect(first.mapped.scope.outputKeys).toEqual(again.mapped.scope.outputKeys);
     expect(first.mapped.roadmap[0].actions[0].destinationKey).toBe(first.mapped.roadmap[1].stableKey);
-    expect(flowPreflight(first.state, first.mapped.roadmap).issues).toEqual([]);
     expect(first.mapped.itemsToSave).toHaveLength(2);
   });
 
-  it("rejects a missing destination before any database write", () => {
+  it("keeps an action to an unknown screen inline instead of rejecting the whole plan", () => {
     const value = candidate({ outputs: [{ ...candidate().outputs[0], actions: [
       { label: "Open child tasks", destinationRef: "absent", outcome: "See child tasks" },
     ] }, candidate().outputs[1]] });
-    expect(() => materialize(value)).toThrow(/missing output absent/);
+    const { mapped } = materialize(value);
+    expect(mapped.roadmap[0].actions).toEqual([{ label: "Open child tasks", destinationKey: null, outcome: "See child tasks" }]);
+    expect(mapped.scope.outputKeys).toHaveLength(2);
+  });
+
+  it("resolves destinations written as screen names and drops self-links", () => {
+    const value = candidate({ outputs: [
+      { ...candidate().outputs[0], actions: [{ label: "Open child", destinationRef: "Child Tasks", outcome: "See the child" },
+        { label: "Mark done", destinationRef: "today", outcome: "Checks the task inline" }] },
+      candidate().outputs[1],
+    ] });
+    const { mapped } = materialize(value);
+    expect(mapped.roadmap[0].actions.map(action => action.destinationKey)).toEqual([mapped.roadmap[1].stableKey, null]);
+  });
+
+  it("derives the missing structure the reported projects failed on instead of rejecting the plan", () => {
+    // 8968251e/2f7c810c: no jobs fact. Here also no identity, surface or journey facts, and bad refs.
+    const value = candidate({ facts: [{ ref: "actor", section: "actors", label: "Parent", detail: "A busy parent", source: "assumption" }],
+      outputs: candidate().outputs.map(item => ({ ...item, surfaceRefs: ["nowhere"], journeyRefs: [], decisionRefs: ["actor"] })),
+      scope: { ...candidate().scope, surfaceRefs: ["nowhere"] } });
+    const { state, mapped } = materialize(value);
+    const facts = (section: string) => state.blueprint.facts.filter(fact => fact.section === section);
+    expect(facts("identity")[0]).toMatchObject({ source: "assumption", detail: "Design a family planner" });
+    expect(facts("jobs")).toHaveLength(0);
+    expect(mapped.roadmap.every(item => item.surfaceIds[0] === facts("surfaces")[0].id)).toBe(true);
+    expect(mapped.roadmap.every(item => item.journeyIds[0] === facts("journeys")[0].id)).toBe(true);
+    expect(mapped.roadmap.every(item => item.decisionIds.length === 0)).toBe(true);
+    expect(mapped.scope.surfaceIds).toEqual([facts("surfaces")[0].id]);
+  });
+
+  it("normalizes invalid refs, duplicate names, empty fields and a missing selection", () => {
+    const value = normalizeDesignFlowCandidate({
+      facts: [{ ref: "Main App", section: "identity", label: "Family planner", detail: "", source: "assumption", evidence: "", links: [] },
+        { ref: "1st-surface", section: "surfaces", label: "Home", detail: "Home area", source: "assumption", evidence: "", links: ["Main App"] }],
+      outputs: [
+        { ref: "Today Screen", name: "Today", description: "", surfaceRefs: ["1st-surface"], journeyRefs: [], actions: [
+          { label: "Open", destinationRef: "Today Screen 2", outcome: "" }, { label: "", destinationRef: null, outcome: "x" }],
+          information: "", entryCondition: "", outcome: "Family sees today", inlineStates: ["", "Loading"] },
+        { ref: "Today Screen", name: "today", description: "The second today", surfaceRefs: [], journeyRefs: [], actions: [],
+          information: "Details", entryCondition: "From Today", outcome: "Done", inlineStates: [] },
+      ],
+      scope: { goal: "", rationale: "", outputRefs: ["missing"], surfaceRefs: [] },
+    })!;
+    expect(value.outputs.map(item => [item.ref, item.name])).toEqual([["today-screen", "Today"], ["today-screen-2", "today 2"]]);
+    expect(value.outputs[0].actions).toEqual([{ label: "Open", destinationRef: "today-screen-2", outcome: "Open" }]);
+    expect(value.outputs[0]).toMatchObject({ description: "Family sees today", information: "Family sees today", inlineStates: ["Loading"] });
+    expect(value.facts[1]).toMatchObject({ ref: "st-surface", links: ["main-app"] });
+    const { mapped } = materialize(value);
+    expect(mapped.scope.outputKeys).toHaveLength(2);
+    expect(() => validateFunctionalPlan(mapped.scope.manifest)).not.toThrow();
+    expect(normalizeDesignFlowCandidate({ facts: [], outputs: [], scope: {} })).toBeNull();
+    expect(normalizeDesignFlowCandidate("not an object")).toBeNull();
+  });
+
+  it("edits a planned screen with the same name and treats a built screen as context", () => {
+    const first = materialize();
+    const [today, child] = first.mapped.roadmap;
+    const rows = [{ item: today, status: "planned", screenId: null },
+      { item: child, status: "ready", screenId: "33333333-3333-4333-8333-333333333333" }];
+    const next = candidate({ outputs: [
+      { ...candidate().outputs[0], ref: "new-today", description: "Today, now with a streak", actions: [
+        { label: "Open child tasks", destinationRef: "Child Tasks", outcome: "See that child's tasks" }] },
+      { ...candidate().outputs[1], ref: "child-again" },
+    ], scope: { ...candidate().scope, outputRefs: ["new-today", "child-again"] } });
+    const ids = candidateFactPatch(next, first.state, projectId, "second-turn");
+    const mapped = candidateRoadmap(next, first.state, rows, ids.aliases, ids.superseded, projectId, "second-turn");
+    expect(mapped.scope.outputKeys).toEqual([today.stableKey]);
+    expect(mapped.itemsToSave.map(item => [item.stableKey, item.description])).toEqual([[today.stableKey, "Today, now with a streak"]]);
+    expect(mapped.scope.existingOutputs?.map(output => output.item.stableKey)).toEqual([child.stableKey]);
+    expect(mapped.scope.manifest?.[0].actions[0].destinationKey).toBe(child.stableKey);
+  });
+
+  it("breaks generation dependency cycles and drops prerequisites outside the build", () => {
+    const value = candidate({ outputs: [
+      { ...candidate().outputs[0], dependencyRefs: ["child", "ghost"] },
+      { ...candidate().outputs[1], dependencyRefs: ["today"] },
+    ] });
+    const { mapped } = materialize(value);
+    expect(() => validateFunctionalPlan(mapped.scope.manifest)).not.toThrow();
+    expect(mapped.scope.manifest?.flatMap(item => item.dependencyKeys)).toHaveLength(1);
   });
 
   it("keeps saved fact identities when a failed review's repair redescribes them", () => {

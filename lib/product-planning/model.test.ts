@@ -96,7 +96,10 @@ describe("durable product truth and scope", () => {
     state.scope!.manifest![0].referenceScreenIndex = 1;
     state.blueprint.facts = productFixture().blueprint.facts.filter((fact) => ["identity", "surfaces"].includes(fact.section));
     expect(proposeProductScope(state).scope?.status).toBe("proposed");
-    expect(readinessIssues({ ...state, input: { ...state.input, imageReferenceMode: "style" } })).toContain("Clarify the product's actors.");
+    // Product mode derives missing structure during planning; approval never
+    // waits on a fact category the user was not asked for.
+    expect(readinessIssues({ ...state, input: { ...state.input, imageReferenceMode: "style" } })).toEqual([]);
+    expect(readinessIssues({ ...state, blueprint: { facts: [] } })).toContain("Clarify the product's identity.");
   });
   it("feeds the existing concrete scope contract without shrinking product truth", () => {
     const state = approveProductScope(proposeProductScope(productFixture()), 0);

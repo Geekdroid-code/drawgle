@@ -7,8 +7,7 @@ import { scopeParents, scopeQuote } from "./scope-outputs";
 import { validateExecutionProduct, approvedOutputKind } from "./execution-contract";
 import { nextProductBatch } from "./execution";
 import { compileProductContent } from "./content-contract";
-import { applyEvidenceVerdicts } from "./review-fact-evidence";
-import { prepareDesignerPatch } from "./designer-patch";
+import { groundedInUserWords, prepareDesignerPatch } from "./designer-patch";
 import { applyScreenCopyReview } from "./review-screen-content";
 import { preparedPlanKey } from "./prepared-plans";
 
@@ -59,15 +58,22 @@ describe("production output contracts", () => {
 });
 
 describe("audience and evidence boundaries", () => {
-  it("downgrades an entire unsupported claim despite a matching user quotation", () => {
+  it("never lets an unsupported claim become a confirmed requirement despite a matching quotation", () => {
     const state = designerFixture();
+    const request = "Build me a premium habit tracker app";
     const prepared = prepareDesignerPatch("update_product", { facts: [{ id: "technical", section: "identity", label: "Premium technical tracker",
-      detail: "A technical biometric tracker for high-performance users", source: "user", evidence: "Build me a premium habit tracker app" }] },
-    ["Build me a premium habit tracker app"], [], state.evidenceAssessment!);
-    expect(prepared.patch.operations[0]).toHaveProperty("fact.source", "user");
-    applyEvidenceVerdicts(prepared, { verdicts: [{ id: "technical", supported: false, reason: "Audience and biometrics were invented" }] });
-    expect(prepared.patch.operations[0]).toHaveProperty("fact.source", "assumption");
-    expect(() => applyEvidenceVerdicts(prepareDesignerPatch("update_product", { facts: [{ id: "habit", section: "identity", label: "Habit app", detail: "Habit tracker", source: "user", evidence: "Habit tracker" }] }, ["Habit tracker"], [], state.evidenceAssessment!), { verdicts: [] })).toThrow(/every new/);
+      detail: "A technical biometric tracker for high-performance users", source: "user", evidence: request }] },
+    [request], [], state.evidenceAssessment!);
+    // The confirmed fact keeps only what the user said; the invented audience and biometrics are gone.
+    expect(prepared.patch.operations[0]).toMatchObject({ fact: { source: "user", label: request, detail: request } });
+    const grounded = prepareDesignerPatch("update_product", { facts: [{ id: "habit", section: "identity", label: "Premium habit tracker",
+      detail: "A premium habit tracker app", source: "user", evidence: request }] }, [request], [], state.evidenceAssessment!);
+    expect(grounded.patch.operations[0]).toMatchObject({ fact: { source: "user", label: "Premium habit tracker", detail: "A premium habit tracker app" } });
+    const unquoted = prepareDesignerPatch("update_product", { facts: [{ id: "dark", section: "preferences", label: "Dark mode",
+      detail: "Use a dark theme", source: "user", evidence: "make it dark please" }] }, [request], [], state.evidenceAssessment!);
+    expect(unquoted.patch.operations[0]).toHaveProperty("fact.source", "assumption");
+    expect(groundedInUserWords("A calendar with dots marking tasks on specific days", ["Monthly Grid: a calendar month view with dots indicating tasks on specific days"])).toBe(true);
+    expect(groundedInUserWords("Biometric security for professionals", [request])).toBe(false);
   });
   it("derives optional fact bookkeeping before validating the saved design fact", () => {
     const state = designerFixture();

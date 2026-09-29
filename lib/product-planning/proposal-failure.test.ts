@@ -14,8 +14,8 @@ it("keeps only schema paths and a fingerprint from invalid provider output", () 
 });
 
 it("does not expose arbitrary provider error codes, paths, or response bodies", () => {
-  const failure = describeProposalFailure("flow_review", { code: "private-provider-code", message: "/private/path?token=example", body: "private body" });
-  expect(failure.code).toBe("FLOW_REVIEW_UNAVAILABLE");
+  const failure = describeProposalFailure("scope_validation", { code: "private-provider-code", message: "/private/path?token=example", body: "private body" });
+  expect(failure.code).toBe("SCOPE_VALIDATION_UNAVAILABLE");
   expect(JSON.stringify(failure)).not.toMatch(/private|token=example/);
 });
 

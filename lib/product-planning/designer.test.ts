@@ -3,14 +3,13 @@ import type { ProductPlanning } from "./model";
 vi.mock("server-only", () => ({}));
 vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn().mockResolvedValue({ id: "prepared" }) } }));
 vi.mock("@/lib/generation/message-memory", () => ({ persistProjectMessageMemoryPair: async () => true }));
-const mocks = vi.hoisted(() => ({ generate: vi.fn(), assess: vi.fn(), review: vi.fn(), loadReference: vi.fn(), snapshot: vi.fn(), state: null as ProductPlanning | null, messages: [] as Array<Record<string, unknown>>, save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ generate: vi.fn(), assess: vi.fn(), loadReference: vi.fn(), snapshot: vi.fn(), state: null as ProductPlanning | null, messages: [] as Array<Record<string, unknown>>, save: vi.fn() }));
 vi.mock("./assess-evidence", () => ({ assessProductEvidence: mocks.assess }));
 vi.mock("./functional-store", () => ({ readFunctionalRoadmap: async () => [], updateFunctionalRoadmap: vi.fn(), snapshotFunctionalScope: mocks.snapshot,
   saveProductPatchWithRoadmap: (...args: unknown[]) => mocks.save(...args) }));
 vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: mocks.generate } }) }));
 vi.mock("./store", async (original) => ({ ...await original<typeof import("./store")>(), loadProductPlanning: async () => structuredClone(mocks.state), saveProductPlanning: mocks.save }));
 vi.mock("./references", () => ({ loadPlanningReference: mocks.loadReference, storePlanningReference: async () => "owner/new.webp" }));
-vi.mock("./readiness", () => ({ reviewProductReadiness: mocks.review }));
 vi.mock("@/lib/agent/project-tools", () => ({ projectReadToolDeclarations: [], createProjectReadToolExecutor: () => async () => ({ ok: true, data: { screens: [] } }) }));
 vi.mock("@/lib/supabase/queries", () => ({
   fetchProjectMessages: async () => mocks.messages,
@@ -37,12 +36,10 @@ const functionResponse = (calls: Array<{ name: string; args: unknown }>) => ({ f
 describe("product designer tool loop", () => {
   beforeEach(() => {
     vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "legacy");
-    vi.stubEnv("DRAWGLE_PLANNING_REPAIR_ENABLED", "true");
     mocks.generate.mockReset().mockResolvedValue({ text: "Continue from saved decisions." });
     mocks.snapshot.mockReset().mockImplementation(async (_a, _p, _o, state: ProductPlanning) => ({ ...state, scope: { ...state.scope!, manifest: [functionalFixture()] } }));
     mocks.loadReference.mockReset().mockResolvedValue(null);
     mocks.assess.mockReset().mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: true, experienceReady: true, gaps: [], delegation: "", rationale: "Detailed test brief" });
-    mocks.review.mockReset().mockResolvedValue({ ready: true, issues: [] });
     mocks.state = createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null });
     mocks.state.experience = experienceFixture();
     mocks.messages = [{ id: "11111111-1111-4111-8111-111111111111", role: "user", content: "Design only onboarding.", metadata: { action: "product_initial_prompt" } }];
@@ -135,24 +132,71 @@ describe("product designer tool loop", () => {
     expect(mocks.generate).toHaveBeenCalledTimes(3);
     expect(JSON.stringify(mocks.generate.mock.calls[2][0].contents)).toContain("state:welcome:complete");
   });
-  it("resumes a failed flow review from its saved issues without repeating evidence assessment", async () => {
-    mocks.state = { ...productFixture(), experience: experienceFixture() };
-    mocks.state.input.imagePath = experienceFixture().referencePath;
-    mocks.loadReference.mockResolvedValue({ data: "pixels", mimeType: "image/webp" });
-    mocks.review.mockResolvedValueOnce({ ready: false, issues: ["The child tablet screen has no entry action."] })
-      .mockResolvedValueOnce({ ready: true, issues: [] });
-    mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "propose_scope", args: {} }]))
-      .mockResolvedValueOnce({ text: "The entry needs repair." });
-    await runProductDesigner({ ...options, initialize: false });
-    expect(mocks.state?.scope?.reviewIssues).toContain("The child tablet screen has no entry action.");
-    expect(mocks.state?.scope?.reviewedContentRevision).toBe(mocks.state?.contentRevision);
-    const assessments = mocks.assess.mock.calls.length;
-    mocks.generate.mockReset().mockResolvedValueOnce(functionResponse([{ name: "propose_scope", args: {} }]));
-    await runProductDesigner({ ...options, initialize: false, resumeReview: true, clientTurnId: "resume-flow",
+  it("resumes after a stopped turn without treating the Continue click as a product request", async () => {
+    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "proposal");
+    const answer = "What is the primary view for the calendar section?\nMonthly Grid: A month view with task dots.";
+    mocks.state!.input.originalRequest = "Build a premium task management app";
+    mocks.state!.evidenceAssessment = { turnId: "earlier", mode: "product", productReady: true, experienceReady: true,
+      gaps: [], delegation: "", rationale: "Screens are clear", screenFlowPreview: ["Today: see tasks"] };
+    mocks.state!.experience = { ...experienceFixture(), provenance: "prompt_synthesis", referencePath: null, referenceHash: null,
+      requirementsKey: "[]", compatibility: { compatible: true, conflicts: [], transfer: "Prompt direction", rationale: "No image" } };
+    mocks.messages = [
+      { id: "11111111-1111-4111-8111-111111111111", role: "user", content: "Build a premium task management app", metadata: { action: "product_initial_prompt" } },
+      { id: "22222222-2222-4222-8222-222222222222", role: "user", content: answer, metadata: { action: "agent_turn_user", productAnswers: {
+        messageId: "33333333-3333-4333-8333-333333333333", answers: [{ kind: "choice", index: 0 }] }, productAnswerEvidence: ["Monthly Grid: A month view with task dots."] } },
+      { id: "44444444-4444-4444-8444-444444444444", role: "model", content: "The saved screen scope has an unresolved planning constraint.", metadata: { productTurnComplete: "old" } },
+      { id: "55555555-5555-4555-8555-555555555555", role: "user", content: "Repair the saved screen-flow review issues using the existing facts and roadmap. Preserve my requested screens and visible flows, original request, and corrections. This is not approval to generate.", metadata: { action: "agent_turn_user" } },
+    ];
+    let roadmap: Array<Record<string, unknown>> = [];
+    const query = { select: () => query, eq: () => query, neq: () => query,
+      then: (resolve: (value: unknown) => void) => resolve({ data: roadmap, error: null }) };
+    const admin = { from: () => query, rpc: async (_name: string, args: Record<string, unknown>) => {
+      roadmap = (args.input_items as Array<Record<string, unknown>>).map(item => ({ metadata: { functional: item }, status: "planned", generated_screen_id: null }));
+      mocks.state = args.input_state as ProductPlanning;
+      return { error: null };
+    } };
+    mocks.generate.mockImplementationOnce(async request => {
+      const payload = JSON.parse(request.contents[0].parts[0].text);
+      expect(payload.latestMessage).toEqual({ kind: "continue", text: answer });
+      expect(JSON.stringify(payload.userMessages)).not.toContain("Repair the saved screen-flow");
+      return { text: JSON.stringify(proposalResponseFixture({ facts: [{ section: "identity", ref: "app", label: "Task app",
+        detail: "A premium task manager", source: "assumption" }], outputs: [{ ref: "month", name: "Month", description: "Monthly grid",
+        surfaceRefs: [], journeyRefs: [], actions: [], information: "Task dots per day", entryCondition: "Calendar tab",
+        outcome: "Busy days are visible", inlineStates: [] }], scope: { goal: "Plan tasks by month", rationale: "Requested",
+        outputRefs: ["month"], surfaceRefs: [] } })) };
+    });
+    await runProductDesigner({ ...options, admin: admin as never, initialize: false, resumeReview: true, clientTurnId: "continue-turn",
       prompt: "Continue screen design" });
-    expect(mocks.assess.mock.calls.length).toBe(assessments);
-    expect(JSON.stringify(mocks.generate.mock.calls[0][0].contents)).toContain("child tablet screen has no entry action");
+    expect(mocks.assess).not.toHaveBeenCalled();
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
     expect(mocks.state?.scope?.status).toBe("proposed");
+    expect(mocks.state?.scope?.goal).toBe("Plan tasks by month");
+    const click = mocks.messages.find(message => (message.metadata as Record<string, unknown>)?.clientTurnId === "continue-turn" && message.role === "user");
+    expect(click).toMatchObject({ content: "Continue screen design", metadata: { action: "product_planning_continue" } });
+  });
+  it("never stops the proposal planner on an assessment gap the user cannot answer on a card", async () => {
+    vi.stubEnv("DRAWGLE_DESIGN_FLOW_PLANNER", "proposal");
+    mocks.assess.mockResolvedValue({ turnId: "initial:project", mode: "product", productReady: false, experienceReady: true,
+      gaps: [{ area: "product", question: "What does onboarding do?", consequence: "Changes the shopping journey" }],
+      delegation: "", rationale: "An unrenderable gap" });
+    mocks.state!.experience = { ...experienceFixture(), provenance: "prompt_synthesis", referencePath: null, referenceHash: null,
+      requirementsKey: "[]", compatibility: { compatible: true, conflicts: [], transfer: "Prompt direction", rationale: "No image" } };
+    let roadmap: Array<Record<string, unknown>> = [];
+    const query = { select: () => query, eq: () => query, neq: () => query,
+      then: (resolve: (value: unknown) => void) => resolve({ data: roadmap, error: null }) };
+    const admin = { from: () => query, rpc: async (_name: string, args: Record<string, unknown>) => {
+      roadmap = (args.input_items as Array<Record<string, unknown>>).map(item => ({ metadata: { functional: item }, status: "planned", generated_screen_id: null }));
+      mocks.state = args.input_state as ProductPlanning;
+      return { error: null };
+    } };
+    mocks.generate.mockResolvedValueOnce({ text: JSON.stringify(proposalResponseFixture({ facts: [], outputs: [{ ref: "welcome", name: "Welcome",
+      description: "Introduce the shop", surfaceRefs: [], journeyRefs: [], actions: [], information: "Brand and start action",
+      entryCondition: "First launch", outcome: "The shopper enters the shop", inlineStates: [] }],
+      scope: { goal: "Design onboarding", rationale: "Requested", outputRefs: ["welcome"], surfaceRefs: [] } })) });
+    await runProductDesigner({ ...options, admin: admin as never });
+    expect(mocks.state?.scope?.status).toBe("proposed");
+    expect(mocks.state?.evidenceAssessment).toMatchObject({ productReady: true, gaps: [] });
+    expect(mocks.messages.at(-1)?.metadata).not.toHaveProperty("productPlanningFailure");
   });
   it("bounds unsuccessful repair and saves a controlled diagnostic with a recovery action", async () => {
     mocks.state = { ...productFixture(), experience: experienceFixture() };
@@ -346,32 +390,32 @@ describe("product designer tool loop", () => {
     const contents = mocks.generate.mock.calls[1][0].contents;
     expect(JSON.stringify(contents)).toContain("saved as assumptions");
   });
-  it("keeps a first-prompt design brief when bookkeeping and the evidence review are malformed", async () => {
+  it("keeps a grounded first-prompt design brief as confirmed truth without a separate evidence call", async () => {
     const prompt = "Design an organizer where parents add kids, activities, chores and reminders, then see today's work and a calendar.";
     mocks.messages[0].content = prompt;
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [{
       id: "Today screen", section: "surfaces", label: "Today", detail: "A Today view for chores and reminders",
       source: "user", evidence: prompt, provenance: { basis: "direct", recommendationMessageId: "" },
     }], supersessions: [] } }]))
-      .mockResolvedValueOnce({ text: "{}" }) // The separate evidence reviewer returned an incomplete verdict.
       .mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [], supersessions: [] } }]))
       .mockResolvedValueOnce({ text: "I can design the Today and calendar flow." });
     await runProductDesigner({ ...options, prompt });
-    expect(mocks.state?.blueprint.facts).toMatchObject([{ id: "today-screen", section: "surfaces", source: "assumption" }]);
+    expect(mocks.state?.blueprint.facts).toMatchObject([{ id: "today-screen", section: "surfaces", source: "user",
+      detail: "A Today view for chores and reminders" }]);
+    expect(mocks.generate).toHaveBeenCalledTimes(3);
     expect(mocks.messages.at(-1)?.metadata).not.toHaveProperty("productPlanningFailure");
     expect(mocks.messages.at(-1)?.content).toContain("Today and calendar");
   });
-  it("does not silently reclassify user requirements when the evidence provider is unavailable", async () => {
+  it("states an embellished user fact in the user's own words", async () => {
     const prompt = "Design a Today screen for kids' chores.";
     mocks.messages[0].content = prompt;
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [{
-      id: "today", section: "surfaces", label: "Today", detail: "A Today screen for kids' chores",
+      id: "today", section: "surfaces", label: "Gamified reward hub", detail: "A gamified reward hub with streaks and leaderboards",
       source: "user", evidence: prompt,
-    }], supersessions: [] } }])).mockRejectedValueOnce(new Error("Evidence provider unavailable"));
+    }], supersessions: [] } }])).mockResolvedValueOnce({ text: "Saved." });
     await runProductDesigner({ ...options, prompt });
-    expect(mocks.state?.blueprint.facts).toHaveLength(0);
+    expect(mocks.state?.blueprint.facts).toMatchObject([{ id: "today", source: "user", label: prompt, detail: prompt }]);
     expect(mocks.state?.lease).toBeNull();
-    expect(mocks.messages.at(-1)?.metadata).toHaveProperty("productPlanningFailure");
   });
   it("keeps validated updates on provider failure and releases the turn for retry", async () => {
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "update_product", args: { facts: [productFixture().blueprint.facts[0]], supersessions: [] } }]))
@@ -395,10 +439,9 @@ describe("product designer tool loop", () => {
     expect(mocks.state?.scope?.surfaceIds).toEqual(["orders"]);
     expect(mocks.state?.blueprint.facts.some((fact) => fact.id === "cart")).toBe(true);
   });
-  it("does not expose an approval when readiness rejects product architecture", async () => {
+  it("does not expose an approval until the saved visual direction matches the project reference", async () => {
     mocks.state = productFixture();
     mocks.state.experience = experienceFixture();
-    mocks.review.mockResolvedValueOnce({ ready: false, issues: ["Map how the user's core job reaches completion."] });
     mocks.generate.mockResolvedValueOnce(functionResponse([{ name: "propose_scope", args: {} }])).mockResolvedValueOnce({ text: "We need to map the purchase outcome before deciding the first scope." });
     await runProductDesigner({ ...options, initialize: false, clientTurnId: "review" });
     expect(mocks.state?.scope?.status).not.toBe("proposed");
@@ -414,7 +457,6 @@ describe("product designer tool loop", () => {
     ])).mockResolvedValueOnce({ text: "Should onboarding introduce the brand or collect information used while shopping?" });
     await runProductDesigner(options);
     expect(mocks.state?.scope).toBeNull();
-    expect(mocks.review).not.toHaveBeenCalled();
     const declarations = mocks.generate.mock.calls[0][0].config.tools[0].functionDeclarations;
     expect(declarations.some((tool: { name: string }) => tool.name === "propose_scope")).toBe(false);
     expect(mocks.state?.evidenceAssessment?.gaps).toHaveLength(1);

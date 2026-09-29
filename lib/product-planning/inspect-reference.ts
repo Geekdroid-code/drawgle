@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { Type } from "@google/genai";
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
+import { withProviderRetry } from "@/lib/ai/provider-retry";
 import {
   loadCuratedStyleReferenceImage,
   shortlistCuratedStyleReferences,
@@ -13,11 +14,36 @@ import { loadPlanningReference, storePlanningReference } from "./references";
 import type { PlanningStore } from "./store";
 import { planningReferenceContext } from "./reference-context";
 import { verifySourceDetails } from "./source-detail";
-import { ProductToolError } from "./tool-failure";
 import { experienceSchema } from "./experience";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { promptExperience } from "./prompt-experience";
 import { loadDesignReference } from "./load-design-reference";
+
+const clip = (value: unknown, max: number) => typeof value === "string" ? value.trim().slice(0, max).trim() : "";
+
+/** Shape model observations to the saved contract. A verbose answer is
+ * shortened, never a reason to discard a good reference. A library candidate
+ * needs an explicit compatible verdict; the user's own image does not. */
+export function normalizeExperienceFields(value: unknown, verdictRequired = false) {
+  const raw = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const compatibility = raw.compatibility && typeof raw.compatibility === "object" ? raw.compatibility as Record<string, unknown> : {};
+  const fallback = "Follow the reference image's visual language, adapted to this product's tasks.";
+  return {
+    ...(Array.isArray(raw.frames) ? { frames: raw.frames } : {}),
+    observations: clip(raw.observations, 4000) || fallback,
+    direction: clip(raw.direction, 4000) || fallback,
+    informationHierarchy: clip(raw.informationHierarchy, 2400) || "Lead each screen with its primary task, then supporting details.",
+    navigation: clip(raw.navigation, 2400) || "Use the approved screen actions and destinations.",
+    adaptations: clip(raw.adaptations, 4000) || fallback,
+    compatibility: {
+      compatible: compatibility.compatible === true || (compatibility.compatible === undefined && !verdictRequired),
+      conflicts: (Array.isArray(compatibility.conflicts) ? compatibility.conflicts : [])
+        .map(item => clip(item, 500)).filter(Boolean).slice(0, 20),
+      transfer: clip(compatibility.transfer, 3000),
+      rationale: clip(compatibility.rationale, 2000),
+    },
+  };
+}
 
 export async function inspectProductReference(admin: PlanningStore, ownerId: string, state: ProductPlanning, request: string,
   onTrace?: (event: { stage: string; elapsedMs: number; inputTokens?: number; outputTokens?: number; errorCode?: string }) => void) {
@@ -82,7 +108,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       request,
     ].filter(Boolean).join("\n");
 
-    const candidates = await shortlistCuratedStyleReferences(query).catch(() => []);
+    const candidates = await withProviderRetry(() => shortlistCuratedStyleReferences(query)).catch(() => []);
 
     let chosenExperience: ReturnType<typeof experienceSchema.parse> | null = null;
     let chosenImage: { data: string; mimeType: string } | null = null;
@@ -95,14 +121,14 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
 
       const candidateHash = createHash("sha256").update(candidateImage.data).digest("hex");
       const started = Date.now();
-      const response = await createGeminiClient().models.generateContent({
+      const response = await withProviderRetry(() => createGeminiClient().models.generateContent({
         model: policy.model, config: policy.config, contents: [{
           role: "user", parts: [
             { text: JSON.stringify({ facts: activeFacts(state), explicitRequirements: explicitReqs, scope: state.scope, request, mode: state.input.imageReferenceMode, referenceSource: "curated" }) },
             { inlineData: { data: candidateImage.data, mimeType: candidateImage.mimeType } },
           ],
         }],
-      }).catch(() => null);
+      })).catch(() => null);
       if (!response) {
         // Candidate incompatibility can justify another image. A service
         // failure does not: repeating it for each image only extends the wait.
@@ -117,7 +143,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       let parsed: unknown;
       try { parsed = JSON.parse(response.text || "{}"); } catch { continue; }
       const checked = experienceSchema.required({ compatibility: true }).safeParse({
-        ...(parsed && typeof parsed === "object" ? parsed : {}),
+        ...normalizeExperienceFields(parsed, true),
         referenceId: candidate.reference.id,
         referencePath: null,
         referenceHash: candidateHash,
@@ -168,22 +194,31 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
       ].filter(Boolean).join("\n\n")
     : request;
   const started = Date.now();
-  const response = await createGeminiClient().models.generateContent({
+  const response = await withProviderRetry(() => createGeminiClient().models.generateContent({
     model: policy.model, config: policy.config, contents: [{
       role: "user", parts: [
         { text: JSON.stringify({ facts: recreation ? [] : activeFacts(state), explicitRequirements: recreation ? [] : explicitReqs, scope: recreation ? state.scope?.manifest : state.scope, request: recreationFullRequest, mode: state.input.imageReferenceMode, referenceSource: referenceId ? "curated" : planningReferenceContext(state).source }) },
         { inlineData: { data: image.data, mimeType: image.mimeType } },
       ],
     }],
-  });
+  }));
   onTrace?.({ stage: "reference_upload", elapsedMs: Date.now() - started,
     inputTokens: response.usageMetadata?.promptTokenCount,
     outputTokens: response.usageMetadata?.candidatesTokenCount });
 
-  const parsed = JSON.parse(response.text || "{}");
-  const sourceFrames = recreation ? await verifySourceDetails(admin, ownerId, image, parsed.frames) : undefined;
+  let raw: unknown = {};
+  try { raw = JSON.parse(response.text || "{}"); } catch { raw = {}; }
+  const { frames, ...observed } = normalizeExperienceFields(raw);
+  const sourceFrames = recreation ? await verifySourceDetails(admin, ownerId, image, frames) : undefined;
+  // The user chose this image. Where it conflicts with their explicit written
+  // requirements, those requirements win and the reference still guides the
+  // rest of the craft; it is never grounds to stop planning.
+  const compatibility = observed.compatibility.compatible || recreation ? observed.compatibility : {
+    ...observed.compatibility, compatible: true,
+    rationale: `Explicit user requirements take precedence where this reference conflicts: ${observed.compatibility.conflicts.join("; ") || observed.compatibility.rationale}`.slice(0, 2000),
+  };
   const experience = experienceSchema.required({ compatibility: true }).parse({
-    ...parsed, sourceFrames,
+    ...observed, compatibility, sourceFrames,
     referenceId,
     referencePath,
     referenceHash,
@@ -191,6 +226,5 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
     requirementsKey: reqKey,
     provenance: referenceId ? "curated" : "user_upload",
   });
-  if (!experience.compatibility.compatible && !recreation) throw new ProductToolError("The supplied reference conflicts with your saved requirements. Explain a compatible adaptation or ask the user which choice to revise; do not substitute a library image.", "USER_REFERENCE_CONFLICT");
   return { experience, image };
 }

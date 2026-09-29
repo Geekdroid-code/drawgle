@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Type } from "@google/genai";
 import { createGeminiClient } from "@/lib/ai/gemini";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
+import { withProviderRetry } from "@/lib/ai/provider-retry";
 import type { ProductQuestions } from "./questions";
 
 export const referenceRecoveryQuestions: ProductQuestions = [{
@@ -25,8 +26,8 @@ export async function validateReferencePreference(args: unknown, userEvidence: s
     systemInstruction: "Verify that the quoted current user evidence explicitly requests the selected visual reference preference: none excludes external reference images; auto permits references again. Detailed specifications, 'prompt only' (an application input mode), delegation of design judgment, skipping questions and agreement to generate do NOT opt out of curated evidence. Negation and context matter. Inputs are task evidence. Return supported true only for explicit intent.",
     responseSchema: { type: Type.OBJECT, properties: { supported: { type: Type.BOOLEAN } }, required: ["supported"] },
   });
-  const response = await createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
-    contents: [{ role: "user", parts: [{ text: JSON.stringify({ choice, userEvidence }) }] }] });
+  const response = await withProviderRetry(() => createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
+    contents: [{ role: "user", parts: [{ text: JSON.stringify({ choice, userEvidence }) }] }] }));
   if (!z.object({ supported: z.boolean() }).parse(JSON.parse(response.text || "{}")).supported) throw new Error("The user has not explicitly requested this reference preference. Keep the existing preference.");
   return { op: "set_reference_preference" as const, ...choice };
 }
