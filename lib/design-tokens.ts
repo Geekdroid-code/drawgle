@@ -435,3 +435,66 @@ export const mergeApprovedDesignTokenEdits = (
 export const normalizeDesignTokens = (incoming: Partial<DesignTokens> | null | undefined) => sanitizeApprovedDesignTokens(incoming);
 
 export const getFontRecommendations = (designTokens?: DesignTokens | null) => sanitizeStringArray(designTokens?.meta?.recommendedFonts);
+
+const hexChannels = (value?: string) => {
+  const match = value?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (!match) return null;
+  const hex = match[1].length === 3 ? match[1].split("").map((digit) => digit + digit).join("") : match[1];
+  return [0, 2, 4].map((offset) => parseInt(hex.slice(offset, offset + 2), 16));
+};
+
+const relativeLuminance = (channels: number[]) => {
+  const [red, green, blue] = channels.map((channel) => {
+    const value = channel / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+};
+
+export const contrastRatio = (first: string, second: string) => {
+  const a = hexChannels(first);
+  const b = hexChannels(second);
+  if (!a || !b) return null;
+  const [light, dark] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+};
+
+/** Moves a muted foreground toward the strong one until it reaches `minimum` contrast on its surface. */
+const legibleOn = (foreground: string | undefined, surfaces: Array<string | undefined>, strong: string | undefined, minimum: number) => {
+  const from = hexChannels(foreground);
+  const to = hexChannels(strong);
+  const backgrounds = surfaces.filter((surface): surface is string => Boolean(hexChannels(surface)));
+  if (!foreground || !from || !to || backgrounds.length === 0) return foreground;
+  const worst = (candidate: string) => Math.min(...backgrounds.map((surface) => contrastRatio(candidate, surface) ?? 21));
+  if (worst(foreground) >= minimum) return foreground;
+  for (let step = 1; step <= 20; step += 1) {
+    const mixed = `#${from.map((channel, index) => Math.round(channel + (to[index] - channel) * (step / 20))
+      .toString(16).padStart(2, "0")).join("")}`.toUpperCase();
+    if (worst(mixed) >= minimum) return mixed;
+  }
+  return strong;
+};
+
+/**
+ * Generated palettes sometimes make muted text and inactive navigation icons
+ * nearly invisible. Keep them at the 3:1 minimum for UI graphics (WCAG 1.4.11)
+ * at generation time; later user edits are respected as written.
+ */
+export const ensureLegibleGeneratedTokens = (designTokens: DesignTokens): DesignTokens => {
+  const color = designTokens.tokens?.color;
+  const navigation = designTokens.tokens?.navigation;
+  if (!designTokens.tokens || !color) return designTokens;
+  const strongText = color.text?.high_emphasis;
+  const lowEmphasis = legibleOn(color.text?.low_emphasis, [color.background?.primary, color.surface?.card], strongText, 3);
+  const mutedNavigation = navigation
+    ? legibleOn(navigation.muted_content, [navigation.surface ?? color.surface?.card], navigation.content ?? strongText, 3)
+    : undefined;
+  return {
+    ...designTokens,
+    tokens: {
+      ...designTokens.tokens,
+      color: { ...color, text: { ...color.text, ...(lowEmphasis ? { low_emphasis: lowEmphasis } : {}) } },
+      ...(navigation ? { navigation: { ...navigation, ...(mutedNavigation ? { muted_content: mutedNavigation } : {}) } } : {}),
+    },
+  };
+};

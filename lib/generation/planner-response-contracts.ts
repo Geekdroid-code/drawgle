@@ -39,6 +39,7 @@ const normalizeNavigationDesign = (value: unknown) => {
     border: firstDefined(value, ["border", "has_border", "hasBorder"]),
     elevation: firstDefined(value, ["elevation", "shadow"]),
     center_action_item_id: firstDefined(value, ["center_action_item_id", "centerActionItemId"]),
+    inactive_treatment: firstDefined(value, ["inactive_treatment", "inactiveTreatment"]),
   };
 };
 

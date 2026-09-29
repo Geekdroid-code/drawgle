@@ -511,6 +511,8 @@ export interface NavigationDesignContract {
   border: boolean;
   elevation: "none" | "low" | "medium";
   centerActionItemId?: string | null;
+  /** How destinations other than the active one are drawn: bare icons, or circular icon wells. */
+  inactiveTreatment?: "plain" | "well";
 }
 
 export interface NavigationPlanItem {
@@ -823,6 +825,11 @@ export interface ReferenceNavigationEvidence {
   elevation: string;
   safeAreaRelationship: string;
   activeItemByScreen: Array<{ screenIndex: number; itemIndex: number | null }>;
+  /** Observed construction, in the renderer's own vocabulary. */
+  activeTreatment?: NavigationDesignContract["activeTreatment"] | null;
+  inactiveTreatment?: NonNullable<NavigationDesignContract["inactiveTreatment"]> | null;
+  width?: NavigationDesignContract["width"] | null;
+  material?: NavigationDesignContract["surface"] | null;
 }
 export interface ReferenceAnalysis {
   overallVisualStyle: string;

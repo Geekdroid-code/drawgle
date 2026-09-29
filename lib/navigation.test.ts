@@ -6,6 +6,7 @@ import { normalizeSharedNavigationClearanceHtml } from "@/lib/generation/screen-
 import { resolveScreenChromePolicy } from "@/lib/navigation";
 import {
   applyReferenceNavigationRolesToScreens,
+  applyReferenceNavigationStyle,
   applyNavigationDesignEdit,
   createFallbackNavigationPlan,
   deriveReferenceNavigationPlan,
@@ -516,6 +517,66 @@ describe("Production Navigation V2", () => {
     expect(v1.version).toBe(1);
     expect(v1.enabled).toBe(true);
     expect(malformed.enabled).toBe(false);
+  });
+});
+
+describe("reference-built navigation", () => {
+  const items = ["today", "calendar", "projects", "profile"].map((id, index) => ({
+    id,
+    label: id,
+    icon: "circle",
+    role: `Product area ${index + 1}`,
+    availability: "generated" as const,
+    linkedScreenName: `Area ${index + 1}`,
+  }));
+  const screens: ScreenPlan[] = items.map((_, index) => ({ name: `Area ${index + 1}`, type: "root", description: "Root product area" }));
+
+  it("draws active-only chip navigation as an expanding capsule with round targets", () => {
+    const plan = normalizeNavigationPlan({
+      navigationPlan: { ...v2Plan(items), design: { ...design(), labels: "active-only", activeTreatment: "compact-chip", radiusPx: 36, inactiveTreatment: "well" } },
+      screens,
+      navigationArchitecture: architecture,
+    });
+    const shell = renderDeterministicNavigationShell(plan);
+
+    expect(validateNavigationShell(shell, plan)).toBe(true);
+    expect(shell).toContain('data-navigation-layout="expanding-capsule"');
+    expect(shell).toContain("width:fit-content");
+    expect(shell).toContain('.dg-nav-item[data-active="true"]{width:auto;padding:0 18px 0 14px;gap:8px;}');
+    expect(shell).toContain('.dg-nav-item:not([data-active="true"]) .dg-nav-icon{background:color-mix(');
+  });
+
+  it("builds a style reference's visible navigation while keeping the product's destinations", () => {
+    const analysis = normalizeReferenceAnalysis({
+      overallVisualStyle: "Soft cobalt productivity UI",
+      screenCountEstimate: 1,
+      screenReferences: [{ index: 1, suggestedRole: "Task dashboard" }],
+      primaryNavigation: {
+        present: true,
+        anatomy: "floating-dock",
+        labels: "active-only",
+        activeTreatment: "compact-chip",
+        inactiveTreatment: "well",
+        width: "content",
+        material: "solid",
+        geometry: "White pill hugging four items with 8px padding.",
+        activeState: "Cobalt capsule holding the icon and label.",
+        elevation: "Soft ambient shadow, no border.",
+      },
+    });
+    const planned = normalizeNavigationPlan({ navigationPlan: v2Plan(items), screens, navigationArchitecture: architecture });
+    const plan = applyReferenceNavigationStyle(planned, analysis.analysis?.primaryNavigation);
+
+    expect(plan.items.map((item) => item.id)).toEqual(["today", "calendar", "projects", "profile"]);
+    expect(plan.design).toMatchObject({
+      anatomy: "floating-dock",
+      labels: "active-only",
+      activeTreatment: "compact-chip",
+      inactiveTreatment: "well",
+      width: "content",
+      surface: "solid",
+    });
+    expect(applyReferenceNavigationStyle(planned, null)).toBe(planned);
   });
 });
 

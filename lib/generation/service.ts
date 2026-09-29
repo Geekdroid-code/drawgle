@@ -12,7 +12,7 @@ import { createGeminiClient } from "@/lib/ai/gemini";
 import { generateScreenBuilderContent, generateScreenBuilderContentStream } from "@/lib/ai/provider";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { getOpenRouterScreenBuildModel, getScreenBuilderProvider, getScreenEditorModel } from "@/lib/env/server";
-import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
+import { ensureLegibleGeneratedTokens, hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
 import { parseNumberedScreenSections } from "@/lib/generation/explicit-screen-sections";
@@ -27,6 +27,7 @@ import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } f
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import {
   applyReferenceNavigationRolesToScreens,
+  applyReferenceNavigationStyle,
   applyNavigationPlanToScreens,
   deriveReferenceNavigationPlan,
   normalizeNavigationPlan,
@@ -479,6 +480,10 @@ const NavigationDesignContractSchema = z.object({
     (value) => typeof value === "string" && !value.trim() ? null : value,
     z.string().trim().min(1).max(80).nullable().optional(),
   ),
+  inactive_treatment: z.preprocess(
+    (value) => value === "well" || value === "plain" ? value : undefined,
+    z.enum(["plain", "well"]).optional(),
+  ),
 }).nullable().optional();
 
 const NavigationPlanSchema = z.object({
@@ -901,7 +906,7 @@ const buildApprovedDesignTokens = (candidate: unknown, screenMargin = "16px"): D
     throw new Error("Design generation did not return a usable mobile_universal_core token set.");
   }
 
-  return next;
+  return ensureLegibleGeneratedTokens(next);
 };
 
 const humanizeReferenceRole = (value: string, index: number) => {
@@ -1692,6 +1697,7 @@ const toNavigationPlan = (parsed?: ParsedNavigationPlan | null): NavigationPlan 
           border: parsed.design.border,
           elevation: parsed.design.elevation,
           centerActionItemId: parsed.design.center_action_item_id ?? null,
+          inactiveTreatment: parsed.design.inactive_treatment ?? "plain",
         }
       : null,
     enabled,
@@ -3805,13 +3811,20 @@ export async function planUiFlow({
   )
     ? suppliedNavigationPlan
     : referenceNavigationPlan;
-  const navigationPlan = normalizeNavigationPlan({
+  const normalizedNavigationPlan = normalizeNavigationPlan({
     navigationPlan: adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav ? null : navigationCandidate,
     screens,
     navigationArchitecture,
     requiresBottomNav: deriveRequiresBottomNav(navigationArchitecture),
     strictScreenLinks: planningMode !== "single-screen" && !productExecutionKeys,
   });
+  // A newly planned navigation is built like the style reference's own
+  // navigation; an approved existing one keeps its design.
+  const keepsExistingNavigation = Boolean(existingNavigationPlan) && navigationCandidate === existingNavigationPlan;
+  const navigationPlan = plannerMode === "style" && !keepsExistingNavigation
+    && normalizedNavigationPlan.decision !== "reference-derived"
+    ? applyReferenceNavigationStyle(normalizedNavigationPlan, referenceAnalysis?.primaryNavigation)
+    : normalizedNavigationPlan;
   const plannedScreens = attachReferenceScreenTargets({
     screens: applyNavigationPlanToScreens(screens, navigationPlan),
     referenceMode: resolvedReferenceMode,
@@ -4053,9 +4066,10 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   });
 
   const maxOutputTokens = screenBuildOutputTokenBudget(input.screenPlan);
+  // Gemini 3 is tuned for its default temperature (1.0); forcing it low makes
+  // screens collapse into the most common, dated layouts and can cause loops.
   const policy = geminiPolicyForTask("screen_build", {
     systemInstruction,
-    temperature: 0.2,
     maxOutputTokens,
   });
 
@@ -4084,7 +4098,6 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     contents: { parts },
     configOverride: {
       systemInstruction,
-      temperature: 0.2,
       maxOutputTokens,
     },
     onResponseChunk: input.onResponseChunk,

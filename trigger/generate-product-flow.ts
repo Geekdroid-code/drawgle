@@ -85,7 +85,7 @@ export const generateProductFlowTask = task({
         ? nextProductBatch(manifest, claims, 1, existingOutputs.map(output => output.item.stableKey), recreate)
         : fullBatch;
       if (!batch.length) {
-        await update("failed", "The remaining approved work is blocked by a failed prerequisite. Completed screens are preserved; retry the failed work to continue.");
+        await update("failed", "Some approved screens could not be built. Completed screens are kept; resume to retry the failed ones and finish the flow.");
         return { blocked: true };
       }
       const pendingClaim = claims.find(c => c.output_key === batch[0].stableKey);

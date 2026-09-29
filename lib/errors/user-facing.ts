@@ -145,7 +145,8 @@ export function cleanErrorMessage(message: string): string {
   if (lower.includes("thinking level") || lower.includes("minimal") || lower.includes("not found for api version") || lower.includes("is not found") || lower.includes("listmodels") || lower.includes("api key") || lower.includes("unauthorized") || lower.includes("api_key")) {
     return "The design agent is currently unavailable. Please try again later or contact support.";
   }
-  if (lower.includes("blocked") || lower.includes("safety")) {
+  // Only provider safety blocks; Drawgle's own progress text can say "blocked".
+  if (/\bsafety\b|prohibited[_ ]content|\bblocklist\b|block[_ ]?reason|(prompt|response|candidate|content) (was )?blocked/.test(lower)) {
     return "Your description could not be processed. Please try rephrasing your request.";
   }
   if (lower.includes("resource_exhausted") || lower.includes("quota") || lower.includes("429")) {
