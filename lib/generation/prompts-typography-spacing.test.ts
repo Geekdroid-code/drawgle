@@ -85,6 +85,13 @@ describe("the builder keeps a three-level vertical rhythm", () => {
     expect(builderInstruction("style")).not.toContain("Proportions and spacing follow the image");
     expect(builderInstruction("prompt")).not.toContain("Proportions and spacing follow the image");
   });
+
+  it("has a rebuild size its media areas from the image, and not default to a portrait ratio", () => {
+    expect(builderInstruction("recreate")).toContain("Size every image, illustration and media area from the image too");
+    expect(builderInstruction("recreate")).toContain("A portrait ratio such as 4/5 is a default");
+    expect(builderInstruction("style")).not.toContain("Size every image, illustration and media area");
+    expect(builderInstruction("prompt")).not.toContain("Size every image, illustration and media area");
+  });
 });
 
 describe("the token model reads type and spacing from the evidence", () => {

@@ -15,6 +15,7 @@ import {
   type PresetBuildDeps,
 } from "@/lib/generation/curated-preset-builder";
 import { SpecimenIncompleteError } from "@/lib/generation/specimen-build";
+import { styleComponentsFit } from "@/lib/generation/style-components";
 import {
   PRESET_REFERENCE_ID,
   presetAnalysis,
@@ -162,7 +163,7 @@ describe("buildCuratedPreset", () => {
     expect(result.notes).toContain("the build of phone 3 (Profile) was cut short twice and is left out");
   });
 
-  it("learns from every phone, richest first, and keeps one component of each name", async () => {
+  it("learns from every phone in turn, and keeps one component of each name, the richest phone's first", async () => {
     const perPhone: Record<number, string> = {
       2: specimenHtml,
       1: `<div class="p-4">
@@ -172,9 +173,22 @@ describe("buildCuratedPreset", () => {
       3: '<div data-dg-component="list-row" data-dg-use="one row of a list" class="dg-surface-card dg-radius-inner flex p-3"><span>Row</span></div>',
     };
     const { result } = await build({ buildSpecimen: async ({ screen }) => perPhone[screen.index] });
-    expect(result.preset.components.map((component) => component.name)).toEqual(["calendar-strip", "stat-tile-pair", "mood-chips", "donut-card", "media-card", "list-row"]);
+    // each phone's list in turn: a component from the richest phone, then the next phone's, and so on
+    expect(result.preset.components.map((component) => component.name)).toEqual(["calendar-strip", "media-card", "list-row", "stat-tile-pair", "mood-chips", "donut-card"]);
     // the richest phone's version of a component is the one kept
     expect(result.preset.components.find((component) => component.name === "stat-tile-pair")?.use).toBe("two counts");
+  });
+
+  it("leaves out what the ten places or the block a screen build is given have no room for, and says which", async () => {
+    // the text of a component is cut to a short sample, so its size is its structure: fifteen distinct items are about 1000 characters
+    const card = (name: string) => `<div data-dg-component="${name}" data-dg-use="use ${name}" class="dg-surface-card p-4">${Array.from({ length: 15 }, (_, item) => `<span class="k${item} dg-tint-1 dg-radius-pill px-3">Item ${item}</span>`).join("")}</div>`;
+    // twelve components of about 1000 characters: ten would be over the block's budget, so fewer than ten are kept
+    const html = `<div>${Array.from({ length: 12 }, (_, index) => card(`card-${index + 1}`)).join("")}</div>`;
+    const { result } = await build({ buildSpecimen: async ({ screen }) => (screen.index === 2 ? html : "<div></div>") });
+    expect(styleComponentsFit(result.preset.components)).toBe(true);
+    expect(result.preset.components.length).toBeLessThan(10);
+    expect(result.preset.components.length).toBeGreaterThan(5);
+    expect(result.notes.join(" | ")).toContain("the block a screen build is given has no room for it");
   });
 
   it("leaves out a phone whose build fails and says which, and keeps what the others gave", async () => {

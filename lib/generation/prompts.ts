@@ -1202,7 +1202,7 @@ const buildScreenInstruction = ({
       "MODE CONTRACT: IMAGE_TO_UI. The application has confirmed that an image is attached. Treat it as the highest-priority structural evidence for this screen route.",
       "Preserve visible layer order, containment, layout mechanics, edge/depth treatment, navigation style family, and component construction while honoring the project tokens and screen brief.",
       "If rebuilding a screenshot, prioritize its exact original structure and material choices above all else.",
-      "Proportions and spacing follow the image: its frame is a 393px-wide screen, so compare each block's height and each gap with that width and reproduce them. The token spacing is the vocabulary for expressing them, not a reason to open the layout up; where the image is tighter than a token, use a smaller spacing token.",
+      "Proportions and spacing follow the image: its frame is a 393px-wide screen, so compare each block's height and each gap with that width and reproduce them. The token spacing is the vocabulary for expressing them, not a reason to open the layout up; where the image is tighter than a token, use a smaller spacing token. Size every image, illustration and media area from the image too: compare its width and height with the frame's 393px width and write that ratio (for example aspect-[9/7]). A portrait ratio such as 4/5 is a default that made a featured card 1.4 times the screen's width where the reference's was 0.9, so use one only when the image shows one.",
     ].join(" ")
     : mode === "style"
       ? [

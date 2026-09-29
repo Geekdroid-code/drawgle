@@ -4,6 +4,8 @@
  *   pnpm curated:presets --id <reference id>       build one preset, unapproved, with a preview to look at
  *   pnpm curated:presets --id <id> --components    make the components of a built preset again (a build per phone),
  *                                                  keeping its analysis, palette and tokens; unapproves it
+ *   pnpm curated:presets --id <id> --closeups      read the close-ups of a built preset again (six small calls), keeping
+ *                                                  its tokens, components and specimens; unapproves it
  *   pnpm curated:presets --all                     build every reference that has no preset yet
  *   pnpm curated:presets --all --rebuild           ...and those that have one (a rebuild un-approves it)
  *   pnpm curated:presets --approve <reference id>  approve a built preset, after looking at its preview
@@ -27,16 +29,20 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { chromium } from "playwright";
+import { chromium, type Browser } from "playwright";
 
 import { CURATED_STYLE_REFERENCES } from "@/lib/generation/curated-style-catalog";
 import {
   PresetBuildError,
   buildCuratedPreset,
   rebuildPresetComponents,
+  specimenScreens,
   type PresetBuildDeps,
   type PresetBuildResult,
+  type PresetSpecimen,
 } from "@/lib/generation/curated-preset-builder";
+import { enforceSansTypography } from "@/lib/design-tokens";
+import type { PromptImagePayload } from "@/lib/types";
 import {
   curatedPresetReport,
   curatedStylePresetSchema,
@@ -46,7 +52,7 @@ import {
   type CuratedStylePreset,
 } from "@/lib/generation/curated-style-presets";
 import { geminiFocusAsk, refineAnalysisFromCrops } from "@/lib/generation/reference-focus";
-import { buildCompleteSpecimen, specimenBuildInput } from "@/lib/generation/specimen-build";
+import { boxOf, buildCompleteSpecimen, cropToBox, specimenBuildInput } from "@/lib/generation/specimen-build";
 
 import { renderPresetPreview } from "./preview";
 import { formatSpecimenReport, measureSpecimen } from "./specimen-report";
@@ -55,7 +61,7 @@ const PRESETS_PATH = path.join("lib", "generation", "generated", "curated-style-
 const OUT_DIR = path.join("scripts", "curated", "out");
 
 const usage = `Usage:
-  curated:presets --id <reference id> [--components] | --all [--rebuild] [--model <id>] [--build-model <id>]
+  curated:presets --id <reference id> [--components | --closeups] | --all [--rebuild] [--model <id>] [--build-model <id>]
   curated:presets --approve <reference id>`;
 
 const { values } = parseArgs({
@@ -64,6 +70,7 @@ const { values } = parseArgs({
     all: { type: "boolean", default: false },
     rebuild: { type: "boolean", default: false },
     components: { type: "boolean", default: false },
+    closeups: { type: "boolean", default: false },
     approve: { type: "string" },
     model: { type: "string" },
     "build-model": { type: "string" },
@@ -137,6 +144,87 @@ async function savedPreset(id: string): Promise<CuratedStylePreset> {
   return parsed.data as unknown as CuratedStylePreset;
 }
 
+/** Writes the sheet of a preset from the specimens it was built from, and prints what each rebuilt phone measures. */
+async function writeSheet({ browser, id, preset, image, specimens }: {
+  browser: Browser;
+  id: string;
+  preset: CuratedStylePreset;
+  image: PromptImagePayload;
+  specimens: PresetSpecimen[];
+}) {
+  const preview = await renderPresetPreview({
+    browser,
+    preset,
+    specimens: specimens.map((specimen) => ({
+      html: specimen.html, label: `Phone ${specimen.screenIndex}: ${specimen.screenName}`, reference: specimen.image,
+    })),
+    reference: image,
+    referenceLabel: id,
+    title: `${id} · curated style preset (unapproved)`,
+  });
+  await writeFile(path.join(OUT_DIR, `${id}.png`), preview);
+  // The numbers behind each rebuilt phone, so that the sheet is not judged by eye alone.
+  for (const specimen of specimens) {
+    const report = await measureSpecimen({ browser, preset, html: specimen.html });
+    console.log(`  phone ${specimen.screenIndex} (${specimen.screenName}):`);
+    for (const line of formatSpecimenReport(report)) console.log(`    ${line}`);
+  }
+}
+
+/**
+ * Reads the close-ups of a built preset again: what the letters of the headings are, and how the bottom bar is
+ * built. It keeps the preset's tokens (a serif or monospaced font is replaced when the letters read as a sans),
+ * its components and its specimens, so it costs six small calls where a build costs about twelve.
+ */
+async function readCloseUpsAgain(id: string) {
+  if (values.model) process.env.DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL = values.model;
+  const [{ loadCuratedStyleReferenceImage }, { geminiModelForTask }] = await Promise.all([
+    import("@/lib/generation/curated-style-references"),
+    import("@/lib/ai/model-policy"),
+  ]);
+  const reference = CURATED_STYLE_REFERENCES.find((entry) => entry.id === id)!;
+  console.log(`
+${id}
+Model: ${geminiModelForTask("project_planning")} for the close-up questions.`);
+  const image = await loadCuratedStyleReferenceImage(reference);
+  if (!image) throw new PresetBuildError("analysis", "the reference image could not be loaded");
+  const preset = await savedPreset(id);
+  const refined = await refineAnalysisFromCrops({ image, analysis: preset.analysis, ask: await geminiFocusAsk() });
+  for (const note of refined.notes) console.log(`  close-up: ${note}`);
+
+  const navigation = refined.analysis.primaryNavigation?.present ? refined.analysis.primaryNavigation : null;
+  const parsed = curatedStylePresetSchema.safeParse({
+    ...preset,
+    approved: false,
+    builtAt: new Date().toISOString(),
+    analysis: { ...refined.analysis, primaryNavigation: navigation },
+    navigation,
+    tokens: refined.analysis.typefaceClass === "sans" ? enforceSansTypography(preset.tokens) : preset.tokens,
+  });
+  if (!parsed.success) throw new PresetBuildError("preset", `${parsed.error.issues[0]?.path.join(".") || "preset"}: ${parsed.error.issues[0]?.message ?? "not valid"}`);
+  const next = parsed.data as unknown as CuratedStylePreset;
+  await writePresets(withCuratedPreset(await readPresets(), id, next));
+
+  // the sheet, from the specimens the last build saved
+  const specimens: PresetSpecimen[] = [];
+  for (const screen of specimenScreens(next.analysis)) {
+    try {
+      const html = await readFile(path.join(OUT_DIR, `${id}.specimen-${screen.index}.html`), "utf8");
+      specimens.push({ screenIndex: screen.index, screenName: screen.suggestedRole, html, image: await cropToBox(image, boxOf(screen)!) });
+    } catch {
+      console.log(`  no saved specimen for phone ${screen.index}: it is left off the sheet`);
+    }
+  }
+  const browser = await chromium.launch({ headless: true });
+  try {
+    await writeSheet({ browser, id, preset: next, image, specimens });
+  } finally {
+    await browser.close();
+  }
+  console.log(`  close-ups read again: bar ${navigation ? `${navigation.anatomy}, ${navigation.itemCount} icons` : "none"}, headings ${refined.analysis.typefaceClass ?? "unchanged"}`);
+  console.log(`  look at ${path.join(OUT_DIR, `${id}.png`)}, then: pnpm curated:presets --approve ${id}`);
+}
+
 async function buildAll(ids: string[], componentsOnly = false) {
   const deps = await realDeps();
   const { loadCuratedStyleReferenceImage } = await import("@/lib/generation/curated-style-references");
@@ -154,26 +242,10 @@ async function buildAll(ids: string[], componentsOnly = false) {
           ? await rebuildPresetComponents({ reference, image, preset: await savedPreset(id), deps })
           : await buildCuratedPreset({ reference, image, deps });
         await writePresets(withCuratedPreset(await readPresets(), id, result.preset));
-        const preview = await renderPresetPreview({
-          browser,
-          preset: result.preset,
-          specimens: result.specimens.map((specimen) => ({
-            html: specimen.html, label: `Phone ${specimen.screenIndex}: ${specimen.screenName}`, reference: specimen.image,
-          })),
-          reference: image,
-          referenceLabel: id,
-          title: `${id} · curated style preset (unapproved)`,
-        });
-        await writeFile(path.join(OUT_DIR, `${id}.png`), preview);
         for (const specimen of result.specimens) {
           await writeFile(path.join(OUT_DIR, `${id}.specimen-${specimen.screenIndex}.html`), specimen.html, "utf8");
         }
-        // The numbers behind each rebuilt phone, so that the sheet is not judged by eye alone.
-        for (const specimen of result.specimens) {
-          const report = await measureSpecimen({ browser, preset: result.preset, html: specimen.html });
-          console.log(`  phone ${specimen.screenIndex} (${specimen.screenName}):`);
-          for (const line of formatSpecimenReport(report)) console.log(`    ${line}`);
-        }
+        await writeSheet({ browser, id, preset: result.preset, image, specimens: result.specimens });
         console.log(`  ${componentsOnly ? "components made again" : "built"}: ${result.preset.analysis.screenCountEstimate} phones, ${result.specimens.length} rebuilt, ${result.preset.components.length} components, card radius ${result.preset.tokens.tokens?.radii?.app}`);
         for (const note of result.notes) console.log(`  note: ${note}`);
         console.log(`  look at ${path.join(OUT_DIR, `${id}.png`)}, then: pnpm curated:presets --approve ${id}`);
@@ -204,6 +276,12 @@ async function main() {
   if (values.id && !known.has(values.id)) throw new Error(`"${values.id}" is not in the curated style catalogue.`);
   if (!values.id && !values.all) throw new Error(usage);
   if (values.components && !values.id) throw new Error(`--components makes the components of one built preset: give it an --id.\n${usage}`);
+  if (values.closeups && !values.id) throw new Error(`--closeups reads the close-ups of one built preset: give it an --id.\n${usage}`);
+  if (values.closeups && values.components) throw new Error(`Give --closeups or --components, not both.\n${usage}`);
+  if (values.closeups) {
+    await readCloseUpsAgain(values.id!);
+    return;
+  }
 
   const ids = values.id
     ? [values.id]
@@ -220,7 +298,7 @@ async function main() {
 main().catch((error) => {
   // Only messages written in this script are safe to show; provider and database errors may carry details.
   const message = error instanceof Error ? error.message : "";
-  const safe = /^(Usage:|--components|"[^"]+" is not in|There is no preset|The preset for|The (?:analysis|palette|tokens|specimen|preset) step failed)/;
+  const safe = /^(Usage:|--components|--closeups|Give --closeups|"[^"]+" is not in|There is no preset|The preset for|The (?:analysis|palette|tokens|specimen|preset) step failed)/;
   console.error(safe.test(message) ? message : "The presets script failed; no sensitive error details were printed.");
   process.exitCode = 1;
 });

@@ -77,6 +77,20 @@ describe("reading the answers", () => {
     expect(parseNavigationRead([])).toBeNull();
   });
 
+  it("decides attached or floating from the two edges the eye can check, not from a label", () => {
+    const edges = (left: unknown, right: unknown, wider?: unknown) => parseNavigationRead({ present: true, touchesFrameLeft: left, touchesFrameRight: right, widerThanCardsAbove: wider });
+    expect(edges(true, true, true)).toMatchObject({ attachment: "attached", touches: { left: true, right: true }, widerThanCards: true });
+    expect(edges(true, true)?.attachment).toBe("attached");
+    expect(edges(false, false, false)?.attachment).toBe("floating");
+    // on one side only, or nothing said: the model has not seen it well
+    expect(edges(true, false)?.attachment).toBeNull();
+    expect(edges(undefined, undefined)?.attachment).toBeNull();
+    // a bar no wider than the cards above it cannot be the one that reaches the frame
+    expect(edges(true, true, false)?.attachment).toBeNull();
+    // an answer that still gives the label alone is taken as it was written
+    expect(parseNavigationRead({ present: true, attachment: "attached" })?.attachment).toBe("attached");
+  });
+
   it("finds what more than half of the answers agree on, and nothing when they split", () => {
     expect(consensus(["sans", "sans", "serif"])).toBe("sans");
     expect(consensus(["sans"])).toBe("sans");
@@ -128,6 +142,16 @@ describe("refining an analysis from the close-ups", () => {
     expect(refined.radiusClass).toBe(analysis.radiusClass);
   });
 
+  it("says what each phone answered, so that a split vote can be understood", async () => {
+    const attached = { present: true, touchesFrameLeft: true, touchesFrameRight: true, widerThanCardsAbove: true, itemCount: 5, icons: [] };
+    const floating = { present: true, touchesFrameLeft: false, touchesFrameRight: false, widerThanCardsAbove: false, itemCount: 5, icons: [] };
+    const { notes } = await refineAnalysisFromCrops({
+      image: await referenceImage(), analysis: misreadAnalysis(), ask: asker([sansRead], [attached, { present: false }, floating]),
+    });
+    expect(notes).toContain("headings, phone by phone: 1: sans (geometric); 2: sans (geometric); 3: sans (geometric)");
+    expect(notes).toContain("bottom bar, phone by phone: 1: attached (reaches the frame left yes, right yes; wider than the cards yes); 2: no bar; 3: floating (reaches the frame left no, right no; wider than the cards no)");
+  });
+
   it("asks two questions of each phone, a close-up of its top and of its bottom", async () => {
     const ask = asker([sansRead], [attachedRead]);
     await refineAnalysisFromCrops({ image: await referenceImage(), analysis: misreadAnalysis(), ask });
@@ -161,7 +185,12 @@ describe("refining an analysis from the close-ups", () => {
 
     const silent = await refineAnalysisFromCrops({ image: await referenceImage(), analysis, ask: asker([new Error("provider key sk-secret")], [new Error("quota")]) });
     expect(silent.analysis).toBe(analysis);
-    expect(silent.notes).toEqual(["headings: no close-up gave an answer, so the first read stands", "bottom bar: no close-up gave an answer, so the first read stands"]);
+    expect(silent.notes).toEqual([
+      "headings, phone by phone: 1: no answer; 2: no answer; 3: no answer",
+      "bottom bar, phone by phone: 1: no answer; 2: no answer; 3: no answer",
+      "headings: no close-up gave an answer, so the first read stands",
+      "bottom bar: no close-up gave an answer, so the first read stands",
+    ]);
     expect(silent.notes.join(" ")).not.toContain("sk-secret");
   });
 

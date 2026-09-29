@@ -10,7 +10,7 @@ import {
 import { measureReferencePalette } from "@/lib/generation/reference-palette";
 import { boxOf, cropToBox, pickSpecimenScreen, SpecimenIncompleteError } from "@/lib/generation/specimen-build";
 import { extractStyleComponents } from "@/lib/generation/style-component-extraction";
-import { MAX_STYLE_COMPONENTS } from "@/lib/generation/style-components";
+import { MAX_STYLE_COMPONENTS, styleComponentsFit } from "@/lib/generation/style-components";
 import type {
   DesignTokens,
   PromptImagePayload,
@@ -148,26 +148,37 @@ export async function buildPresetComponents({
     throw new PresetBuildError("specimen", screens.length === 0 ? "no phone of the reference has a box to crop it by" : `none of the ${screens.length} phone builds succeeded`);
   }
 
-  const components: StyleComponent[] = [];
   const skipped: Skipped = [];
+  // One of each name, the richest phone's first; then each phone's list in turn, so that every phone has a say in the
+  // vocabulary, until ten are chosen or the block a screen build is given has no room for another.
   const taken = new Set<string>();
-  for (const specimen of specimens) {
+  const lists = specimens.map((specimen) => {
     const label = `phone ${specimen.screenIndex}`;
     const extracted = extractStyleComponents(specimen.html);
     for (const item of extracted.skipped) {
       if (!skipped.some((known) => known.name === item.name && known.reason === item.reason)) skipped.push(item);
       notes.push(`${label}: skipped ${item.name}: ${item.reason}`);
     }
+    const ownComponents: StyleComponent[] = [];
     for (const component of extracted.components) {
       if (taken.has(component.name)) continue;
-      if (components.length >= MAX_STYLE_COMPONENTS) {
-        notes.push(`${label}: left out ${component.name}, ${MAX_STYLE_COMPONENTS} components are the most`);
-        continue;
-      }
       taken.add(component.name);
-      components.push(component);
+      ownComponents.push(component);
+    }
+    return { label, components: ownComponents };
+  });
+  const components: StyleComponent[] = [];
+  const leftOut: string[] = [];
+  for (let round = 0; lists.some((list) => round < list.components.length); round += 1) {
+    for (const list of lists) {
+      const component = list.components[round];
+      if (!component) continue;
+      if (components.length >= MAX_STYLE_COMPONENTS) leftOut.push(`${list.label}: left out ${component.name}, ${MAX_STYLE_COMPONENTS} components are the most`);
+      else if (!styleComponentsFit([...components, component])) leftOut.push(`${list.label}: left out ${component.name}, the block a screen build is given has no room for it`);
+      else components.push(component);
     }
   }
+  notes.push(...leftOut);
   if (components.length === 0) {
     throw new PresetBuildError("specimen", `${specimens.length === 1 ? `the build of "${specimens[0].screenName}"` : `the builds of ${specimens.length} phones`} marked no usable component${skipped.length ? ` (${skipped.map((item) => `${item.name}: ${item.reason}`).join("; ")})` : ""}`);
   }

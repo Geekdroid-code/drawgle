@@ -12,6 +12,7 @@ import {
   referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
+import { MAX_STYLE_COMPONENTS_BLOCK_CHARS } from "@/lib/generation/style-components";
 import type { NavigationPlan, ScreenAssetManifest, ScreenPlan } from "@/lib/types";
 
 const modes: GenerationPromptMode[] = ["recreate", "style", "prompt"];
@@ -488,7 +489,8 @@ describe("builder inputs that carry the reference's component vocabulary", () =>
       const huge = Array.from({ length: 30 }, (_, index) => ({ ...component, name: `component-${index}`, html: `<div>${"x".repeat(650)}</div>` }));
       const block = buildStyleScreenInstruction({ ...screenInput, styleComponents: huge })
         .split("STYLE COMPONENTS")[1].split("NAVIGATION ARCHITECTURE CONTRACT")[0];
-      expect(block.length).toBeLessThan(6300);
+      // the budget, and the few hundred characters of the instructions around the components
+      expect(block.length).toBeLessThan(MAX_STYLE_COMPONENTS_BLOCK_CHARS + 300);
       expect(block.match(/\n- component-/g)?.length).toBeLessThanOrEqual(10);
     });
 

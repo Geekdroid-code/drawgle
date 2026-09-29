@@ -16,8 +16,12 @@ export const MAX_STYLE_COMPONENTS = 10;
  * and badges. The block budget below is what bounds what a screen build pays.
  */
 export const MAX_STYLE_COMPONENT_HTML_CHARS = 1200;
-/** About 1.5k tokens: the block is paid for on every screen build. */
-export const MAX_STYLE_COMPONENTS_BLOCK_CHARS = 6000;
+/**
+ * About 2.2k tokens, paid for on every screen build (about $0.001 on Flash). It was 6000 while a component was at most
+ * 700 characters; with composed components of 400 to 1100, ten of them are about 7000, and the last ones were left
+ * out of every build without anyone saying so.
+ */
+export const MAX_STYLE_COMPONENTS_BLOCK_CHARS = 9000;
 
 export const styleComponentSchema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -56,6 +60,15 @@ export function usableStyleComponents(components: unknown): StyleComponent[] {
   return usable;
 }
 
+const componentLine = (component: StyleComponent) => `- ${component.name} — ${component.use} — ${component.html}`;
+
+/** Whether all of these components fit in the block a screen build is given. */
+export function styleComponentsFit(components: StyleComponent[]): boolean {
+  const usable = usableStyleComponents(components);
+  if (usable.length !== components.length) return false;
+  return usable.reduce((size, component) => size + componentLine(component).length + 1, STYLE_COMPONENTS_HEADER.length) <= MAX_STYLE_COMPONENTS_BLOCK_CHARS;
+}
+
 /**
  * The STYLE COMPONENTS block, or null when there is nothing to show. Components are added
  * whole and in order until the size budget is spent.
@@ -64,7 +77,7 @@ export function formatStyleComponents(components: unknown): string | null {
   const lines: string[] = [];
   let size = STYLE_COMPONENTS_HEADER.length;
   for (const component of usableStyleComponents(components)) {
-    const line = `- ${component.name} — ${component.use} — ${component.html}`;
+    const line = componentLine(component);
     if (size + line.length + 1 > MAX_STYLE_COMPONENTS_BLOCK_CHARS) break;
     lines.push(line);
     size += line.length + 1;
@@ -82,8 +95,9 @@ export const styleComponentsOf = (dna: ProjectReferenceDna | null | undefined): 
  */
 export const SPECIMEN_MARKING_INSTRUCTION = [
   "SPECIMEN: this build becomes the source of the project's reusable components.",
-  'Mark the root element of each reusable component with data-dg-component="<kebab-name>" and data-dg-use="<when to use it, under 12 words>",',
-  'for example data-dg-component="calendar-strip" data-dg-use="a week selector at the top of a day view".',
+  'Mark the root element of each reusable component with data-dg-component="<kebab-name>", data-dg-use="<when to use it, under 12 words>" and data-dg-rank="<1 to 8>",',
+  'for example data-dg-component="calendar-strip" data-dg-use="a week selector at the top of a day view" data-dg-rank="3".',
+  "Rank 1 is the component that most makes this reference look like itself, then 2, and so on; a second look-alike of a component you already ranked is not worth marking.",
   "Name a component by what it is, never by the content it shows.",
   "Mark composed units, because they carry the design: a whole card with the content inside it, one list row, a field with its buttons, a header row, a stat tile.",
   "Mark each different kind of card, row, tile and field the screen shows, at most eight in all, and never the same look twice.",

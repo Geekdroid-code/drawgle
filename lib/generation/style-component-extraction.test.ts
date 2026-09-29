@@ -112,6 +112,20 @@ describe("extractStyleComponents", () => {
     expect(skipped[0].reason).toContain("too large to copy");
   });
 
+  it("leaves out a marked element inside a component that is kept, and keeps it when the outer one was too large", () => {
+    const huge = Array.from({ length: 6 }, () => `<svg viewBox="0 0 10 10"><path d="${"M0 0L1 1".repeat(400)}"></path></svg>`).join("");
+    const { components, skipped } = extractStyleComponents(`
+      <section data-dg-component="mood-card" class="dg-surface-card dg-radius-app p-4">
+        <div data-dg-component="mood-item" class="dg-tint-1 dg-radius-pill">Mon</div>
+      </section>
+      <div data-dg-component="chart-panel" class="p-4">${huge}<div data-dg-component="legend-item" class="dg-tint-2 dg-radius-pill">Sleep</div></div>
+      <div data-dg-component="stat-tile" class="dg-surface-inset dg-radius-inner p-3">3h 15m</div>`);
+    expect(components.map((component) => component.name)).toEqual(["mood-card", "legend-item", "stat-tile"]);
+    expect(skipped.map((item) => item.name)).toEqual(["mood-item", "chart-panel"]);
+    expect(skipped[0].reason).toBe("part of mood-card, which is kept whole");
+    expect(skipped[1].reason).toContain("too large to copy");
+  });
+
   it("skips markers with no usable name and elements with nothing in them", () => {
     const { components, skipped } = extractStyleComponents(`
       <div data-dg-component="" class="a">x</div>
@@ -124,6 +138,26 @@ describe("extractStyleComponents", () => {
       "the marker has no usable name",
       "the marked element is empty",
     ]);
+  });
+
+  it("returns the ranked components most distinctive first and the unranked after them, without the rank in the markup", () => {
+    const { components } = extractStyleComponents(`
+      <div data-dg-component="chip" data-dg-rank="4" class="dg-tint-1">A</div>
+      <div data-dg-component="plain-row" class="dg-surface-card">B</div>
+      <div data-dg-component="hero-card" data-dg-rank="1" class="dg-surface-card">C</div>
+      <div data-dg-component="stat" data-dg-rank="2" class="dg-surface-inset">D</div>
+      <div data-dg-component="bad-rank" data-dg-rank="zero" class="p-1">E</div>`);
+    expect(components.map((component) => component.name)).toEqual(["hero-card", "stat", "chip", "plain-row", "bad-rank"]);
+    expect(components.map((component) => component.html).join("")).not.toContain("data-dg-rank");
+  });
+
+  it("gives the ten places by rank, not by position on the screen", () => {
+    const many = Array.from({ length: 13 }, (_, index) => `<div data-dg-component="component-${index}" data-dg-rank="${13 - index}" class="c${index}">Item ${index}</div>`).join("");
+    const { components, skipped } = extractStyleComponents(many);
+    // the last three on the screen are the most distinctive, so they are kept and the first three are not
+    expect(components.map((component) => component.name)[0]).toBe("component-12");
+    expect(components.map((component) => component.name)).not.toContain("component-0");
+    expect(skipped.map((item) => item.name)).toEqual(["component-2", "component-1", "component-0"]);
   });
 
   it("keeps at most ten components", () => {

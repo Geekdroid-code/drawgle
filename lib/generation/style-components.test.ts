@@ -69,11 +69,14 @@ describe("formatStyleComponents", () => {
     // the limit is above that, so that a build that goes over a little is not lost
     expect(MAX_STYLE_COMPONENT_HTML_CHARS).toBeGreaterThan(900);
     expect(SPECIMEN_MARKING_INSTRUCTION).toContain("do not draw a status bar or the bottom navigation, although the image shows them");
+    // it ranks what it marks, so that the ten places go to what is distinctive and not to what is first on the screen
+    expect(SPECIMEN_MARKING_INSTRUCTION).toContain('data-dg-rank="<1 to 8>"');
+    expect(SPECIMEN_MARKING_INSTRUCTION).toContain("Rank 1 is the component that most makes this reference look like itself");
   });
 
   it("stays inside the size budget by leaving out whole components, never by cutting markup", () => {
-    // ten components of 600 characters would be about 6.9k characters with their names and uses
-    const large = Array.from({ length: 10 }, (_, index) => withHtml(index + 1, 600));
+    // ten components of 1000 characters would be about 10.5k characters with their names and uses
+    const large = Array.from({ length: 10 }, (_, index) => withHtml(index + 1, 1000));
     const block = formatStyleComponents(large)!;
     expect(block.length).toBeLessThanOrEqual(MAX_STYLE_COMPONENTS_BLOCK_CHARS);
     const lines = block.split("\n").filter((line) => line.startsWith("- "));

@@ -572,6 +572,26 @@ const derivedNavigation = (tokens: DesignTokenValues) => ({
   border: pickFirstString(tokens.color?.border?.divider, "#e5e7eb"),
 });
 
+/** The typography with any serif or monospaced heading or body font replaced by a sans (see keepSansFamilies). */
+const sansTypography = (typography: DesignTokenValues["typography"], recommended?: readonly string[]): DesignTokenValues["typography"] => {
+  if (!isRecord(typography)) return typography;
+  const kept = keepSansFamilies({ heading: typography.heading_font_family, body: typography.body_font_family, recommended });
+  return {
+    ...typography,
+    ...(kept.heading ? { heading_font_family: kept.heading } : {}),
+    ...(kept.body ? { body_font_family: kept.body } : {}),
+  };
+};
+
+/**
+ * The tokens with a serif or monospaced heading or body font replaced by a sans, and nothing else changed. For
+ * tokens made before a close-up showed that the reference's letters are a sans (see reference-focus.ts).
+ */
+export const enforceSansTypography = (designTokens: DesignTokens): DesignTokens => {
+  if (!designTokens.tokens) return designTokens;
+  return { ...designTokens, tokens: { ...designTokens.tokens, typography: sansTypography(designTokens.tokens.typography, designTokens.meta?.recommendedFonts) } };
+};
+
 /**
  * Generated tokens drift toward the same clichés: a 32px radius on everything, a
  * blurred shadow on every card, white cards on cream. The drift is corrected in
@@ -702,18 +722,7 @@ export const calibrateGeneratedTokens = (
   }
 
   // Typeface: a reference whose letters were read as a sans keeps a sans in both roles.
-  if (evidence.typeface === "sans" && isRecord(tokens.typography)) {
-    const kept = keepSansFamilies({
-      heading: tokens.typography.heading_font_family,
-      body: tokens.typography.body_font_family,
-      recommended: designTokens.meta?.recommendedFonts ?? [],
-    });
-    tokens.typography = {
-      ...tokens.typography,
-      ...(kept.heading ? { heading_font_family: kept.heading } : {}),
-      ...(kept.body ? { body_font_family: kept.body } : {}),
-    };
-  }
+  if (evidence.typeface === "sans") tokens.typography = sansTypography(tokens.typography, designTokens.meta?.recommendedFonts);
 
   // Tokens that only mirrored a role follow it; ones the model set deliberately stay.
   const oldGradients = derivedGradients(before);

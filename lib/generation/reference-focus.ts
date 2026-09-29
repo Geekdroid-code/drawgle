@@ -48,12 +48,11 @@ export const TYPEFACE_QUESTION = [
 ].join("\n");
 
 export const NAVIGATION_QUESTION = [
-  "This is the bottom part of a mobile app screen, in a phone mockup. Describe its persistent bottom navigation bar. If there is none, return { \"present\": false }.",
+  "This is the bottom part of a mobile app screen, inside a phone frame (the thin white outline around the screen). Describe its persistent bottom navigation bar. If there is none, return { \"present\": false }.",
   "Return strictly valid JSON only:",
-  '{ "present": true, "attachment": "attached | floating", "topCorners": "rounded | square", "itemCount": 5, "icons": ["house", "trophy"], "labels": "always | active-only | hidden", "activeTreatment": "icon-fill | tint | underline | compact-chip", "inactiveTreatment": "plain | well", "activeFill": "solid | gradient", "material": "solid | translucent | glass", "geometry": "one short sentence" }',
-  "- attached: the bar's bottom edge and both side edges reach the edges of the screen, so that it touches the phone's frame on both sides and merges into its bottom edge, even when its top corners are rounded.",
-  "- floating: page background is visible between the bar and the screen's edges, on its sides and below it.",
-  "- The rounded outer corners of a phone frame are not a gap. Judge the bar against the screen's own edges.",
+  '{ "present": true, "touchesFrameLeft": true, "touchesFrameRight": true, "widerThanCardsAbove": true, "topCorners": "rounded | square", "itemCount": 5, "icons": ["house", "trophy"], "labels": "always | active-only | hidden", "activeTreatment": "icon-fill | tint | underline | compact-chip", "inactiveTreatment": "plain | well", "activeFill": "solid | gradient", "material": "solid | translucent | glass", "geometry": "one short sentence" }',
+  "- touchesFrameLeft and touchesFrameRight: at the height of the icons, does the bar's own surface run all the way to the phone frame on that side, with no page background between the frame and the bar? The frame's rounded bottom corners curve the bar's ends inward, which does not count as a gap.",
+  "- widerThanCardsAbove: is the bar wider than the content cards above it, which sit inside the screen's side margins? null when no card is visible above the bar.",
   "- Count every icon of the bar, even when it has no labels. icons lists them in order, by what they show.",
   "- activeTreatment is icon-fill when the active icon sits inside a filled circle or capsule and the other icons are plain.",
 ].join("\n");
@@ -91,7 +90,11 @@ export function parseTypefaceRead(raw: unknown): TypefaceRead | null {
 
 export type NavigationRead = {
   present: boolean;
+  /** From the two edges: attached when the bar's surface reaches the frame on both sides, floating when on neither. */
   attachment: "attached" | "floating" | null;
+  /** What was seen, for the notes: does the bar reach the frame on the left and on the right, and is it wider than the cards above. */
+  touches: { left: boolean | null; right: boolean | null };
+  widerThanCards: boolean | null;
   topCorners: "rounded" | "square" | null;
   itemCount: number | null;
   icons: string[];
@@ -106,9 +109,18 @@ export type NavigationRead = {
 export function parseNavigationRead(raw: unknown): NavigationRead | null {
   if (!isRecord(raw)) return null;
   const count = typeof raw.itemCount === "number" && Number.isFinite(raw.itemCount) ? Math.min(5, Math.max(0, Math.round(raw.itemCount))) : null;
+  const left = typeof raw.touchesFrameLeft === "boolean" ? raw.touchesFrameLeft : null;
+  const right = typeof raw.touchesFrameRight === "boolean" ? raw.touchesFrameRight : null;
+  // a bar that reaches the frame on both sides is attached, and one that reaches it on neither floats; on one side only, the model has not seen it well
+  const fromEdges = left === null || right === null || left !== right ? null : left ? "attached" as const : "floating" as const;
+  const wider = typeof raw.widerThanCardsAbove === "boolean" ? raw.widerThanCardsAbove : null;
+  // a bar as wide as the cards above it cannot be the one that reaches the frame
+  const attachment = fromEdges === "attached" && wider === false ? null : fromEdges ?? oneOf(raw.attachment, ["attached", "floating"] as const);
   return {
     present: raw.present === true,
-    attachment: oneOf(raw.attachment, ["attached", "floating"] as const),
+    attachment,
+    touches: { left, right },
+    widerThanCards: wider,
     topCorners: oneOf(raw.topCorners ?? raw.top_corners, ["rounded", "square"] as const),
     itemCount: count,
     icons: Array.isArray(raw.icons) ? raw.icons.flatMap((icon) => short(icon, 40) ?? []).slice(0, 5) : [],
@@ -242,13 +254,28 @@ export async function refineAnalysisFromCrops({
   }).slice(0, MAX_PHONES);
   if (phones.length === 0) return { analysis, notes: ["no phone has a box to look at closely"] };
 
-  const reads = await Promise.all(phones.map(async ({ box }) => ({
-    typeface: await askAbout(ask, image, box, "top", TYPEFACE_QUESTION, parseTypefaceRead),
-    navigation: await askAbout(ask, image, box, "bottom", NAVIGATION_QUESTION, parseNavigationRead),
-  })));
+  // One phone after another, so that the questions go out in a fixed order; the two about a phone go together.
+  const reads: Array<{ index: number; typeface: TypefaceRead | null; navigation: NavigationRead | null }> = [];
+  for (const { index, box } of phones) {
+    const [typeface, navigation] = await Promise.all([
+      askAbout(ask, image, box, "top", TYPEFACE_QUESTION, parseTypefaceRead),
+      askAbout(ask, image, box, "bottom", NAVIGATION_QUESTION, parseNavigationRead),
+    ]);
+    reads.push({ index, typeface, navigation });
+  }
 
   const notes: string[] = [];
   let refined: ReferenceAnalysis = analysis;
+
+  // what each phone said, so that a vote that splits can be understood and not only reported
+  const yesNo = (value: boolean | null) => (value === null ? "?" : value ? "yes" : "no");
+  notes.push(`headings, phone by phone: ${reads.map((read) => `${read.index}: ${read.typeface ? `${read.typeface.headingClass}${read.typeface.kind ? ` (${read.typeface.kind})` : ""}` : "no answer"}`).join("; ")}`);
+  notes.push(`bottom bar, phone by phone: ${reads.map((read) => {
+    const bar = read.navigation;
+    if (!bar) return `${read.index}: no answer`;
+    if (!bar.present) return `${read.index}: no bar`;
+    return `${read.index}: ${bar.attachment ?? "unclear"} (reaches the frame left ${yesNo(bar.touches.left)}, right ${yesNo(bar.touches.right)}; wider than the cards ${yesNo(bar.widerThanCards)})`;
+  }).join("; ")}`);
 
   const typefaces = reads.flatMap((read) => read.typeface ?? []);
   const heading = consensus(typefaces.map((read) => read.headingClass));
