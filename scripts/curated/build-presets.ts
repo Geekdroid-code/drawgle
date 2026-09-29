@@ -46,6 +46,7 @@ import {
 import { specimenBuildInput } from "@/lib/generation/specimen-build";
 
 import { renderPresetPreview } from "./preview";
+import { formatSpecimenReport, measureSpecimen } from "./specimen-report";
 
 const PRESETS_PATH = path.join("lib", "generation", "generated", "curated-style-presets.json");
 const OUT_DIR = path.join("scripts", "curated", "out");
@@ -150,6 +151,12 @@ async function buildAll(ids: string[], componentsOnly = false) {
         await writeFile(path.join(OUT_DIR, `${id}.png`), preview);
         for (const specimen of result.specimens) {
           await writeFile(path.join(OUT_DIR, `${id}.specimen-${specimen.screenIndex}.html`), specimen.html, "utf8");
+        }
+        // The numbers behind each rebuilt phone, so that the sheet is not judged by eye alone.
+        for (const specimen of result.specimens) {
+          const report = await measureSpecimen({ browser, preset: result.preset, html: specimen.html });
+          console.log(`  phone ${specimen.screenIndex} (${specimen.screenName}):`);
+          for (const line of formatSpecimenReport(report)) console.log(`    ${line}`);
         }
         console.log(`  ${componentsOnly ? "components made again" : "built"}: ${result.preset.analysis.screenCountEstimate} phones, ${result.specimens.length} rebuilt, ${result.preset.components.length} components, card radius ${result.preset.tokens.tokens?.radii?.app}`);
         for (const note of result.notes) console.log(`  note: ${note}`);

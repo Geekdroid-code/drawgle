@@ -34,9 +34,12 @@ It runs on your machine with your own keys and reads them only from the environm
 
 ```bash
 pnpm curated:presets --id mindfulness-meditation-beige-light
+pnpm curated:presets --id mindfulness-meditation-beige-light --components   # only the components, again
 pnpm curated:presets --all                # every reference that has no preset yet
 pnpm curated:presets --all --rebuild      # and those that do (this un-approves them)
 ```
+
+`--components` keeps a built preset's analysis, palette and tokens and makes its components again: one build per phone, no analysis or token call, and the preset is unapproved afterwards. Use it to try another idea for the components. It does not change the type or the spacing, which live in the tokens: a fault in those is a fault in how the tokens are made, so build the preset in full after fixing it.
 
 Use `--model <id>` for the model that does the analysis and the tokens, and `--build-model <id>` for the model that builds the specimen. Without them the configured models are used. Pick the strongest one you have, since the cost is a few dollars for the whole catalogue and the result is used for every project.
 
@@ -45,9 +48,9 @@ A build does this, and refuses instead of salvaging:
 1. Loads the image.
 2. Runs the full analysis. It stops if the analysis was salvaged, describes fewer phones than it counts, has a phone without a box, or does not classify the radius and the elevation.
 3. Measures the palette on each phone's box.
-4. Generates the tokens with the runtime pipeline and its calibration, without any preset.
-5. Builds the specimen: the recreate builder on the phone with the most components, with each reusable component marked `data-dg-component`. The components are read back out of the markup, one instance per name, with their text cut to short samples and repeated items trimmed. The status bar and the bottom navigation are left out, because the renderer draws them.
-6. Writes the preset with `approved: false`, and a preview to `scripts/curated/out/<id>.png` (git-ignored) with the specimen's HTML next to it.
+4. Generates the tokens with the runtime pipeline and its calibration, without any preset. For a curated reference the analysis and the token model are also given the catalogue's notes on its typeface and density (`lib/generation/curated-reference-notes.ts`), as a check on how they read the image.
+5. Builds a specimen of each phone, four at most and the richest first: the recreate builder on the phone, with each reusable component marked `data-dg-component`. The components are read back out of the markup, one instance per name (the richest phone's first), with their text cut to short samples and repeated items trimmed. The status bar and the bottom navigation are left out, because the renderer draws them. A phone whose build fails is left out and named; the build stops only when none gives a component.
+6. Writes the preset with `approved: false`, a preview to `scripts/curated/out/<id>.png` (git-ignored) with each specimen's HTML next to it, and prints a report for each rebuilt phone (see below).
 
 ## Approving one
 
@@ -58,7 +61,15 @@ Check that:
 - the analysis found every phone, and the palette and the card radius read right;
 - the bar under the specimen is the reference's (for the mindfulness reference: icon-only, attached to the bottom edge with rounded top corners, the active item in a gradient circle). It is built from the preset's `navigation`, with sample destinations, exactly as every project's shared navigation will be; only the destinations are the product's;
 - the specimen looks like the reference's phone, and each component looks right on its own and carries no content of the reference's (no names, numbers or copy that belong to one product);
-- there are enough components to build most screens from: a handful or more.
+- there are enough components to build most screens from: a handful or more;
+- the numbers printed under each rebuilt phone agree with the reference. Look at the picture with them:
+  - **the title.** A title beside a back arrow is `dg-type-nav-title`, one line, at the size of the reference's small top-bar title. A `CHECK` line names it when it is built as a screen title, wraps, or is set in a generic keyword or a font the page did not load;
+  - **the fonts.** The heading and body fonts are the reference's own typeface. A reference set in one typeface, with a light word beside a bold one, has one family for both roles;
+  - **the space between blocks.** Compare the gaps with the reference's: neighbouring blocks a step apart, and more space only before a new titled section. If every gap is the same large number, the rhythm was flattened;
+  - **the tallest block** as a multiple of the screen width, against the same block in the reference;
+  - **no round control stretched into an oval.**
+
+The report is facts about the render with a few flags for things that are wrong in any design. It is a prompt to look, not a verdict, and nothing in it changes a preset.
 
 Then:
 
@@ -66,7 +77,7 @@ Then:
 pnpm curated:presets --approve mindfulness-meditation-beige-light
 ```
 
-If a preset is wrong, edit the JSON by hand (a component's `use` line, say) or build it again. A rebuild starts unapproved.
+If a preset is wrong, build it again. A rebuild starts unapproved. Editing a component's `use` line by hand is fine. Do not edit the tokens, the fonts or the analysis by hand: a preset that needs it shows a fault in how presets are made, every other reference will have the same fault, and the fix belongs in the prompts or the tooling (the first mindfulness build had a serif heading font, 32px between every block and a 28px title in the top bar; each was a wrong instruction, and fixing the instruction fixes every reference).
 
 ## The check
 
