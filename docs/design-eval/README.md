@@ -28,6 +28,24 @@ Useful options:
 | `--radius-class <class>` | `square`, `soft`, `rounded` or `very-rounded`, for `--retoken`. Default: the class stored in the reference DNA. |
 | `--reference <file>` | Use this image as the reference. |
 
+## A/B of the screen build's model and thinking level
+
+`pnpm design:ab` rebuilds screens of a saved bundle with one setting changed, and records what each build cost, so the model and the thinking level can be chosen on evidence (Step 9 of the plan). It calls the model with your own credentials, so it is yours to run.
+
+```bash
+pnpm design:eval --project 0ce99a06 --label baseline --case pets-family     # once, to save the bundle
+pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label flash-low
+pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label flash-high --thinking high
+pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label pro-low --model <the provider's current Pro id>
+pnpm design:ab --report scripts/design-eval/out/ab/flash-low scripts/design-eval/out/ab/flash-high scripts/design-eval/out/ab/pro-low
+```
+
+One run is one arm: the model policy reads `DRAWGLE_GEMINI_FULL_BUILD_MODEL` and `DRAWGLE_GEMINI_SCREEN_BUILD_THINKING` when it is first imported, and `--model` and `--thinking` set them for the run. Each run builds the first three parent screens (`--screens "Today,3"` or `--limit` to choose), one after another so each build's time is its own, and writes to `scripts/design-eval/out/ab/<label>/`: `builds.md` and `builds.json` (time, tokens in, out and thinking, code size and cost of every build), and the usual `contact-sheet.png` and `checks.md` of the rebuilt screens, so the arms can be looked at side by side and checked.
+
+- **Cost** is the tokens the provider reports times a price table in `scripts/design-eval/cost.ts` (Flash $0.50 in and $3 out per million tokens, Pro $2 and $12, thinking billed as output: the plan's $0.013 and $0.05 for 9k in and 3k out). Prices change: check the provider's list, or pass `--price "<in>,<out>"`. A model the table does not know gets tokens and no cost.
+- **The input** is the stored screen's brief with the project's tokens, reference, family contract, style components and navigation. It leaves out the project memory and the asset manifest. Every arm gets the same input, which is what a comparison needs.
+- A failed build is recorded as failed, with no error details, and the run goes on.
+
 ## The checks
 
 Each screen gets a row. `!` marks a failing value and `-` means the check does not apply.

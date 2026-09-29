@@ -4137,10 +4137,10 @@ export async function generateDesignTokens({
           referenceAnalysis,
           onError: (message) => llmLog?.("[PALETTE] reference palette could not be measured", { message }),
         });
+    // No temperature override: Gemini 3 is tuned for its default, as the screen build is.
     const policy = geminiPolicyForTask("design_tokens", {
       systemInstruction: buildDesignInstruction(promptMode),
       responseMimeType: "application/json",
-      temperature: 0.35,
     });
     // A style reference is the art direction and the builder sees it; a model's paraphrase of it is
     // where "32px" and "glass-morphism dock" first appeared. The tokens take the analysis and the

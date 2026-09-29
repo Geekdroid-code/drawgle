@@ -111,6 +111,19 @@ describe("generateDesignTokens measures and calibrates", () => {
     expect(hexDeltaE(values.color!.surface!.card!, "#F7F5E9")).toBeLessThan(2);
   });
 
+  it("asks the token model with a little thinking and at its own temperature", async () => {
+    await generateDesignTokens({
+      prompt: "An app for families with multiple pets",
+      image: await referenceImage(),
+      referenceMode: "user_style",
+      referenceAnalysis: analysis,
+    });
+    const config = tokenCall()?.config;
+    expect(config?.thinkingConfig?.thinkingLevel).toBe("low");
+    expect(config?.temperature).toBeUndefined();
+    expect(config?.responseMimeType).toBe("application/json");
+  });
+
   it("calibrates prompt-only tokens too, without a palette", async () => {
     const tokens = await generateDesignTokens({ prompt: "A recipe app", referenceMode: "internal_style", referenceAnalysis: null });
     expect(tokenPromptText()).not.toContain("MEASURED COLORS");
