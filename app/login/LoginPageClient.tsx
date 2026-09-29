@@ -6,11 +6,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { MarketingShell } from "@/components/marketing/MarketingShell";
+import { BrandMark } from "@/components/marketing/BrandMark";
+import { marketingFontVariables } from "@/components/marketing/fonts";
+import { DitherField } from "@/components/marketing/motion/DitherField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getSafeAuthRedirect } from "@/lib/auth-redirect";
+import { testimonials } from "@/lib/marketing/home-content";
 import { createClient } from "@/lib/supabase/client";
+import { cn } from "@/lib/utils";
 
 type AuthMode = "sign-in" | "sign-up";
 type PendingAction = AuthMode | "google" | null;
@@ -34,11 +38,11 @@ const noticeMessages: Record<string, string> = {
 
 export default function LoginPage() {
   return (
-    <MarketingShell>
+    <div className={cn("mk-root", marketingFontVariables)}>
       <Suspense fallback={<LoginPageFallback />}>
         <LoginPageContent />
       </Suspense>
-    </MarketingShell>
+    </div>
   );
 }
 
@@ -209,20 +213,39 @@ function LoginPageContent() {
 
   return (
     <main className="bg-white text-mk-ink">
-      <div className="grid min-h-[100dvh] w-full lg:grid-cols-2">
-        <section className="flex min-h-[100dvh] flex-col justify-center px-5 pb-12 pt-28 sm:px-10 lg:px-14">
-          <div className="mx-auto flex w-full max-w-[410px] flex-col justify-center">
-            <div className="mb-5">
-              <div className="mb-3 text-xs font-semibold uppercase tracking-wider text-neutral-400">
-                Your design workspace
-              </div>
-              <h1 className="text-[32px] font-semibold leading-[1.06] tracking-tight text-mk-heading sm:text-[40px]">
-                {mode === "sign-in" ? "Welcome back." : "Build something worth opening."}
+      {/* svh, not dvh: the layout must not resize while a phone's address bar slides away. */}
+      <div className="grid min-h-svh w-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)]">
+        <section className="relative flex min-h-svh flex-col overflow-hidden px-5 py-6 sm:px-10 lg:px-14 lg:py-8">
+          <DitherField quietZone={FORM_QUIET_ZONE} density={0.62} className="absolute inset-0 opacity-[0.42]" />
+          <header className="relative flex items-center justify-between">
+            <Link href="/" aria-label="Drawgle home">
+              <BrandMark />
+            </Link>
+            <nav aria-label="Site" className="flex items-center gap-5 text-[13px] font-medium text-neutral-500 lg:hidden">
+              <Link href="/showcase" className="transition-colors hover:text-mk-ink">Showcase</Link>
+              <Link href="/pricing" className="transition-colors hover:text-mk-ink">Pricing</Link>
+            </nav>
+          </header>
+
+          <div className="relative mx-auto flex w-full max-w-[400px] flex-1 flex-col justify-center py-12">
+            <div className="mb-7">
+              <h1 className="text-[34px] font-medium leading-[1.08] tracking-[-0.03em] text-mk-heading sm:text-[40px]">
+                {mode === "sign-in" ? (
+                  <>
+                    Welcome back. <br />
+                    <span className="font-semibold text-mk-accent">Your screens await.</span>
+                  </>
+                ) : (
+                  <>
+                    Design your app <br />
+                    <span className="font-semibold text-mk-accent">in minutes, not weeks.</span>
+                  </>
+                )}
               </h1>
               <p className="mt-3 max-w-sm text-sm leading-relaxed text-mk-body">
                 {mode === "sign-in"
-                  ? "Sign in to continue refining your screens, systems, and ideas."
-                  : "Create your workspace and turn the first rough thought into editable mobile UI."}
+                  ? "Sign in to keep refining your screens and design system."
+                  : "Describe an idea, get connected mobile screens, and hand them to your coding agent."}
               </p>
             </div>
 
@@ -271,7 +294,7 @@ function LoginPageContent() {
                 }}
                 className={`h-9 rounded-full text-xs font-semibold transition-all ${
                   mode === "sign-in"
-                    ? "bg-white text-mk-ink shadow-[0_2px_10px_-4px_rgba(15,23,42,0.25)]"
+                    ? "bg-white text-mk-ink"
                     : "text-neutral-500 hover:text-mk-ink"
                 }`}
               >
@@ -285,7 +308,7 @@ function LoginPageContent() {
                 }}
                 className={`h-9 rounded-full text-xs font-semibold transition-all ${
                   mode === "sign-up"
-                    ? "bg-white text-mk-ink shadow-[0_2px_10px_-4px_rgba(15,23,42,0.25)]"
+                    ? "bg-white text-mk-ink"
                     : "text-neutral-500 hover:text-mk-ink"
                 }`}
               >
@@ -372,7 +395,7 @@ function LoginPageContent() {
               </form>
             )}
 
-            <p className="mt-5 text-center text-[11px] leading-4 text-neutral-400">
+            <p className="mt-6 text-center text-[11px] leading-4 text-neutral-400">
               By continuing, you agree to Drawgle&apos;s{" "}
               <Link href="/terms" className="font-medium text-neutral-600 hover:text-mk-ink">
                 Terms
@@ -395,7 +418,7 @@ function LoginPageContent() {
 function LoginPageFallback() {
   return (
     <main className="bg-white">
-      <div className="grid min-h-[100dvh] w-full lg:grid-cols-2">
+      <div className="grid min-h-svh w-full lg:grid-cols-[minmax(0,1fr)_minmax(0,1.08fr)]">
         <div className="flex items-center justify-center p-8">
           <div className="w-full max-w-[430px] space-y-4">
             <div className="h-10 w-56 rounded-full bg-black/[0.05]" />
@@ -482,69 +505,53 @@ function GoogleMark() {
   );
 }
 
+// Keeps the form itself clean; the dither lives around it.
+const FORM_QUIET_ZONE = { y: 0.5, height: 0.4, width: 0.44, depth: 1 };
+const review = testimonials.find((item) => item.name === "Vishnu Das") ?? testimonials[0];
+
 function ShowcasePanel() {
   const screens = [
-    {
-      src: "/showcase-screenshots/minimal-habit-premium/habits.webp",
-      alt: "Quiet Habit mobile dashboard designed with Drawgle",
-      className: "translate-y-10",
-    },
-    {
-      src: "/showcase-screenshots/neo-mint/calendar.webp",
-      alt: "Neo Mint finance calendar designed with Drawgle",
-      className: "-translate-y-4",
-    },
-    {
-      src: "/showcase-screenshots/food-delivery/home.webp",
-      alt: "Food delivery discovery screen designed with Drawgle",
-      className: "translate-y-16",
-    },
+    { src: "/showcase-screenshots/minimal-habit-premium/habits.webp", alt: "Quiet Habit mobile dashboard designed with Drawgle", className: "mt-16 -rotate-[4deg]" },
+    { src: "/showcase-screenshots/neo-mint/calendar.webp", alt: "Neo Mint finance calendar designed with Drawgle", className: "z-10" },
+    { src: "/showcase-screenshots/food-delivery/home.webp", alt: "Food delivery discovery screen designed with Drawgle", className: "mt-16 rotate-[4deg]" },
   ];
 
   return (
-    <aside className="mk-surface relative m-3 hidden min-h-[calc(100dvh-24px)] overflow-hidden rounded-[36px] lg:flex lg:flex-col">
-      <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-24 size-[420px] rounded-full bg-mk-accent/10 blur-3xl" />
-      <div className="relative z-10 px-10 pb-5 pt-28 xl:px-14">
-        <div className="text-xs font-semibold uppercase tracking-wider text-neutral-400">
-          Designed with Drawgle
-        </div>
-        <h2 className="mt-3 max-w-xl text-[34px] font-medium leading-[1.08] tracking-tight text-mk-body xl:text-[42px]">
-          One workspace. <span className="font-semibold text-mk-ink">Distinct visual directions.</span>
+    <aside className="mk-surface relative m-3 hidden min-h-[calc(100svh-24px)] flex-col overflow-hidden rounded-[36px] lg:flex">
+
+      <nav aria-label="Site" className="relative z-10 flex justify-end gap-6 px-10 pt-7 text-[13px] font-medium text-neutral-500">
+        <Link href="/" className="transition-colors hover:text-mk-ink">Home</Link>
+        <Link href="/showcase" className="transition-colors hover:text-mk-ink">Showcase</Link>
+        <Link href="/pricing" className="transition-colors hover:text-mk-ink">Pricing</Link>
+      </nav>
+
+      <div className="relative z-10 px-10 pt-12 text-center xl:px-16">
+        <h2 className="mx-auto max-w-lg text-[34px] font-medium leading-[1.1] tracking-[-0.03em] text-mk-body xl:text-[40px]">
+          Premium mobile UI, <br />
+          <span className="font-semibold text-mk-accent">from a single prompt.</span>
         </h2>
-        <p className="mt-3 max-w-lg text-sm leading-6 text-neutral-500">
-          Generate polished mobile UI, then keep refining every screen after the first result.
-        </p>
       </div>
 
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden px-8 pb-8 xl:px-12">
-        <div className="grid w-full max-w-[760px] grid-cols-3 items-center gap-4 xl:gap-6">
+      <div className="relative z-10 flex flex-1 items-center justify-center px-10 py-10">
+        <div className="grid w-full max-w-[560px] grid-cols-3 items-start gap-4">
           {screens.map((screen) => (
-            <div
-              key={screen.src}
-              className={`rounded-[26px] bg-gradient-to-b from-[#f4f4f5] to-[#dcdde1] p-1 shadow-[0_30px_60px_-30px_rgba(15,23,42,0.5)] ring-1 ring-black/[0.08] ${screen.className}`}
-            >
-              <div className="relative aspect-[390/844] overflow-hidden rounded-[22px] bg-white">
-                <Image
-                  src={screen.src}
-                  alt={screen.alt}
-                  fill
-                  priority
-                  sizes="(max-width: 1023px) 0px, 18vw"
-                  className="object-cover"
-                />
+            <div key={screen.src} className={cn("rounded-[26px] bg-[#e9e9eb] p-[3px] ring-1 ring-black/[0.08]", screen.className)}>
+              <div className="relative aspect-[390/844] overflow-hidden rounded-[23px] bg-white">
+                <Image src={screen.src} alt={screen.alt} fill priority sizes="(max-width: 1023px) 0px, 15vw" className="object-cover object-top" />
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="relative z-10 flex items-center justify-between border-t border-black/[0.05] px-10 py-5 text-[11px] font-medium text-neutral-400 xl:px-14">
-        <span>Original screens generated by Drawgle</span>
-        <Link href="/showcase" className="flex items-center gap-2 text-neutral-600 transition-colors hover:text-mk-ink">
-          Explore showcase
-          <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
-      </div>
+      <figure className="relative z-10 mx-auto mb-10 max-w-md px-10 text-center">
+        <blockquote className="text-[14px] leading-relaxed text-mk-body">&ldquo;{review.quote}&rdquo;</blockquote>
+        <figcaption className="mt-4 flex items-center justify-center gap-2.5 text-[13px]">
+          <Image src={review.avatar} alt="" width={28} height={28} className="size-7 rounded-full object-cover" />
+          <span className="font-semibold text-mk-ink">{review.name}</span>
+          <span className="text-neutral-400">{review.role}</span>
+        </figcaption>
+      </figure>
     </aside>
   );
 }
