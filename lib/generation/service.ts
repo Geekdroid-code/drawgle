@@ -12,7 +12,15 @@ import { createGeminiClient } from "@/lib/ai/gemini";
 import { generateScreenBuilderContent, generateScreenBuilderContentStream } from "@/lib/ai/provider";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { getOpenRouterScreenBuildModel, getScreenBuilderProvider, getScreenEditorModel } from "@/lib/env/server";
-import { ensureLegibleGeneratedTokens, hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
+import {
+  calibrateGeneratedTokens,
+  ensureLegibleGeneratedTokens,
+  hasApprovedDesignTokens,
+  normalizeDesignTokens,
+  type CalibrationEvidence,
+} from "@/lib/design-tokens";
+import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/generation/measured-colors";
+import { userNamedColorRoles } from "@/lib/generation/user-color-roles";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
 import { parseNumberedScreenSections } from "@/lib/generation/explicit-screen-sections";
@@ -863,7 +871,11 @@ const resolveGeneratedScreenMargin = ({
     : null)
   ?? "16px";
 
-const buildApprovedDesignTokens = (candidate: unknown, screenMargin = "16px"): DesignTokens => {
+const buildApprovedDesignTokens = (
+  candidate: unknown,
+  screenMargin = "16px",
+  calibration: CalibrationEvidence | null = null,
+): DesignTokens => {
   if (!isRecord(candidate)) {
     throw new Error("Design generation did not return a valid mobile_universal_core token object.");
   }
@@ -907,7 +919,9 @@ const buildApprovedDesignTokens = (candidate: unknown, screenMargin = "16px"): D
     throw new Error("Design generation did not return a usable mobile_universal_core token set.");
   }
 
-  return ensureLegibleGeneratedTokens(next);
+  // Generated tokens drift toward the same clichés (32px radii, blurred shadows, white on cream);
+  // calibrate them in code first, then keep the contrast floor on the calibrated colours.
+  return ensureLegibleGeneratedTokens(calibration ? calibrateGeneratedTokens(next, calibration) : next);
 };
 
 const humanizeReferenceRole = (value: string, index: number) => {
@@ -3938,6 +3952,13 @@ export async function generateDesignTokens({
       hasDesignStyle: Boolean(designStyle),
       hasReferenceAnalysis: Boolean(referenceAnalysis),
     });
+    // Colours are measured from the reference pixels, not guessed in prose.
+    const measuredPalette = await measureStyleReferencePalette({
+      image,
+      referenceMode: resolvedReferenceMode,
+      referenceAnalysis,
+      onError: (message) => llmLog?.("[PALETTE] reference palette could not be measured", { message }),
+    });
     const policy = geminiPolicyForTask("design_tokens", {
       systemInstruction: buildDesignInstruction(promptMode),
       responseMimeType: "application/json",
@@ -3991,6 +4012,10 @@ export async function generateDesignTokens({
       text: `Creative Direction:\n${formatCreativeDirection(creativeDirection)}`,
     });
 
+    if (measuredPalette) {
+      parts.push({ text: formatMeasuredColors(measuredPalette, referenceAnalysis ?? {}) });
+    }
+
     if (llmLog) {
       const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
       llmLog(`[LLM INPUT] design-tokens`, {
@@ -4022,15 +4047,26 @@ export async function generateDesignTokens({
       referenceAnalysis,
     });
 
+    // Image-to-UI reproduces its source and an explicit design style is the user's own choice,
+    // so only tokens derived from a style reference or from the prompt are calibrated.
+    const calibration: CalibrationEvidence | null = resolvedReferenceMode === "user_recreate" || designStyle
+      ? null
+      : {
+          palette: measuredPalette,
+          radiusClass: referenceAnalysis?.radiusClass ?? null,
+          surfaceElevation: referenceAnalysis?.surfaceElevation ?? null,
+          userColorRoles: userNamedColorRoles(designRequirements),
+        };
+
     if (!parsed.success) {
-      return buildApprovedDesignTokens(rawTokens, screenMargin);
+      return buildApprovedDesignTokens(rawTokens, screenMargin, calibration);
     }
 
     return buildApprovedDesignTokens(parsed.data as {
       system_schema?: string;
       meta?: DesignTokenMetadata;
       tokens?: DesignTokenValues;
-    }, screenMargin);
+    }, screenMargin, calibration);
   } catch (error) {
     console.error("Failed to generate design tokens", error);
     throw error instanceof Error

@@ -2,7 +2,7 @@
 
 The harness turns a project id into two things you can judge: a **contact sheet** (the reference on the left, then every screen in sort order) and a **check table** of cheap automatic checks on the rendered screens. It exists so that a change to the generation pipeline is judged by looking, before and after, and not only in production.
 
-It is part of `docs/premium-design-quality-plan-2026-09-29.md` (Step 0). The saved baseline is in `docs/design-eval/baseline/`.
+It is part of `docs/premium-design-quality-plan-2026-09-29.md` (Step 0). The saved baseline is in `docs/design-eval/baseline/`, and the what-if after Step 2 is in `docs/design-eval/after-step-2/`.
 
 ## Run it
 
@@ -23,7 +23,9 @@ Useful options:
 | `--bundle <dir>` | Replay a saved bundle without the database. |
 | `--publish <dir>` | Copy `contact-sheet.png` and `checks.md` there (into `<dir>/<case id>` with `--set`). Commit only these two small files; keep the rest local. |
 | `--elevation <class>` | `flat-tone`, `hairline`, `soft-shadow`, `strong-shadow` or `unknown`. Default: the class stored in the reference DNA. |
-| `--expect-background <hex>`, `--expect-card <hex>` | Measured reference colours. Enables the card and page match. |
+| `--expect-background <hex>`, `--expect-card <hex>` | Reference colours for the card and page match. Default: measured from the reference image with `lib/generation/reference-palette.ts`, using the screen boxes of the stored analysis. |
+| `--retoken` | What-if: render the existing screens under tokens calibrated the way generation now calibrates them (radius cap, flat elevation, measured page and card, the user's named colours respected). Nothing is saved. It shows what changes through the tokens without a model run; see `after-step-2/`. |
+| `--radius-class <class>` | `square`, `soft`, `rounded` or `very-rounded`, for `--retoken`. Default: the class stored in the reference DNA. |
 | `--reference <file>` | Use this image as the reference. |
 
 ## The checks

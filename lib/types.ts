@@ -195,10 +195,16 @@ export interface DesignColorTokens {
   };
   surface?: {
     card?: string;
+    /** A tile or field inside a card: one tone step from the card. Optional; old projects fall back to the card. */
+    inset?: string;
     bottom_sheet?: string;
     modal?: string;
     [key: string]: JsonValue | undefined;
   };
+  /** 3 or 4 pastel wells and chips, each an accent mixed toward the background. Keys "1" to "4". */
+  accent_tints?: Record<string, string>;
+  /** Text colours that keep the contrast floor on the matching tint. Keys "1" to "4". */
+  accent_tints_text?: Record<string, string>;
   text?: {
     high_emphasis?: string;
     medium_emphasis?: string;
@@ -831,6 +837,15 @@ export interface ReferenceNavigationEvidence {
   width?: NavigationDesignContract["width"] | null;
   material?: NavigationDesignContract["surface"] | null;
 }
+/**
+ * Corner radius of the main cards, judged against a 390pt screen: square 0-4pt,
+ * soft 6-10pt, rounded 12-16pt, very-rounded 18-24pt. A model classifies; code owns the px.
+ */
+export type RadiusClass = "square" | "soft" | "rounded" | "very-rounded";
+
+/** How the main cards separate from the page. */
+export type SurfaceElevation = "flat-tone" | "hairline" | "soft-shadow" | "strong-shadow";
+
 export interface ReferenceAnalysis {
   overallVisualStyle: string;
   screenCountEstimate: number;
@@ -838,6 +853,8 @@ export interface ReferenceAnalysis {
   designSystemSignals: ReferenceDesignSystemSignals;
   primaryNavigation?: ReferenceNavigationEvidence | null;
   semanticCompositionPrimitives?: SemanticCompositionPrimitive[];
+  radiusClass?: RadiusClass | null;
+  surfaceElevation?: SurfaceElevation | null;
 }
 
 export interface ReferenceAnalysisResult {

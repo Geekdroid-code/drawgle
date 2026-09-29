@@ -296,6 +296,19 @@ ${TYPOGRAPHY_TOKEN_KEYS.map((key) => {
   --${name}-line-height: var(--dg-type-${name}-line-height);`;
 }).join("\n")}
 `.trimEnd();
+/**
+ * Pastel wells and chips. A missing tint (old projects) falls back to the card and the
+ * high-emphasis text colour, so nothing renders differently until a project has tints.
+ */
+const accentTintClasses = [1, 2, 3, 4]
+  .map((index) => `.dg-tint-${index} {
+  background-color: var(--dg-color-accent-tints-${index}, var(--dg-color-surface-card));
+  color: var(--dg-color-accent-tints-text-${index}, var(--dg-color-text-high-emphasis));
+}`)
+  .join("\n");
+
+export const TINT_UTILITY_CLASSES = "dg-tint-1, dg-tint-2, dg-tint-3, dg-tint-4";
+
 export function buildDrawgleTokenCss(designTokens?: DesignTokens | null) {
   const variables = flattenDesignTokensToCssVariables(designTokens);
   const variableCss = variables
@@ -333,6 +346,8 @@ ${buildCompatibilityAliasVariables()}
 .dg-bg-primary { background-color: var(--dg-color-background-primary); }
 .dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
 .dg-surface-card { background-color: var(--dg-color-surface-card); }
+.dg-surface-inset { background-color: var(--dg-color-surface-inset, var(--dg-color-surface-card)); }
+${accentTintClasses}
 .dg-surface-bottom-sheet { background-color: var(--dg-color-surface-bottom-sheet); }
 .dg-surface-modal { background-color: var(--dg-color-surface-modal); }
 .dg-text-high { color: var(--dg-color-text-high-emphasis); }
@@ -384,7 +399,7 @@ export function buildTokenUsageGuide(designTokens?: DesignTokens | null) {
 
   return [
     "Use Drawgle's live project tokens for canonical styling.",
-    "Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.",
+    `Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-inset, ${TINT_UTILITY_CLASSES}, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.`,
     "Use dg-radius-app for outer cards, sheets, panels, and navigation surfaces; dg-radius-inner for nested cards, inset panels, segmented tabs, and active navigation items; and dg-radius-pill only for true capsules and circles.",
     "For token values without a named utility, use Tailwind arbitrary values with CSS variables, for example bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], text-[var(--dg-color-text-high-emphasis)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)].",
     "Use token gradients for canonical gradient fills. Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, or non-system accent marks.",
@@ -409,6 +424,8 @@ const pickTokenReferences = (
 const compactVisualTokenPrefixes = [
   "color.background",
   "color.surface",
+  "color.accent_tints",
+  "color.accent_tints_text",
   "color.text",
   "color.action",
   "color.border",
@@ -514,7 +531,7 @@ export function buildTokenPromptContext(
 
     return [
       "TOKEN CONTEXT: Approved project design tokens — use these for every visual decision.",
-      "Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.",
+      `Prefer utility classes when the semantic role matches: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-inset, ${TINT_UTILITY_CLASSES}, dg-surface-bottom-sheet, dg-surface-modal, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-action-secondary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-border-focused, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-shadow-overlay, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.`,
       "Radius roles are strict: app is the outer surface radius, inner is the smaller nested/inset radius, and pill is only for true capsules or circles.",
       "For token values without a named utility, use CSS variables in Tailwind arbitrary classes, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)], opacity-[var(--dg-opacities-disabled)].",
       "Token gradients are canonical fills for expressive actions, app backgrounds, surface highlights, and accent rings. Use custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, and special effects.",

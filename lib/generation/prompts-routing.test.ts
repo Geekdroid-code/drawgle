@@ -110,12 +110,12 @@ describe("state-scoped prompt construction", () => {
       '"gradients"',
       '"navigation"',
       "Use 16px as the production baseline",
-      "single standard surface radius",
+      "SURFACE LADDER",
       "Use radii.app for outer cards",
       "Use radii.inner for nested cards",
       "Use radii.pill only for true capsules",
       "Use border_widths.standard as the default border weight",
-      "Use shadows.surface for standard elevated surfaces",
+      'shadows.surface is "none" unless the evidence shows cast shadows',
       "Use gradients as first-class material tokens",
       "Keep token relationships coherent",
       "Keep touch targets mobile-safe",
@@ -124,6 +124,22 @@ describe("state-scoped prompt construction", () => {
 
     for (const mode of modes) {
       expectContainsEvery(buildDesignInstruction(mode), commonRules);
+    }
+  });
+
+  it("asks for a surface ladder instead of one card recipe, in every mode", () => {
+    for (const mode of modes) {
+      const instruction = buildDesignInstruction(mode);
+      expect(instruction).toContain("page, then card (raised: a neutral one tone step lighter than the page, never stark white on a tinted page)");
+      expect(instruction).toContain("then inset (tiles and fields inside cards");
+      expect(instruction).toContain("then tints (pastel wells and chips)");
+      expect(instruction).toContain("at most one strong dark control");
+      expect(instruction).toContain("cards are at most 24px, inset surfaces use the inner radius, controls are pills, and icon wells are circles");
+      expect(instruction).toContain('"inset": "HEX one tone step from card"');
+      expect(instruction).toContain("color.surface.card is the raised surface and color.surface.inset the tile or field inside it");
+      // the old single-recipe instruction is gone
+      expect(instruction).not.toContain("prefer a single standard surface radius");
+      expect(instruction).not.toContain("a single standard surface shadow");
     }
   });
 

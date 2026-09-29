@@ -157,3 +157,9 @@ export const mixHex = (from: string, to: string, amount: number) => {
   const t = Math.min(1, Math.max(0, amount));
   return rgbToHex(a.map((channel, index) => channel + (b[index] - channel) * t) as unknown as Rgb);
 };
+
+/** Moves a colour up or down in lightness, keeping its hue and chroma: a tone step. */
+export const shiftLightness = (hex: string, deltaL: number) => {
+  const lab = hexToLab(hex);
+  return lab ? labToHex([Math.min(100, Math.max(0, lab[0] + deltaL)), lab[1], lab[2]]) : hex;
+};

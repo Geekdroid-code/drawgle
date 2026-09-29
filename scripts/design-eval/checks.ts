@@ -1,4 +1,5 @@
 import { deltaE2000, hexDeltaE, labChroma, rgbToHex, rgbToLab } from "@/lib/color-lab";
+import { hasCastShadow, parseShadowLayers } from "@/lib/shadow-css";
 
 /**
  * Cheap, automatic checks on a rendered Drawgle screen.
@@ -216,66 +217,8 @@ export const PROBE_SOURCE = `() => {
 /** The expression to hand to page.evaluate: the probe called with no arguments. */
 export const PROBE_EXPRESSION = `(${PROBE_SOURCE})()`;
 
-// ---------------------------------------------------------------------------
-// Shadows
-// ---------------------------------------------------------------------------
-
-type ShadowLayer = { inset: boolean; x: number; y: number; blur: number; spread: number; alpha: number };
-
-const splitTopLevel = (value: string) => {
-  const parts: string[] = [];
-  let depth = 0;
-  let current = "";
-  for (const character of value) {
-    if (character === "(") depth += 1;
-    if (character === ")") depth -= 1;
-    if (character === "," && depth === 0) {
-      parts.push(current);
-      current = "";
-      continue;
-    }
-    current += character;
-  }
-  if (current.trim()) parts.push(current);
-  return parts;
-};
-
-const COLOR_IN_SHADOW = /(rgba?\([^)]*\)|hsla?\([^)]*\)|color\([^)]*\)|#[0-9a-f]{3,8}\b)/i;
-
-const colorAlpha = (color: string | undefined) => {
-  if (!color) return 1;
-  const rgba = /^rgba?\(\s*[\d.]+[,\s]+[\d.]+[,\s]+[\d.]+(?:[,\s/]+([\d.]+%?))?\s*\)$/i.exec(color);
-  if (rgba) {
-    if (rgba[1] === undefined) return 1;
-    return rgba[1].endsWith("%") ? Number.parseFloat(rgba[1]) / 100 : Number.parseFloat(rgba[1]);
-  }
-  const hex = /^#([0-9a-f]{4}|[0-9a-f]{8})$/i.exec(color);
-  if (hex) {
-    const digits = hex[1].length === 4 ? hex[1][3] + hex[1][3] : hex[1].slice(6, 8);
-    return Number.parseInt(digits, 16) / 255;
-  }
-  return 1;
-};
-
-export const parseShadowLayers = (shadow: string | null | undefined): ShadowLayer[] => {
-  if (!shadow || shadow.trim().toLowerCase() === "none") return [];
-  return splitTopLevel(shadow).flatMap((layer) => {
-    const color = COLOR_IN_SHADOW.exec(layer)?.[1];
-    const rest = layer.replace(COLOR_IN_SHADOW, " ");
-    const inset = /\binset\b/i.test(rest);
-    const lengths = Array.from(rest.matchAll(/-?\d+(?:\.\d+)?/g)).map((match) => Number.parseFloat(match[0]));
-    if (lengths.length < 2) return [];
-    const [x, y, blur = 0, spread = 0] = lengths;
-    return [{ inset, x, y, blur, spread, alpha: colorAlpha(color) }];
-  });
-};
-
-/** A shadow that lifts a surface off the page. Inset rings and 1px hairlines do not count. */
-export const hasCastShadow = (shadow: string | null | undefined) =>
-  parseShadowLayers(shadow).some((layer) =>
-    !layer.inset
-    && layer.alpha > 0.015
-    && (layer.blur > 1 || Math.abs(layer.x) > 1 || Math.abs(layer.y) > 1 || layer.spread > 1));
+// Shadow parsing lives in lib/shadow-css.ts, shared with the token calibration.
+export { hasCastShadow, parseShadowLayers };
 
 // ---------------------------------------------------------------------------
 // Brief scanning

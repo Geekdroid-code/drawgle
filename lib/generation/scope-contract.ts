@@ -2,6 +2,7 @@ import {
   referenceAnalysisRecreateInstruction,
   referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
+import { normalizeRadiusClass, normalizeSurfaceElevation } from "@/lib/generation/design-classes";
 import {
   ensureSemanticCompositionPrimitives,
   normalizeSemanticCompositionPrimitives,
@@ -649,9 +650,15 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
     };
   }
 
+  // The model classifies radius and elevation; code owns the numbers (design-classes.ts).
+  const radiusClass = normalizeRadiusClass(readField(raw, ["radiusClass", "radius_class"]) ?? readField(signals, ["radiusClass", "radius_class"]));
+  const surfaceElevation = normalizeSurfaceElevation(readField(raw, ["surfaceElevation", "surface_elevation"]) ?? readField(signals, ["surfaceElevation", "surface_elevation"]));
+
   const analysis: ReferenceAnalysis = ensureSemanticCompositionPrimitives({
     overallVisualStyle: textField(raw, ["overallVisualStyle", "overall_visual_style", "visualStyle", "visual_style"], "Reference visual style was not described by the model.", 3000),
     screenCountEstimate,
+    ...(radiusClass ? { radiusClass } : {}),
+    ...(surfaceElevation ? { surfaceElevation } : {}),
     screenReferences: screenReferences.length > 0
       ? screenReferences
       : Array.from({ length: screenCountEstimate }, (_, index) => ({

@@ -15,6 +15,8 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
+import { normalizeRadiusClass } from "@/lib/generation/design-classes";
+
 import {
   loadProjectBundle,
   loadReferenceImage,
@@ -24,6 +26,7 @@ import {
   type ReferenceImage,
 } from "./bundle";
 import type { ReferenceElevation } from "./checks";
+import { prepareSnapshot } from "./prepare";
 import { snapshotBundle } from "./run";
 
 const ELEVATIONS = ["flat-tone", "hairline", "soft-shadow", "strong-shadow", "unknown"] as const;
@@ -38,8 +41,11 @@ Options:
   --out <dir>               Output directory (with --project or --bundle)
   --publish <dir>           Copy contact-sheet.png and checks.md there (into <dir>/<case id> with --set). Commit only these small files.
   --elevation <class>       flat-tone | hairline | soft-shadow | strong-shadow | unknown (default: from the reference DNA)
-  --expect-background <hex> Measured reference page colour, enables the tone match
-  --expect-card <hex>       Measured reference card colour, enables the tone match
+  --expect-background <hex> Reference page colour for the tone match (default: measured from the reference image)
+  --expect-card <hex>       Reference card colour for the tone match (default: measured from the reference image)
+  --retoken                 What-if: render the existing screens under tokens calibrated the way generation now
+                            calibrates them (radius cap, flat elevation, measured page and card). Nothing is saved.
+  --radius-class <class>    square | soft | rounded | very-rounded, for --retoken (default: from the reference DNA)
   --reference <file>        Use this image as the reference instead of the stored one
   --offline                 Do not reach the network while rendering (no Tailwind: for tests only)`;
 
@@ -55,6 +61,8 @@ const { values } = parseArgs({
     elevation: { type: "string" },
     "expect-background": { type: "string" },
     "expect-card": { type: "string" },
+    retoken: { type: "boolean", default: false },
+    "radius-class": { type: "string" },
     reference: { type: "string" },
     offline: { type: "boolean", default: false },
     help: { type: "boolean", default: false },
@@ -128,13 +136,21 @@ async function snapshotOne({
 
   console.log(`\n${caseId ? `${caseId} · ` : ""}${bundle.project.name} (${bundle.project.id})`);
   console.log(`  ${bundle.screens.length} screens, reference: ${bundle.reference.id ?? bundle.reference.source}, shared navigation: ${bundle.navigation?.plan.enabled ? "on" : "off"}`);
+  const radiusClass = values["radius-class"] ? normalizeRadiusClass(values["radius-class"]) : null;
+  if (values["radius-class"] && !radiusClass) throw new Error("--radius-class must be square, soft, rounded or very-rounded.");
+  const prepared = await prepareSnapshot({ bundle, image, overrides: overrides(), retoken: values.retoken, radiusClass });
+  prepared.notes.forEach((note) => console.log(`  ${note}`));
+  const title = [
+    caseId ? `${caseId} · ${prepared.bundle.project.name} (${prepared.bundle.project.id.slice(0, 8)}) · ${values.label}` : null,
+    values.retoken ? "what-if: re-tokened" : null,
+  ].filter(Boolean).join(" · ");
   const result = await snapshotBundle({
     browser,
-    bundle,
+    bundle: prepared.bundle,
     image,
     outDir,
-    title: caseId ? `${caseId} · ${bundle.project.name} (${bundle.project.id.slice(0, 8)}) · ${values.label}` : undefined,
-    overrides: overrides(),
+    title: title || undefined,
+    overrides: prepared.overrides,
     options: { offline: values.offline },
   });
   console.log(`\n${result.table}\n\n  contact sheet: ${result.contactSheetPath}\n  report:        ${result.checksPath}`);
@@ -187,7 +203,7 @@ async function main() {
 main().catch((error) => {
   // Only messages written in this harness are safe to show; database errors may carry details.
   const message = error instanceof Error ? error.message : "";
-  const safe = /^(Usage:|Database credentials|"[^"]+" is not a project id|No project id starts|More than one project|The project|--elevation|The curated|The stored|Unsupported bundle)/;
+  const safe = /^(Usage:|Database credentials|"[^"]+" is not a project id|No project id starts|More than one project|The project|--elevation|--radius-class|The curated|The stored|Unsupported bundle)/;
   console.error(safe.test(message) ? message : "The design eval failed; no sensitive error details were printed.");
   process.exitCode = 1;
 });

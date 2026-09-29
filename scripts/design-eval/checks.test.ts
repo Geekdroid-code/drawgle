@@ -65,7 +65,7 @@ const context = (overrides: Partial<CheckContext> = {}): CheckContext => ({
 describe("shadow parsing", () => {
   it("reads computed Chromium shadows with the colour first", () => {
     expect(parseShadowLayers("rgba(45, 41, 38, 0.04) 0px 4px 20px 0px")).toEqual([
-      { inset: false, x: 0, y: 4, blur: 20, spread: 0, alpha: 0.04 },
+      { inset: false, x: 0, y: 4, blur: 20, spread: 0, alpha: 0.04, rgb: [45, 41, 38] },
     ]);
     expect(parseShadowLayers("rgb(0 0 0 / 8%) 0px 8px 24px -4px")[0]).toMatchObject({ alpha: 0.08, spread: -4 });
     expect(parseShadowLayers("none")).toEqual([]);

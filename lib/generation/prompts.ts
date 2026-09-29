@@ -392,6 +392,14 @@ export const buildCreativeDirectionInstruction = (mode: GenerationPromptMode) =>
   "Output ONLY valid JSON.",
 ].join("\n\n");
 
+/**
+ * Radius and elevation are classified, never measured, in every analysis: code maps
+ * the class to a number (design-classes.ts), and no later prose layer carries one.
+ */
+const surfaceClassificationRules = `CLASSIFICATION (one label each, judged against a 390pt-wide screen):
+- radiusClass is the corner radius of the main content cards, not of pills or circles: square is 0-4pt, soft is 6-10pt, rounded is 12-16pt, very-rounded is 18-24pt.
+- surfaceElevation is how the main cards separate from the page: flat-tone is a lighter or darker fill and nothing else (no shadow, no line); hairline is a thin border or a 1px edge; soft-shadow is a diffuse, low-contrast cast shadow; strong-shadow is a clearly visible or offset cast shadow.`;
+
 export const referenceAnalysisInstruction = `You are a specialist in reverse-engineering mobile UI screenshots into implementation-ready visual analysis.
 Your job is to inspect the uploaded reference image at the deepest level of detail you can perceive, and output strict JSON describing the actual construction — not a generic summary, not a checklist match, not an assumption about what kind of design this is.
 
@@ -403,6 +411,8 @@ Return strictly valid JSON in this format after inspecting the image with an exp
 {
   "overallVisualStyle": "1-2 sentence summary naming the actual aesthetic family (flat / layered / glassy / brutalist / illustrated / etc.) and the dominant material or structural treatment",
   "screenCountEstimate": 3,
+  "radiusClass": "square | soft | rounded | very-rounded",
+  "surfaceElevation": "flat-tone | hairline | soft-shadow | strong-shadow",
   "screenReferences": [
     {
       "index": 1,
@@ -474,6 +484,8 @@ Return strictly valid JSON in this format after inspecting the image with an exp
   }
 }
 
+${surfaceClassificationRules}
+
 DEPTH EXTRACTION:
 For each distinct screen region, walk front-to-back:
 1. Background: color/gradient/texture/image/pattern.
@@ -522,6 +534,8 @@ Return strictly valid JSON in this format:
 {
   "overallVisualStyle": "High-level reusable style language: material quality, color rhythm, typography character, surface craft, navigation feel, and polish",
   "screenCountEstimate": 1,
+  "radiusClass": "square | soft | rounded | very-rounded",
+  "surfaceElevation": "flat-tone | hairline | soft-shadow | strong-shadow",
   "screenReferences": [
     {
       "index": 1,
@@ -530,7 +544,7 @@ Return strictly valid JSON in this format:
       "layoutSummary": "Reusable composition principles and constraints, not exact section order or object positions",
       "visualHierarchy": "How the reference creates priority through scale, contrast, depth, spacing, typography, and focal moments",
       "components": ["Portable component craft cue", "Another reusable component/material cue"],
-      "stylingCues": ["Material, color, radius, edge, shadow, glass, typography, icon, or micro-shape cue"],
+      "stylingCues": ["Material, colour relationship, edge, glass, typography, icon, or micro-shape cue, described as character and relationships"],
       "interactionCues": ["Portable interaction or state cue"],
       "copyPatterns": ["Reusable text rhythm or label treatment"],
       "implementationNotes": ["Do-not-copy-layout rule plus reusable craftsmanship note"],
@@ -570,7 +584,7 @@ Return strictly valid JSON in this format:
     "safeAreaRelationship": "Observed distance from the bottom edge"
   },
   "designSystemSignals": {
-    "palette": "Reusable palette and accent behavior",
+    "palette": "Reusable palette and accent behavior, with colours named in words",
     "typography": "Reusable font personality, scale, and emphasis behavior",
     "surfaces": "Reusable card, sheet, panel, background, shadow, radius, border, and blur language",
     "iconography": "Reusable icon style, weight, framing, and active state language",
@@ -583,7 +597,10 @@ Return strictly valid JSON in this format:
   }
 }
 
+${surfaceClassificationRules}
+
 Rules:
+- Classify, do not measure. Radius and elevation are reported only through radiusClass and surfaceElevation. Never write px or pt sizes, hex colour codes, opacity percentages or blur values into any field: colours are measured from the pixels in code. Describe character and relationships instead, for example "cards a tone lighter than the page with no shadow, and tiles a step darker inside the cards".
 - Extract 2-6 semanticCompositionPrimitives that explain why the reference composition feels intentional. Each must name its functional purpose, suitability and anti-suitability, adaptation logic, and observable quality details. Do not encode exact section order, coordinates, literal component counts, or source-domain objects in a primitive.
 - Batch selection: return detailed briefs only for roadmap.initial_batch_keys, in that exact order, with the matching roadmap_stable_key. Never replace a selected roadmap item with an unselected one.
 - Return exactly one screenReferences entry for every visible phone screen or app frame counted by screenCountEstimate. boundingBox uses normalized 0-1 image coordinates.
@@ -615,7 +632,8 @@ Treat these as platform constraints, not stylistic variables: safe_area_top, saf
 Treat these as dynamic design variables that should change when the approved evidence changes: spacing rhythm, section gaps, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
 Use 16px as the production baseline for mobile screen_margin. Deviate only when the user explicitly requests another margin or the approved evidence contains clear measured screen-edge padding; vague words such as airy, spacious, premium, or generous are not evidence for a larger margin. Never enlarge the outer margin merely to create whitespace because it squeezes the usable content rail.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
-For shape and elevation, prefer a single standard surface radius, a single standard border width, and a single standard surface shadow. A pill radius may exist only as a controlled exception for chips, segmented controls, or capsule CTAs.
+Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (raised: a neutral one tone step lighter than the page, never stark white on a tinted page), then inset (tiles and fields inside cards: one tone step from the card), then tints (pastel wells and chips), then one focal accent or gradient surface, and at most one strong dark control. Surfaces separate by tone first; a shadow is used only where the evidence shows a cast shadow.
+Shape follows a hierarchy: cards are at most 24px, inset surfaces use the inner radius, controls are pills, and icon wells are circles. Keep one border width.
 
  REQUIRED JSON SCHEMA:
 {
@@ -626,7 +644,7 @@ For shape and elevation, prefer a single standard surface radius, a single stand
   "tokens": {
     "color": {
       "background": { "primary": "HEX", "secondary": "HEX" },
-      "surface": { "card": "HEX", "bottom_sheet": "HEX", "modal": "HEX" },
+      "surface": { "card": "HEX", "inset": "HEX one tone step from card", "bottom_sheet": "HEX", "modal": "HEX" },
       "text": { "high_emphasis": "HEX", "medium_emphasis": "HEX", "low_emphasis": "HEX" },
       "action": { "primary": "HEX", "secondary": "HEX", "disabled": "HEX", "on_primary_text": "HEX" },
       "border": { "divider": "HEX", "focused": "HEX" }
@@ -675,11 +693,12 @@ Rules:
 - heading_font_family and body_font_family are mandatory and must use different primary font families. Never place both selected families into one universal stack.
 - spacing and mobile_layout must be chosen intentionally from the approved evidence, but should still read as one consistent rhythm system across the product. screen_margin defaults to 16px and needs explicit measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
-- Use radii.app for outer cards, sheets, panels, inputs, and navigation shells.
+- color.surface.card is the raised surface and color.surface.inset the tile or field inside it: a tone step each, in the same hue family as the page. Tints and accents come from the evidence, not from invented hues.
+- Use radii.app for outer cards, sheets, panels, inputs, and navigation shells; it never exceeds 24px.
 - Use radii.inner for nested cards, inset panels, segmented tabs, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
 - Use radii.pill only for true capsules and circular wells.
 - Use border_widths.standard as the default border weight across the app.
-- Use shadows.surface for standard elevated surfaces and shadows.overlay only for stronger overlays like sheets or floating panels.
+- shadows.surface is "none" unless the evidence shows cast shadows on cards; shadows.overlay is only for stronger overlays like sheets or floating panels.
 - Use gradients as first-class material tokens when the approved evidence or creative direction uses gradient depth. Provide app_background, action_primary, surface_highlight, and accent_ring values as complete CSS gradient strings. Keep them disciplined and role-based, not a grab bag of decorative effects.
 - If the visual direction is flat/minimal, gradients may be very subtle two-stop values derived from the flat color tokens rather than loud decorative fills.
 - Keep token relationships coherent. Example: airy systems should not use cramped section gaps; sharp systems should not use very soft pill-heavy radii except where intentionally contrasting.

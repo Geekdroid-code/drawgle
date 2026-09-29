@@ -3,7 +3,9 @@ import path from "node:path";
 
 import { CURATED_STYLE_REFERENCES } from "@/lib/generation/curated-style-catalog";
 import { mapProjectNavigationRow, mapScreenRow } from "@/lib/supabase/mappers";
-import type { DesignTokens, ProjectCharter, ProjectNavigationData, ScreenData } from "@/lib/types";
+import { normalizeRadiusClass } from "@/lib/generation/design-classes";
+import type { NormalizedBox } from "@/lib/generation/reference-palette";
+import type { DesignTokens, ProjectCharter, ProjectNavigationData, RadiusClass, ScreenData } from "@/lib/types";
 
 import type { ReferenceElevation } from "./checks";
 
@@ -48,6 +50,23 @@ export const referenceElevationOf = (charter: ProjectCharter | null | undefined)
   const analysis = record(record(charter?.referenceDna)?.analysis);
   const value = analysis?.surfaceElevation;
   return typeof value === "string" && ELEVATIONS.has(value) ? value as ReferenceElevation : "unknown";
+};
+
+/** The reference's radius class as stored in the reference DNA, or null. */
+export const referenceRadiusClassOf = (charter: ProjectCharter | null | undefined): RadiusClass | null =>
+  normalizeRadiusClass(record(record(charter?.referenceDna)?.analysis)?.radiusClass);
+
+/** The screen boxes the reference analysis reported, for measuring the palette. */
+export const referenceBoxesOf = (charter: ProjectCharter | null | undefined): NormalizedBox[] => {
+  const screens = record(record(charter?.referenceDna)?.analysis)?.screenReferences;
+  if (!Array.isArray(screens)) return [];
+  return screens.flatMap((screen) => {
+    const box = record(record(screen)?.boundingBox);
+    const numbers = [box?.x, box?.y, box?.width, box?.height];
+    return numbers.every((value) => typeof value === "number" && Number.isFinite(value))
+      ? [{ x: box!.x as number, y: box!.y as number, width: box!.width as number, height: box!.height as number }]
+      : [];
+  });
 };
 
 /**
