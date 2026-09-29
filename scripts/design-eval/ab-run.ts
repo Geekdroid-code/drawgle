@@ -107,6 +107,37 @@ export function pickScreens({ bundle, only, limit = 3 }: { bundle: ProjectBundle
   return [...new Set(picked)];
 }
 
+/** A typical build, for a rough estimate before anything is spent: the plan's 9k tokens in and 3k out. */
+export const TYPICAL_BUILD: Usage = { inputTokens: 9000, outputTokens: 3000, thinkingTokens: 0 };
+
+/**
+ * What a run would do and roughly cost, said before it does anything. A run makes one live model call per
+ * screen on the account of whoever runs it, so it starts only when it is told to.
+ */
+export function describeRun({
+  label,
+  model,
+  thinking,
+  screens,
+  price,
+}: {
+  label: string;
+  model: string;
+  thinking: string;
+  screens: ScreenData[];
+  price: ModelPrice | null;
+}): string {
+  const count = screens.length;
+  const typical = costOf(TYPICAL_BUILD, price);
+  return [
+    `${label}: ${model}, thinking ${thinking}`,
+    `It would build ${count} screen${count === 1 ? "" : "s"} (${screens.map((screen) => screen.name).join(", ")}): ${count} live model call${count === 1 ? "" : "s"}, `
+      + (typical === null
+        ? "at a cost this model's price is not known for (pass --price)."
+        : `about ${formatCost(typical * count)} at a typical 9k tokens in and 3k out per build.`),
+  ].join("\n");
+}
+
 export type BuildRecord = {
   screen: string;
   seconds: number;

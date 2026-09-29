@@ -30,13 +30,13 @@ Useful options:
 
 ## A/B of the screen build's model and thinking level
 
-`pnpm design:ab` rebuilds screens of a saved bundle with one setting changed, and records what each build cost, so the model and the thinking level can be chosen on evidence (Step 9 of the plan). It calls the model with your own credentials, so it is yours to run.
+`pnpm design:ab` rebuilds screens of a saved bundle with one setting changed, and records what each build cost, so the model and the thinking level can be chosen on evidence (Step 9 of the plan). **It makes one live model call per screen on the account whose credentials are in your environment**, so it is yours to run, and without `--yes` it only prints what it would build and roughly what that would cost (about $0.013 a build on Flash, $0.05 on Pro) and calls nothing.
 
 ```bash
 pnpm design:eval --project 0ce99a06 --label baseline --case pets-family     # once, to save the bundle
-pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label flash-low
-pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label flash-high --thinking high
-pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label pro-low --model <the provider's current Pro id>
+pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label flash-low --yes
+pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label flash-high --thinking high --yes
+pnpm design:ab --bundle scripts/design-eval/out/baseline/pets-family --label pro-low --model <the provider's current Pro id> --yes
 pnpm design:ab --report scripts/design-eval/out/ab/flash-low scripts/design-eval/out/ab/flash-high scripts/design-eval/out/ab/pro-low
 ```
 

@@ -13,6 +13,9 @@
  * table like the rest of the harness. It calls the model with the credentials in the process environment, through
  * the app's env helpers; nothing here reads or prints env files, and a failed build saves no error details.
  * See scripts/design-eval/ab-run.ts for what the input includes.
+ *
+ * It spends real money, one live model call per screen, so a run without --yes only says what it would build and
+ * what that would roughly cost.
  */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -20,7 +23,7 @@ import { parseArgs } from "node:util";
 
 import { chromium } from "playwright";
 
-import { formatArmMarkdown, formatComparison, pickScreens, runBuilds, type ArmFile } from "./ab-run";
+import { describeRun, formatArmMarkdown, formatComparison, pickScreens, runBuilds, type ArmFile } from "./ab-run";
 import { readBundle } from "./bundle";
 import { parsePrice, priceOf } from "./cost";
 import { snapshotBundle } from "./run";
@@ -29,10 +32,14 @@ const LEVELS = ["minimal", "low", "medium", "high"] as const;
 
 const usage = `Usage:
   design:ab --bundle <dir> --label <name> [--model <id>] [--thinking minimal|low|medium|high]
-            [--screens "Today,3"] [--limit 3] [--price "0.5,3"] [--out <dir>] [--offline]
+            [--screens "Today,3"] [--limit 3] [--price "0.5,3"] [--out <dir>] [--offline] [--yes]
   design:ab --report <arm dir> <arm dir> ...
 
+A run makes one live model call per screen, on the account whose credentials are in the environment. Without --yes
+it only says what it would build and roughly what that would cost, and calls nothing.
+
 Options:
+  --yes             Actually run the builds and spend what they cost
   --bundle <dir>    A saved harness bundle (see design:eval), which holds the project's screens, tokens and reference
   --label <name>    Names the arm; the default output is scripts/design-eval/out/ab/<label>
   --model <id>      The screen build model for this run (DRAWGLE_GEMINI_FULL_BUILD_MODEL); default: the configured one
@@ -54,6 +61,7 @@ const { values, positionals } = parseArgs({
     price: { type: "string" },
     out: { type: "string" },
     offline: { type: "boolean", default: false },
+    yes: { type: "boolean", default: false },
     report: { type: "boolean", default: false },
     help: { type: "boolean", default: false },
   },
@@ -94,7 +102,11 @@ async function run() {
     only: values.screens?.split(",").map((part) => part.trim()).filter(Boolean),
     limit: values.limit ? Number(values.limit) : 3,
   });
-  console.log(`${values.label}: ${model}, thinking ${thinking}, ${screens.length} screen${screens.length === 1 ? "" : "s"} of ${bundle.project.name}: ${screens.map((screen) => screen.name).join(", ")}`);
+  console.log(describeRun({ label: values.label, model, thinking, screens, price }));
+  if (!values.yes) {
+    console.log("\nNothing has been called. Run it again with --yes to spend it.");
+    return;
+  }
 
   const { records, rebuilt } = await runBuilds({ bundle, image, screens, buildScreen: buildScreenStream, finish: extractCode, price });
   const arm: ArmFile = { version: 1, label: values.label, model, thinking, bundle: values.bundle, price, records };

@@ -5,6 +5,7 @@ import type { BuildScreenInput, ProjectCharter, ProjectNavigationData, ScreenDat
 
 import {
   bundleBuildInput,
+  describeRun,
   emptyUsage,
   formatArmMarkdown,
   formatComparison,
@@ -129,6 +130,23 @@ describe("which screens are built", () => {
 
   it("says which screens there are when none of those asked for is one", () => {
     expect(() => pickScreens({ bundle: bundle(), only: ["Nowhere", "9"] })).toThrow(/None of Nowhere, 9 .*1\. Today; 2\. Pet Library/);
+  });
+});
+
+describe("what a run says before it spends anything", () => {
+  const screens = () => pickScreens({ bundle: bundle(), limit: 3 });
+
+  it("names the arm, the screens, the number of live calls and a rough cost from the plan's typical build", () => {
+    const text = describeRun({ label: "flash-low", model: "gemini-3-flash-preview", thinking: "low", screens: screens(), price: priceOf("gemini-3-flash-preview") });
+    expect(text).toContain("flash-low: gemini-3-flash-preview, thinking low");
+    expect(text).toContain("It would build 3 screens (Today, Pet Library, Add Pet): 3 live model calls, about $0.0405 at a typical 9k tokens in and 3k out per build.");
+    const pro = describeRun({ label: "pro-low", model: "gemini-3-pro-preview", thinking: "low", screens: screens(), price: priceOf("gemini-3-pro-preview") });
+    expect(pro).toContain("about $0.1620");
+  });
+
+  it("says so when it cannot price the model, and speaks of one screen in the singular", () => {
+    const text = describeRun({ label: "x", model: "unknown", thinking: "high", screens: screens().slice(0, 1), price: null });
+    expect(text).toContain("It would build 1 screen (Today): 1 live model call, at a cost this model's price is not known for (pass --price).");
   });
 });
 
