@@ -53,7 +53,7 @@ export const prepareProductScopeTask = task({
     const prompt = scopedGenerationPrompt(state, keys);
     const preset = !image ? await resolvePublishedStylePreset(state.input.stylePresetSlug) : null;
     const designStyle = preset?.stylePack ?? (!image ? getDesignStylePack(shared.charter?.designStyle?.id) : null);
-    const analysis = await analyzeReferenceImageForScope({ prompt, image, referenceMode: reference.mode });
+    const analysis = await analyzeReferenceImageForScope({ prompt, image, referenceMode: reference.mode, referenceId: reference.referenceId });
     const earlyDesign = earlyDesignMode() === "on" && !recreate && !shared.designTokens;
     const taskIdentity = earlyDesign ? await projectDesignTaskIdentity(state, projectId, preset?.version ?? null) : null;
     const designKey = taskIdentity?.key ?? null;

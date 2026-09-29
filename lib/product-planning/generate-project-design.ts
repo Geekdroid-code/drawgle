@@ -18,7 +18,7 @@ export async function generateProjectDesign(state: ProductPlanning, input: {
     ? (label, data) => { if (label.startsWith("[TOKEN USAGE]")) input.llmLog!(label, data); }
     : undefined;
   const referenceAnalysis = (await analyzeReferenceImageForScope({ prompt, image: input.image,
-    referenceMode: input.referenceMode, llmLog: usageLog })).analysis;
+    referenceMode: input.referenceMode, referenceId: input.referenceId, llmLog: usageLog })).analysis;
   const generated = await generateDesignTokens({ prompt, image: input.image, referenceMode: input.referenceMode,
     referenceId: input.referenceId, designStyle: input.designStyle, referenceAnalysis,
     designRequirements: compileDesignRequirements(state, input.referenceMode), llmLog: usageLog });

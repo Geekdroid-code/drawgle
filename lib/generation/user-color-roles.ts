@@ -80,3 +80,15 @@ export function userNamedColorRoles(designRequirements: string | null | undefine
   }
   return named;
 }
+
+/** "font colour" is a colour; "font", "typeface", "serif" and the like name the type itself. */
+const FONT_WORDS = /\b(?:fonts?\b(?!\s+colou?rs?)|typefaces?\b|serif\b|sans[- ]?serif\b|monospace\b|handwrit\w*)/i;
+
+/**
+ * Whether the requirements name fonts. Like a named colour, a named font is the user's: a preset's own
+ * type stays unless they asked for another.
+ */
+export function userNamesTypography(designRequirements: string | null | undefined): boolean {
+  if (!designRequirements?.trim()) return false;
+  return factsFrom(designRequirements).some((text) => FONT_WORDS.test(text));
+}

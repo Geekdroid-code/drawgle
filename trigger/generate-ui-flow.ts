@@ -2436,6 +2436,7 @@ export const generateUiFlowTask = task({
             prompt: payload.prompt,
             image: promptImage,
             referenceMode,
+            referenceId,
             llmLog: llmLogFor("reference"),
           }).then((referenceAnalysisResult) => ({
             scopeContract: { ...payload.scopeContract!, referenceMode },
@@ -2448,6 +2449,7 @@ export const generateUiFlowTask = task({
           referenceMode,
           planningMode: payload.planningMode ?? "project",
           cachedReferenceAnalysis: reusableProjectReferenceDna?.analysis,
+          referenceId,
           llmLog: llmLogFor("scope"),
         });
     const scopeContract = scopePreflight.scopeContract;

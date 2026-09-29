@@ -22,10 +22,11 @@ import {
 import { describeSurfaceClasses, describeTokenLanguage } from "@/lib/generation/design-classes";
 import { stripDesignValues, stripDesignValuesDeep } from "@/lib/generation/design-value-scrub";
 import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/generation/measured-colors";
+import { mergePresetTokens, presetSpecimen, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
 import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
 import { omitCraftBars } from "@/lib/generation/semantic-inspiration";
-import { usableStyleComponents } from "@/lib/generation/style-components";
-import { userNamedColorRoles } from "@/lib/generation/user-color-roles";
+import { SPECIMEN_MARKING_INSTRUCTION, usableStyleComponents } from "@/lib/generation/style-components";
+import { userNamedColorRoles, userNamesTypography } from "@/lib/generation/user-color-roles";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
 import { parseNumberedScreenSections } from "@/lib/generation/explicit-screen-sections";
@@ -3186,6 +3187,7 @@ export async function planUiFlow({
         referenceMode: resolvedReferenceMode,
         planningMode,
         cachedReferenceAnalysis: providedReferenceAnalysis ?? providedReferenceDna?.analysis ?? null,
+        referenceId,
         llmLog,
       })
     : null;
@@ -3294,6 +3296,9 @@ export async function planUiFlow({
         intentContract,
         mode: plannerMode,
       });
+  // A curated reference with an approved preset brings its component vocabulary; every later batch
+  // reuses it through the project's reference DNA.
+  const referencePreset = resolvedReferenceMode === "curated_style" ? resolveCuratedStylePreset(referenceId) : null;
   const referenceDna = providedReferenceDna
     ?? (referenceAnalysis
       ? createProjectReferenceDna({
@@ -3302,6 +3307,7 @@ export async function planUiFlow({
           referenceMode: resolvedReferenceMode,
           sourceReferenceId: referenceId ?? null,
           sourceReferenceCatalogHash: referenceCatalogHash ?? null,
+          specimen: referencePreset ? presetSpecimen(referencePreset) : null,
         })
       : null);
   const withReferenceDna = (charter: ProjectCharter): ProjectCharter =>
@@ -3988,6 +3994,7 @@ export async function generateDesignTokens({
   designStyle,
   referenceAnalysis: providedReferenceAnalysis,
   designRequirements,
+  ignorePreset = false,
   llmLog,
 }: {
   prompt: string;
@@ -3997,12 +4004,25 @@ export async function generateDesignTokens({
   designStyle?: DesignStylePack | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   designRequirements?: string | null;
+  /** The preset builder makes the tokens a preset is made of, so it must not be handed one. */
+  ignorePreset?: boolean;
   llmLog?: LlmLogFn;
 }) {
   try {
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    // An approved curated preset holds tokens that were calibrated and checked once. With no colours or
+    // fonts of the user's own to apply, they are the project's tokens and no model is asked. With some,
+    // the model works as usual and only the roles the user named are taken from its answer.
+    const preset = !ignorePreset && !designStyle && resolvedReferenceMode === "curated_style"
+      ? resolveCuratedStylePreset(referenceId)
+      : null;
+    const presetNamesFonts = userNamesTypography(designRequirements);
+    if (preset && userNamedColorRoles(designRequirements).size === 0 && !presetNamesFonts) {
+      llmLog?.("[design-tokens] approved curated preset used; no model call", { referenceId });
+      return normalizeDesignTokens(preset.tokens);
+    }
     const ai = createGeminiClient();
     const parts: Array<Record<string, unknown>> = [];
-    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
     const inlineImage = toInlineImage(image);
     const designStyleContract = formatDesignStyleContract(designStyle);
     const referenceAnalysis = providedReferenceAnalysis !== undefined
@@ -4011,6 +4031,7 @@ export async function generateDesignTokens({
           prompt,
           image,
           referenceMode: resolvedReferenceMode,
+          referenceId: ignorePreset ? null : referenceId,
           llmLog,
         })).analysis;
     const promptMode = resolveGenerationPromptMode({
@@ -4019,13 +4040,15 @@ export async function generateDesignTokens({
       hasDesignStyle: Boolean(designStyle),
       hasReferenceAnalysis: Boolean(referenceAnalysis),
     });
-    // Colours are measured from the reference pixels, not guessed in prose.
-    const measuredPalette = await measureStyleReferencePalette({
-      image,
-      referenceMode: resolvedReferenceMode,
-      referenceAnalysis,
-      onError: (message) => llmLog?.("[PALETTE] reference palette could not be measured", { message }),
-    });
+    // Colours are measured from the reference pixels, not guessed in prose. A preset measured them once.
+    const measuredPalette = preset
+      ? preset.measured
+      : await measureStyleReferencePalette({
+          image,
+          referenceMode: resolvedReferenceMode,
+          referenceAnalysis,
+          onError: (message) => llmLog?.("[PALETTE] reference palette could not be measured", { message }),
+        });
     const policy = geminiPolicyForTask("design_tokens", {
       systemInstruction: buildDesignInstruction(promptMode),
       responseMimeType: "application/json",
@@ -4134,15 +4157,14 @@ export async function generateDesignTokens({
           userColorRoles: userNamedColorRoles(designRequirements),
         };
 
-    if (!parsed.success) {
-      return buildApprovedDesignTokens(rawTokens, screenMargin, calibration);
-    }
-
-    return buildApprovedDesignTokens(parsed.data as {
-      system_schema?: string;
-      meta?: DesignTokenMetadata;
-      tokens?: DesignTokenValues;
-    }, screenMargin, calibration);
+    const generated = parsed.success
+      ? buildApprovedDesignTokens(parsed.data as {
+          system_schema?: string;
+          meta?: DesignTokenMetadata;
+          tokens?: DesignTokenValues;
+        }, screenMargin, calibration)
+      : buildApprovedDesignTokens(rawTokens, screenMargin, calibration);
+    return preset ? mergePresetTokens({ preset, generated, fonts: presetNamesFonts }) : generated;
   } catch (error) {
     console.error("Failed to generate design tokens", error);
     throw error instanceof Error
@@ -4178,6 +4200,8 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
       "Return the full screen once, with no commentary, no markdown, and no abbreviated sections.",
     ].join("\n"),
   });
+
+  if (input.specimenMarking) parts.push({ text: SPECIMEN_MARKING_INSTRUCTION });
 
   if (resolvedReferenceMode === "user_recreate" && input.sourceDetail) {
     parts.push({ text: "Verified detail crop of this output's target frame. Use it for fine detail; the original composite above remains authoritative for context and anything outside this crop." }, toInlineImage(input.sourceDetail)!);

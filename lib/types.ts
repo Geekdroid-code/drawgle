@@ -1237,6 +1237,8 @@ export interface BuildScreenInput {
   screenFamilyContract?: ScreenFamilyContract | null;
   /** The style reference's components, as markup to copy. Style mode only. */
   styleComponents?: StyleComponent[] | null;
+  /** Ask the build to mark its reusable components, so that a specimen can be read back out of it. */
+  specimenMarking?: boolean;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;

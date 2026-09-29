@@ -70,3 +70,15 @@ export function formatStyleComponents(components: unknown): string | null {
 /** The components a project's reference DNA carries, when it carries any. */
 export const styleComponentsOf = (dna: ProjectReferenceDna | null | undefined): StyleComponent[] =>
   usableStyleComponents(dna?.specimen?.components);
+
+/**
+ * The one line added to the recreate build that makes a preset's or an upload's specimen. The components
+ * are read back out of the markup by the markers (see style-component-extraction.ts).
+ */
+export const SPECIMEN_MARKING_INSTRUCTION = [
+  "SPECIMEN: this build becomes the source of the project's reusable components.",
+  'Mark the root element of each reusable component with data-dg-component="<kebab-name>" and data-dg-use="<when to use it, under 12 words>",',
+  'for example data-dg-component="calendar-strip" data-dg-use="a week selector at the top of a day view".',
+  "Name a component by what it is, never by the content it shows, and mark one element for each kind of component.",
+  "Do not mark the status bar or the bottom navigation.",
+].join(" ");

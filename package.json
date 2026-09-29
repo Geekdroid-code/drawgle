@@ -14,6 +14,7 @@
     "test:canvas": "vitest run components/CanvasArea.test.tsx components/ScreenNode.selection.test.tsx && tsx --test lib/canvas-camera.test.ts",
     "check": "pnpm run curated:styles:check && pnpm run lint && pnpm run typecheck && pnpm run typecheck:scripts",
     "design:eval": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/design-eval/snapshot.ts",
+    "curated:presets": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/curated/build-presets.ts",
     "seed:sample-imagery": "tsx --env-file-if-exists=.env.local --conditions=react-server scripts/curated/seed-sample-imagery.ts",
     "showcase:screenshots": "tsx scripts/generate-showcase-screenshots.ts",
     "showcase:publish": "tsx scripts/publish-showcase-templates.ts",

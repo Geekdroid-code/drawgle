@@ -2,6 +2,7 @@ import {
   referenceAnalysisRecreateInstruction,
   referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
+import { presetReferenceAnalysis, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
 import { normalizeRadiusClass, normalizeSurfaceElevation } from "@/lib/generation/design-classes";
 import {
   ensureSemanticCompositionPrimitives,
@@ -786,17 +787,36 @@ const countOnlyFallback = async ({
   }
 };
 
+/** What an approved curated preset stands in for: a complete analysis, made offline and checked once. */
+const presetAnalysisResult = (analysis: ReferenceAnalysis): ReferenceAnalysisResult => ({
+  analysis,
+  screenCountEstimate: analysis.screenCountEstimate,
+  screenReferenceCount: analysis.screenReferences.length,
+  confidence: "high",
+  source: "full_analysis",
+  diagnostics: ["Used the approved curated style preset; skipped multimodal reference analysis."],
+  validationIssues: [],
+});
+
 export async function analyzeReferenceImageForScope({
   prompt,
   image,
   referenceMode,
+  referenceId,
   llmLog,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
+  /** A curated reference with an approved preset is not analysed again: its preset is the analysis. */
+  referenceId?: string | null;
   llmLog?: LlmLogFn;
 }): Promise<ReferenceAnalysisResult> {
+  const preset = normalizeReferenceMode(referenceMode) === "curated_style" ? resolveCuratedStylePreset(referenceId) : null;
+  if (preset) {
+    llmLog?.("[reference-analysis] approved curated preset used; no model call", { referenceId });
+    return presetAnalysisResult(presetReferenceAnalysis(preset));
+  }
   const inlineImage = toInlineImage(image);
   if (!inlineImage || !image) {
     return {
@@ -998,6 +1018,7 @@ export async function preflightGenerationScope({
   referenceMode,
   planningMode = "project",
   cachedReferenceAnalysis,
+  referenceId,
   llmLog,
 }: {
   prompt: string;
@@ -1005,6 +1026,7 @@ export async function preflightGenerationScope({
   referenceMode?: ReferenceMode | null;
   planningMode?: PlanningMode;
   cachedReferenceAnalysis?: ReferenceAnalysis | null;
+  referenceId?: string | null;
   llmLog?: LlmLogFn;
 }): Promise<{
   scopeContract: GenerationScopeContract;
@@ -1028,7 +1050,7 @@ export async function preflightGenerationScope({
       : Promise.resolve(parsePromptScreenIntent(prompt)),
     cachedReferenceAnalysisResult
       ? Promise.resolve(cachedReferenceAnalysisResult)
-      : analyzeReferenceImageForScope({ prompt, image, referenceMode, llmLog }),
+      : analyzeReferenceImageForScope({ prompt, image, referenceMode, referenceId, llmLog }),
   ]);
   const scopeContract = resolveGenerationScopeContract({
     prompt,
