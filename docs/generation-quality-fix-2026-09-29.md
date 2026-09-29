@@ -87,13 +87,20 @@ A healthy build on 2026-09-27 used about 8k input and 3k output tokens per scree
 - **Viewport repair rebuild** removed: up to one extra full build per flagged screen.
 - **Navigation repair call** replaced by deterministic tidying (`tidyNavigationBlueprint`): duplicate or filler destinations are dropped, and planned destinations are unlinked. The model is asked again only for issues that need judgment, as before.
 
-**Added:** about 1k image tokens per screen plus about 0.5k prompt tokens, roughly $0.0008 per screen.
+- **Blueprint reuse for later batches.** Every batch planned its own blueprint (charter, navigation, roadmap), including the look-ahead for the next batch, although the approved flow already fixed the screen list and the project already had a charter and navigation. Most of the answer was discarded, but the new charter was saved over the project's charter, so each batch rewrote the app's direction.
+  - `savedProjectBlueprint` (`lib/generation/saved-blueprint.ts`) now rebuilds the blueprint from the saved charter, the saved navigation and the approved manifest.
+  - Only the screen-brief call runs, saving one call per later batch (about $0.012 at this project's token counts). The charter stays stable across batches.
+  - The first batch of a new project still plans normally, because it has no saved navigation yet.
+  - A canvas project without navigation also plans normally, so newly added root screens can still bring navigation in.
+  - When anything the blueprint needs is missing, the previous path runs unchanged.
 
-**Next saving, not done here:** later batches of an approved flow re-run the blueprint call, although their charter and navigation already exist. That is about $0.015 per batch, but the blueprint feeds batch selection, roadmap compilation and the preview, so it needs its own careful change.
+**Added:** about 1k image tokens per screen plus about 0.5k prompt tokens, roughly $0.0008 per screen.
 
 ## Verification
 
-- Vitest: 110 files, 650 tests passed. The Chromium tests used the pinned Playwright shim.
+- Vitest: 111 files, 657 tests passed. The Chromium tests used the pinned Playwright shim.
+  - `planner.test.ts` shows that a later batch with a saved charter and navigation makes one model call (screen briefs) and keeps the saved charter and navigation.
+  - A project without saved navigation still gets the blueprint step first.
 - `pnpm run check`: curated index current, 0 ESLint errors (the existing `PricingDialog` warning remains), and `tsc` passes.
 - A keepNames bundle of `viewport-health.ts` reproduces `ReferenceError: __name is not defined` before the fix. After it, the bundle returns `[]` for a clean screen and flags overflow for a 450px screen.
 - Rendered this project's saved nav and the reference-style nav in Chromium with the project's tokens. Before: a grid with a square "Today" chip. After: a pill with an icon and label capsule and circular wells.

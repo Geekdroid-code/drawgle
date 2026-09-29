@@ -25,6 +25,7 @@ import {
 } from "@/lib/generation/asset-semantics";
 import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
+import { savedProjectBlueprint } from "@/lib/generation/saved-blueprint";
 import {
   applyReferenceNavigationRolesToScreens,
   applyReferenceNavigationStyle,
@@ -3303,183 +3304,199 @@ export async function planUiFlow({
     });
   }
 
-  const policy = geminiPolicyForTask("project_planning", {
-    systemInstruction: plannerBlueprintStepInstruction(plannerMode),
-    responseMimeType: "application/json",
-    temperature: 0.1,
-  });
-  if (llmLog) {
-    const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
-    llmLog(`[LLM INPUT] plan-ui-flow-blueprint`, {
-      model: policy.model,
-      planningMode,
-      referenceMode: resolvedReferenceMode,
-      referenceId: referenceId ?? null,
-      intentContract: intentContractJson(intentContract),
-      scopeContract: resolvedScopeContract,
-      screenCountContract: screenCountContractJson(screenCountContract),
-      systemInstructionLength: si.length,
-      systemInstruction: si,
-      userPartCount: parts.length,
-      userParts: parts.map((p) => (typeof p.text === "string" ? p.text : "[image]")),
+  // Later batches of an approved flow reuse the saved charter, navigation and
+  // approved screen list instead of asking the planner for a new blueprint.
+  const savedBlueprintCandidate = productPlanning && productExecutionKeys && planningMode === "project"
+    && resolvedReferenceMode !== "user_recreate"
+    ? savedProjectBlueprint({ productPlanning, executionKeys: productExecutionKeys,
+      charter: existingCharter, navigationPlan: existingNavigationPlan })
+    : null;
+  const savedBlueprint = savedBlueprintCandidate ? ProjectBlueprintSchema.safeParse(savedBlueprintCandidate) : null;
+  let rawBlueprint: unknown;
+  let parsedBlueprint: ReturnType<typeof ProjectBlueprintSchema.safeParse>;
+  if (savedBlueprint?.success) {
+    rawBlueprint = savedBlueprintCandidate;
+    parsedBlueprint = savedBlueprint;
+    llmLog?.("[planUiFlow] reused the saved project blueprint", { executionKeys: productExecutionKeys ?? [] });
+  } else {
+    const policy = geminiPolicyForTask("project_planning", {
+      systemInstruction: plannerBlueprintStepInstruction(plannerMode),
+      responseMimeType: "application/json",
+      temperature: 0.1,
     });
-  }
+    if (llmLog) {
+      const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
+      llmLog(`[LLM INPUT] plan-ui-flow-blueprint`, {
+        model: policy.model,
+        planningMode,
+        referenceMode: resolvedReferenceMode,
+        referenceId: referenceId ?? null,
+        intentContract: intentContractJson(intentContract),
+        scopeContract: resolvedScopeContract,
+        screenCountContract: screenCountContractJson(screenCountContract),
+        systemInstructionLength: si.length,
+        systemInstruction: si,
+        userPartCount: parts.length,
+        userParts: parts.map((p) => (typeof p.text === "string" ? p.text : "[image]")),
+      });
+    }
 
-  let response = await ai.models.generateContent({
-    model: policy.model,
-    contents: { parts },
-    config: policy.config,
-  });
-
-  if (llmLog && response.usageMetadata) {
-    llmLog(`[TOKEN USAGE] plan-ui-flow-blueprint`, response.usageMetadata as Record<string, unknown>);
-  }
-
-  let canonicalBlueprint = canonicalizePlannerBlueprintResponseText(response.text || "{}");
-  if (!canonicalBlueprint.blueprint) {
-    llmLog?.("[planUiFlow] blueprint core invalid — retrying JSON planning", {
-      issues: canonicalBlueprint.issues,
-    });
-    response = await ai.models.generateContent({
+    let response = await ai.models.generateContent({
       model: policy.model,
-      contents: {
-        parts: [
-          ...parts,
-          {
-            text: [
-              "BLUEPRINT REPAIR: The previous project blueprint could not be used for screen planning.",
-              "Return the complete blueprint again using the required JSON schema.",
-              "Preserve the requested product scope and ensure roadmap.items and roadmap.initial_batch_keys are complete.",
-              `Validation issues: ${canonicalBlueprint.issues.join("; ")}`,
-            ].join("\n"),
-          },
-        ],
-      },
+      contents: { parts },
       config: policy.config,
     });
+
     if (llmLog && response.usageMetadata) {
-      llmLog("[TOKEN USAGE] plan-ui-flow-blueprint-retry", response.usageMetadata as Record<string, unknown>);
+      llmLog(`[TOKEN USAGE] plan-ui-flow-blueprint`, response.usageMetadata as Record<string, unknown>);
     }
-    canonicalBlueprint = canonicalizePlannerBlueprintResponseText(response.text || "{}");
-  }
 
-  if (!canonicalBlueprint.blueprint) {
-    throw new Error(`Project blueprint planning failed before screen planning: ${canonicalBlueprint.issues.join("; ")}`);
-  }
-
-  if (canonicalBlueprint.navigationRecovered) {
-    console.warn("[planUiFlow] Navigation metadata recovered without blocking screen planning", {
-      issues: canonicalBlueprint.issues,
-    });
-    llmLog?.("[planUiFlow] navigation isolated from screen planning", {
-      issues: canonicalBlueprint.issues,
-      screenPlanningWillRun: true,
-    });
-  }
-
-  let rawBlueprint: unknown = canonicalBlueprint.blueprint;
-  let parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
-
-  if (parsedBlueprint.success && !canonicalBlueprint.navigationRecovered) {
-    // Structural navigation slips are fixed here, not by asking the model again.
-    parsedBlueprint = {
-      ...parsedBlueprint,
-      data: { ...parsedBlueprint.data, navigation_plan: tidyNavigationBlueprint(parsedBlueprint.data.navigation_plan) },
-    };
-  }
-
-  if (parsedBlueprint.success) {
-    const navigationIssues = canonicalBlueprint.navigationRecovered
-      ? canonicalBlueprint.issues
-      : navigationBlueprintIssues(parsedBlueprint.data.navigation_plan);
-    if (navigationIssues.length > 0) {
-      llmLog?.("[navigation:v2] blueprint repair requested", {
-        issues: navigationIssues,
-        itemCount: parsedBlueprint.data.navigation_plan?.items.length ?? 0,
+    let canonicalBlueprint = canonicalizePlannerBlueprintResponseText(response.text || "{}");
+    if (!canonicalBlueprint.blueprint) {
+      llmLog?.("[planUiFlow] blueprint core invalid — retrying JSON planning", {
+        issues: canonicalBlueprint.issues,
       });
-      const repairResponse = await ai.models.generateContent({
+      response = await ai.models.generateContent({
         model: policy.model,
         contents: {
           parts: [
             ...parts,
             {
               text: [
-                "NAVIGATION V2 REPAIR ONLY. Return the complete project blueprint JSON without screens.",
-                "The previous navigation plan failed validation: " + navigationIssues.join("; ") + ".",
-                "Keep the approved charter and architecture unless they conflict with the positive-evidence policy.",
-                "Do not create generated screens. Add meaningful planned destinations only when product evidence supports them.",
-                "Invalid blueprint: " + JSON.stringify(
-                  canonicalBlueprint.navigationRecovered ? canonicalBlueprint.normalizedRaw : parsedBlueprint.data,
-                  null,
-                  2,
-                ),
+                "BLUEPRINT REPAIR: The previous project blueprint could not be used for screen planning.",
+                "Return the complete blueprint again using the required JSON schema.",
+                "Preserve the requested product scope and ensure roadmap.items and roadmap.initial_batch_keys are complete.",
+                `Validation issues: ${canonicalBlueprint.issues.join("; ")}`,
               ].join("\n"),
             },
           ],
         },
         config: policy.config,
       });
-      if (llmLog && repairResponse.usageMetadata) {
-        llmLog("[TOKEN USAGE] plan-ui-flow-navigation-repair", repairResponse.usageMetadata as Record<string, unknown>);
+      if (llmLog && response.usageMetadata) {
+        llmLog("[TOKEN USAGE] plan-ui-flow-blueprint-retry", response.usageMetadata as Record<string, unknown>);
       }
-      const repairedRaw = normalizePlannerBlueprintResponse(parseJsonResponse<unknown>(repairResponse.text || "{}"));
-      const repairedBlueprint = ProjectBlueprintSchema.safeParse(repairedRaw);
-      if (repairedBlueprint.success && navigationBlueprintIssues(repairedBlueprint.data.navigation_plan).length === 0) {
-        rawBlueprint = repairedRaw;
-        parsedBlueprint = repairedBlueprint;
-      } else {
-        llmLog?.("[navigation:v2] blueprint repair rejected", {
-          issues: repairedBlueprint.success
-            ? navigationBlueprintIssues(repairedBlueprint.data.navigation_plan)
-            : repairedBlueprint.error.issues.map((issue) => issue.path.join(".") + ": " + issue.message),
+      canonicalBlueprint = canonicalizePlannerBlueprintResponseText(response.text || "{}");
+    }
+
+    if (!canonicalBlueprint.blueprint) {
+      throw new Error(`Project blueprint planning failed before screen planning: ${canonicalBlueprint.issues.join("; ")}`);
+    }
+
+    if (canonicalBlueprint.navigationRecovered) {
+      console.warn("[planUiFlow] Navigation metadata recovered without blocking screen planning", {
+        issues: canonicalBlueprint.issues,
+      });
+      llmLog?.("[planUiFlow] navigation isolated from screen planning", {
+        issues: canonicalBlueprint.issues,
+        screenPlanningWillRun: true,
+      });
+    }
+
+    rawBlueprint = canonicalBlueprint.blueprint;
+    parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
+
+    if (parsedBlueprint.success && !canonicalBlueprint.navigationRecovered) {
+      // Structural navigation slips are fixed here, not by asking the model again.
+      parsedBlueprint = {
+        ...parsedBlueprint,
+        data: { ...parsedBlueprint.data, navigation_plan: tidyNavigationBlueprint(parsedBlueprint.data.navigation_plan) },
+      };
+    }
+
+    if (parsedBlueprint.success) {
+      const navigationIssues = canonicalBlueprint.navigationRecovered
+        ? canonicalBlueprint.issues
+        : navigationBlueprintIssues(parsedBlueprint.data.navigation_plan);
+      if (navigationIssues.length > 0) {
+        llmLog?.("[navigation:v2] blueprint repair requested", {
+          issues: navigationIssues,
+          itemCount: parsedBlueprint.data.navigation_plan?.items.length ?? 0,
         });
+        const repairResponse = await ai.models.generateContent({
+          model: policy.model,
+          contents: {
+            parts: [
+              ...parts,
+              {
+                text: [
+                  "NAVIGATION V2 REPAIR ONLY. Return the complete project blueprint JSON without screens.",
+                  "The previous navigation plan failed validation: " + navigationIssues.join("; ") + ".",
+                  "Keep the approved charter and architecture unless they conflict with the positive-evidence policy.",
+                  "Do not create generated screens. Add meaningful planned destinations only when product evidence supports them.",
+                  "Invalid blueprint: " + JSON.stringify(
+                    canonicalBlueprint.navigationRecovered ? canonicalBlueprint.normalizedRaw : parsedBlueprint.data,
+                    null,
+                    2,
+                  ),
+                ].join("\n"),
+              },
+            ],
+          },
+          config: policy.config,
+        });
+        if (llmLog && repairResponse.usageMetadata) {
+          llmLog("[TOKEN USAGE] plan-ui-flow-navigation-repair", repairResponse.usageMetadata as Record<string, unknown>);
+        }
+        const repairedRaw = normalizePlannerBlueprintResponse(parseJsonResponse<unknown>(repairResponse.text || "{}"));
+        const repairedBlueprint = ProjectBlueprintSchema.safeParse(repairedRaw);
+        if (repairedBlueprint.success && navigationBlueprintIssues(repairedBlueprint.data.navigation_plan).length === 0) {
+          rawBlueprint = repairedRaw;
+          parsedBlueprint = repairedBlueprint;
+        } else {
+          llmLog?.("[navigation:v2] blueprint repair rejected", {
+            issues: repairedBlueprint.success
+              ? navigationBlueprintIssues(repairedBlueprint.data.navigation_plan)
+              : repairedBlueprint.error.issues.map((issue) => issue.path.join(".") + ": " + issue.message),
+          });
+        }
       }
     }
-  }
 
-  if (parsedBlueprint.success) {
-    const evidenceAdjustedNavigation = enforceNavigationEvidencePolicy({
-      navigationPlan: parsedBlueprint.data.navigation_plan,
-      roadmap: parsedBlueprint.data.roadmap,
-      prompt,
-      mode: plannerMode,
-    });
-    if (JSON.stringify(evidenceAdjustedNavigation) !== JSON.stringify(parsedBlueprint.data.navigation_plan)) {
-      const navigationEnabled = Boolean(
-        evidenceAdjustedNavigation
-        && evidenceAdjustedNavigation.decision !== "none"
-        && evidenceAdjustedNavigation.evidence.source,
-      );
-      const evidenceAdjustedBlueprint = {
-        ...parsedBlueprint.data,
-        requires_bottom_nav: navigationEnabled,
-        navigation_plan: evidenceAdjustedNavigation,
-        navigation_architecture: navigationEnabled
-          ? parsedBlueprint.data.navigation_architecture
-          : {
-              kind: "hierarchical" as const,
-              primary_navigation: "none" as const,
-              root_chrome: "top-bar" as const,
-              detail_chrome: "top-bar-back" as const,
-              consistency_rules: ["Use task-specific top chrome and explicit back navigation for detail screens."],
-              rationale: evidenceAdjustedNavigation?.evidence.reason ?? "No positive persistent-navigation evidence was provided.",
-            },
-        charter: {
-          ...parsedBlueprint.data.charter,
-          navigationModel: navigationEnabled
-            ? parsedBlueprint.data.charter.navigationModel
-            : "Hierarchical screen-specific chrome without persistent primary navigation.",
-        },
-      };
-      const validatedEvidenceAdjustedBlueprint = ProjectBlueprintSchema.safeParse(evidenceAdjustedBlueprint);
-      if (validatedEvidenceAdjustedBlueprint.success) {
-        rawBlueprint = evidenceAdjustedBlueprint;
-        parsedBlueprint = validatedEvidenceAdjustedBlueprint;
-        llmLog?.("[navigation:v2] evidence policy adjusted blueprint", {
-          enabled: navigationEnabled,
-          source: evidenceAdjustedNavigation?.evidence.source ?? null,
-          reason: evidenceAdjustedNavigation?.evidence.reason ?? null,
-        });
+    if (parsedBlueprint.success) {
+      const evidenceAdjustedNavigation = enforceNavigationEvidencePolicy({
+        navigationPlan: parsedBlueprint.data.navigation_plan,
+        roadmap: parsedBlueprint.data.roadmap,
+        prompt,
+        mode: plannerMode,
+      });
+      if (JSON.stringify(evidenceAdjustedNavigation) !== JSON.stringify(parsedBlueprint.data.navigation_plan)) {
+        const navigationEnabled = Boolean(
+          evidenceAdjustedNavigation
+          && evidenceAdjustedNavigation.decision !== "none"
+          && evidenceAdjustedNavigation.evidence.source,
+        );
+        const evidenceAdjustedBlueprint = {
+          ...parsedBlueprint.data,
+          requires_bottom_nav: navigationEnabled,
+          navigation_plan: evidenceAdjustedNavigation,
+          navigation_architecture: navigationEnabled
+            ? parsedBlueprint.data.navigation_architecture
+            : {
+                kind: "hierarchical" as const,
+                primary_navigation: "none" as const,
+                root_chrome: "top-bar" as const,
+                detail_chrome: "top-bar-back" as const,
+                consistency_rules: ["Use task-specific top chrome and explicit back navigation for detail screens."],
+                rationale: evidenceAdjustedNavigation?.evidence.reason ?? "No positive persistent-navigation evidence was provided.",
+              },
+          charter: {
+            ...parsedBlueprint.data.charter,
+            navigationModel: navigationEnabled
+              ? parsedBlueprint.data.charter.navigationModel
+              : "Hierarchical screen-specific chrome without persistent primary navigation.",
+          },
+        };
+        const validatedEvidenceAdjustedBlueprint = ProjectBlueprintSchema.safeParse(evidenceAdjustedBlueprint);
+        if (validatedEvidenceAdjustedBlueprint.success) {
+          rawBlueprint = evidenceAdjustedBlueprint;
+          parsedBlueprint = validatedEvidenceAdjustedBlueprint;
+          llmLog?.("[navigation:v2] evidence policy adjusted blueprint", {
+            enabled: navigationEnabled,
+            source: evidenceAdjustedNavigation?.evidence.source ?? null,
+            reason: evidenceAdjustedNavigation?.evidence.reason ?? null,
+          });
+        }
       }
     }
   }
