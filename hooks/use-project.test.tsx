@@ -4,6 +4,8 @@ import { useProject } from "./use-project";
 import { PlanningConversation } from "@/components/product-planning/PlanningConversation";
 import { notifyProjectChanged } from "@/lib/project-refresh";
 import { productFixture } from "@/lib/product-planning/test-fixtures";
+import type { ProjectRow } from "@/lib/supabase/database.types";
+import { mapProjectRow } from "@/lib/supabase/mappers";
 import type { ProjectData } from "@/lib/types";
 
 const mocks = vi.hoisted(() => ({ fetchProject: vi.fn(), realtime: vi.fn() }));
@@ -14,14 +16,22 @@ vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({
   } }), removeChannel: vi.fn(),
 }) }));
 vi.mock("@/lib/supabase/queries", () => ({ fetchProject: mocks.fetchProject }));
-vi.mock("@/lib/supabase/mappers", () => ({ mapProjectRow: (row: unknown) => row }));
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => { resolve = done; });
   return { promise, resolve };
 }
-const initial: ProjectData = { id: "11111111-1111-4111-8111-111111111111", userId: "owner", name: "Tacozz", prompt: "T-shirts", status: "draft", createdAt: "2026-09-14", updatedAt: "2026-09-14", productPlanning: productFixture() };
+// Realtime delivers database rows, not client objects.
+const toRow = (project: ProjectData): ProjectRow => ({
+  id: project.id, owner_id: project.userId, name: project.name, prompt: project.prompt, status: project.status,
+  project_charter: (project.charter ?? null) as ProjectRow["project_charter"],
+  product_planning: (project.productPlanning ?? null) as ProjectRow["product_planning"],
+  design_tokens: (project.designTokens ?? null) as ProjectRow["design_tokens"], token_revision: project.tokenRevision ?? 0,
+  public_preview_token: null, public_preview_enabled: false, public_preview_created_at: null,
+  next_screen_x: 0, screen_origin_y: 0, created_at: project.createdAt, updated_at: project.updatedAt,
+});
+const initial: ProjectData = mapProjectRow(toRow({ id: "11111111-1111-4111-8111-111111111111", userId: "owner", name: "Tacozz", prompt: "T-shirts", status: "draft", createdAt: "2026-09-14", updatedAt: "2026-09-14", productPlanning: productFixture() }));
 
 // Mirrors ProjectShell's loading boundary with the real planning initializer.
 function Canvas({ project: seed }: { project: ProjectData }) {
@@ -48,7 +58,7 @@ describe("project refresh lifecycle", () => {
       const updated = { ...initial, productPlanning: { ...initial.productPlanning!, revision } };
       mocks.fetchProject.mockResolvedValue(updated);
       await act(async () => {
-        mocks.realtime({ eventType: "UPDATE", new: updated });
+        mocks.realtime({ eventType: "UPDATE", new: toRow(updated) });
         notifyProjectChanged(initial.id);
       });
       expect(screen.getByRole("textbox", { name: "Chat draft" })).toBe(composer);
@@ -67,10 +77,37 @@ describe("project refresh lifecycle", () => {
     mocks.fetchProject.mockReturnValue(old.promise);
     const { result } = renderHook(() => useProject(initial.id, initial));
     const newer = { ...initial, productPlanning: { ...initial.productPlanning!, revision: 12, initialTurnComplete: true } };
-    act(() => mocks.realtime({ eventType: "UPDATE", new: newer }));
+    act(() => mocks.realtime({ eventType: "UPDATE", new: toRow(newer) }));
     await act(async () => old.resolve(initial));
-    expect(result.current.project).toEqual(newer);
+    expect(result.current.project).toEqual(mapProjectRow(toRow(newer)));
     expect(result.current.isLoading).toBe(false);
+  });
+
+  it("keeps the design tokens when an update omits unchanged large columns", async () => {
+    const styled = { ...initial, charter: { appType: "Pet care" } as ProjectData["charter"],
+      designTokens: { system_schema: "mobile_universal_core", tokens: { color: { background: { primary: "#F5F1EA" } } } } as ProjectData["designTokens"] };
+    mocks.fetchProject.mockResolvedValue(styled);
+    const { result } = renderHook(() => useProject(styled.id, styled));
+    await act(async () => {});
+    // A charter-only UPDATE: Realtime leaves out unchanged out-of-line values.
+    const { design_tokens: _tokens, product_planning: _planning, ...record } = toRow({
+      ...styled, charter: { appType: "Pet care", designRationale: "Second batch" } as ProjectData["charter"], updatedAt: "2026-09-29",
+    });
+    act(() => mocks.realtime({ eventType: "UPDATE", new: record }));
+    expect(result.current.project?.designTokens).toEqual(styled.designTokens);
+    expect(result.current.project?.productPlanning).toEqual(styled.productPlanning);
+    expect(result.current.project?.charter).toEqual({ appType: "Pet care", designRationale: "Second batch" });
+    expect(mocks.fetchProject).toHaveBeenCalledTimes(1);
+  });
+
+  it("refetches instead of guessing when a partial update arrives before any project is held", async () => {
+    const pending = deferred<ProjectData>();
+    mocks.fetchProject.mockReturnValueOnce(pending.promise).mockResolvedValue(initial);
+    const { result } = renderHook(() => useProject(initial.id, null));
+    const { design_tokens: _tokens, ...record } = toRow(initial);
+    await act(async () => mocks.realtime({ eventType: "UPDATE", new: record }));
+    expect(mocks.fetchProject).toHaveBeenCalledTimes(2);
+    expect(result.current.project).toEqual(initial);
   });
 
   it("ignores out-of-order refresh responses", async () => {

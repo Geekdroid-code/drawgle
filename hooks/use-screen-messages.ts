@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ScreenMessageRow } from "@/lib/supabase/database.types";
-import { mapScreenMessageRow } from "@/lib/supabase/mappers";
+import { mapScreenMessageRow, SCREEN_MESSAGE_COLUMNS } from "@/lib/supabase/mappers";
+import { isCompleteRecord, mergeRealtimeRecord } from "@/lib/supabase/realtime-patch";
 import { fetchScreenMessages } from "@/lib/supabase/queries";
 import type { Message } from "@/lib/types";
 
@@ -77,7 +78,15 @@ export function useScreenMessages(screenId: string) {
             return;
           }
 
-          setMessages((currentMessages) => upsertMessage(currentMessages, mapScreenMessageRow(payload.new as ScreenMessageRow)));
+          // UPDATE records omit unchanged large columns: merge over the held message.
+          const record = payload.new as Partial<ScreenMessageRow>;
+          setMessages((currentMessages) => {
+            const current = currentMessages.find((message) => message.id === record.id);
+            if (current) return upsertMessage(currentMessages, mergeRealtimeRecord(current, record, mapScreenMessageRow, SCREEN_MESSAGE_COLUMNS));
+            return isCompleteRecord(record, SCREEN_MESSAGE_COLUMNS)
+              ? upsertMessage(currentMessages, mapScreenMessageRow(record as ScreenMessageRow))
+              : currentMessages;
+          });
         },
       )
       .subscribe();

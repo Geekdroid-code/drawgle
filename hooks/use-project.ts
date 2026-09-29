@@ -5,8 +5,9 @@ import { isProjectRefresh, PROJECT_REFRESH_EVENT } from "@/lib/project-refresh";
 
 import { createClient } from "@/lib/supabase/client";
 import type { ProjectRow } from "@/lib/supabase/database.types";
-import { mapProjectRow } from "@/lib/supabase/mappers";
+import { mapProjectRow, PROJECT_COLUMNS } from "@/lib/supabase/mappers";
 import { fetchProject } from "@/lib/supabase/queries";
+import { isCompleteRecord, mergeRealtimeRecord } from "@/lib/supabase/realtime-patch";
 import type { ProjectData } from "@/lib/types";
 
 export function useProject(projectId: string, initialProject: ProjectData | null) {
@@ -35,6 +36,8 @@ export function useProject(projectId: string, initialProject: ProjectData | null
 
     let cancelled = false;
     let requestVersion = 0;
+    // The project a completed fetch or complete record has confirmed.
+    let heldProjectId: string | null = null;
 
     const loadProject = async () => {
       const version = ++requestVersion;
@@ -43,6 +46,7 @@ export function useProject(projectId: string, initialProject: ProjectData | null
         // which starts planning again and creates a refresh -> 409 -> refresh loop.
         const nextProject = await fetchProject(supabase, projectId);
         if (!cancelled && version === requestVersion) {
+          heldProjectId = nextProject?.id ?? null;
           setProject(nextProject);
         }
       } catch (error) {
@@ -74,11 +78,20 @@ export function useProject(projectId: string, initialProject: ProjectData | null
           requestVersion += 1;
           setIsLoading(false);
           if (payload.eventType === "DELETE") {
+            heldProjectId = null;
             setProject(null);
             return;
           }
 
-          setProject(mapProjectRow(payload.new as ProjectRow));
+          // An UPDATE omits unchanged large columns (tokens, charter, planning):
+          // merge it over the project already held, never replace with it.
+          const record = payload.new as Partial<ProjectRow>;
+          const complete = isCompleteRecord(record, PROJECT_COLUMNS);
+          setProject((current) => current && current.id === record.id
+            ? mergeRealtimeRecord(current, record, mapProjectRow, PROJECT_COLUMNS)
+            : complete ? mapProjectRow(record as ProjectRow) : current);
+          if (complete) heldProjectId = record.id ?? null;
+          else if (heldProjectId !== record.id) void loadProject();
         },
       )
       .subscribe();
