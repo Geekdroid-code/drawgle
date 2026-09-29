@@ -15,7 +15,7 @@ pnpm design:eval --project 0ce99a06 --label step1 --case pets-family   # after r
 
 ![The review sheet](review-sheet-example.png)
 
-This is the sheet the build writes for you to approve, made here from the real mindfulness image with **stubbed model output**: a hand-written specimen and the fixture tokens, standing in for the model's. It is an example of the format, not a preset. Left to right: the reference, the phone the specimen recreates, the specimen, and the extracted components drawn with the preset's tokens as every builder will copy them. The specimen's bottom bar is left out of the components, because the renderer draws the navigation.
+This is the sheet the build writes for you to approve, made here from the real mindfulness image with **stubbed model output**: a hand-written specimen and the fixture tokens, standing in for the model's. It is an example of the format, not a preset. Left to right: the reference, the phone the specimen recreates, the specimen, and the extracted components drawn with the preset's tokens as every builder will copy them. The specimen's bottom bar is left out of the components, because the renderer draws the navigation. The specimen is drawn with that bar, built from the preset's navigation with sample destinations (Step 6 added it to the sheet), so the preset's navigation can be checked by looking.
 
 ## What is checked without a model
 

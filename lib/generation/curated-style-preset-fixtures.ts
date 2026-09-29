@@ -52,6 +52,8 @@ export const presetNavigation = (): ReferenceNavigationEvidence => ({
   inactiveTreatment: "plain",
   width: "full",
   material: "solid",
+  activeFill: "gradient",
+  corners: "rounded",
 });
 
 /** Calibrated tokens for the reference: a cream page, a card a tone step above it, an inset, tints, a 20px card. */

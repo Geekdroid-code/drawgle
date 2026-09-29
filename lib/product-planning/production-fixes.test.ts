@@ -106,4 +106,12 @@ describe("audience and evidence boundaries", () => {
     state.experience!.referenceHash = "different";
     expect(preparedPlanKey(state, ["screen:onboarding"], { tokens: 1, nav: 2 })).not.toBe(key);
   });
+  it("invalidates prepared briefs when the approved navigation changes, and leaves a scope without one alone", () => {
+    const state = designerFixture(); const key = preparedPlanKey(state, ["screen:onboarding"], null);
+    expect(preparedPlanKey({ ...state, scope: { ...state.scope!, navigation: undefined } }, ["screen:onboarding"], null)).toBe(key);
+    const bar = { persistent: true, rationale: "Peer areas", destinations: [{ label: "Today", screenKey: null }, { label: "Pets", screenKey: null }] };
+    const withBar = preparedPlanKey({ ...state, scope: { ...state.scope!, navigation: bar } }, ["screen:onboarding"], null);
+    expect(withBar).not.toBe(key);
+    expect(preparedPlanKey({ ...state, scope: { ...state.scope!, navigation: { ...bar, persistent: false, destinations: [] } } }, ["screen:onboarding"], null)).not.toBe(withBar);
+  });
 });

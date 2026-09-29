@@ -10,7 +10,7 @@ import {
   presetFixture,
 } from "@/lib/generation/curated-style-preset-fixtures";
 
-import { componentSheetCode, presetDocument, renderPresetPreview } from "./preview";
+import { componentSheetCode, presetDocument, presetNavigationPlan, renderPresetPreview } from "./preview";
 
 let browser: Browser;
 
@@ -44,6 +44,29 @@ describe("the preset preview", () => {
     const risky = presetFixture({ components: [{ name: "a<b>", use: "x & y", html: "<i></i>" }] });
     expect(componentSheetCode(risky)).toContain("a&lt;b&gt; — x &amp; y");
     expect(presetDocument(presetFixture(), "<p>hi</p>")).toContain("--dg-color-surface-card: #F7F4E8");
+  });
+
+  it("draws the specimen with the bar the renderer will build for it, in the reference's own construction", () => {
+    const plan = presetNavigationPlan(presetFixture())!;
+    expect(plan.items).toHaveLength(4);
+    expect(plan.design).toMatchObject({ anatomy: "fixed-tab-rail", labels: "hidden", activeTreatment: "icon-fill", activeFill: "gradient", radiusPx: 24 });
+    const html = presetDocument(presetFixture(), specimen, { navigation: true });
+    expect(html).toContain('data-navigation-layout="attached-edge-rail"');
+    expect(html).toContain("border-radius:24px 24px 0 0;");
+    expect(html).toContain('data-nav-item-id="home"');
+    // the components are drawn without it
+    const bar = /<nav\b[^>]*data-drawgle-primary-nav/;
+    expect(presetDocument(presetFixture(), specimen)).not.toMatch(bar);
+    // a reference with no bar of its own has no sample bar
+    expect(presetNavigationPlan(presetFixture({ navigation: null }))).toBeNull();
+    expect(presetDocument(presetFixture({ navigation: null }), specimen, { navigation: true })).not.toMatch(bar);
+  });
+
+  it("replaces the bar the specimen drew itself, never doubles it", () => {
+    const own = `${specimen}<nav class="fixed bottom-0 inset-x-0"><button data-nav-item-id="x"><i data-lucide="home"></i></button><button data-nav-item-id="y"><i data-lucide="user"></i></button></nav>`;
+    const html = presetDocument(presetFixture(), own, { navigation: true });
+    expect(html.match(/<nav\b[^>]*data-drawgle-primary-nav/g)).toHaveLength(1);
+    expect(html).not.toContain('data-nav-item-id="x"');
   });
 
   it("puts the reference, the specimen and the components on one contact sheet", async () => {

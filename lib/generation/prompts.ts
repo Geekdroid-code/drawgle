@@ -320,7 +320,8 @@ ${plannerBlueprintModeRules(mode)}
 - Use Lucide icon names. Select one supported design anatomy and provide bounded measurements; the renderer, not the builder, owns navigation HTML.
 - charter.navigationModel must match navigation_architecture. keyFeatures must be durable product capabilities, not screen names.
 - charter.designRationale${referenceDrivesDirection(mode, options) ? "" : " and creativeDirection.compositionPrinciples"} must be executable layout rules: viewport budget, screen-edge padding, horizontal rail, section rhythm, card/content padding, typography discipline, bottom-safe content stop points, dense-row vs spacious-hero usage, wrapping/truncation, and overflow avoidance.
-- If Current Project Context contains approved navigation architecture or plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.`;
+- If Current Project Context contains approved navigation architecture or plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.
+- When the input carries an APPROVED NAVIGATION section, the person already approved it: it overrides the evidence rules and the destination count above. Follow it exactly and supply only each destination's icon and role.`;
 
 const plannerScreenModeRule = (mode: GenerationPromptMode) => mode === "recreate"
   ? `- Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. In recreate collages, map visible screens left-to-right unless instructed otherwise. A visible structural-reference state may set explicitly_requested and default_selected true. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.`
@@ -495,6 +496,8 @@ Return strictly valid JSON in this format after inspecting the image with an exp
     "inactiveTreatment": "plain | well",
     "width": "content | inset | full",
     "material": "solid | translucent | glass",
+    "activeFill": "solid | gradient (gradient when the active item's fill runs between two colours)",
+    "corners": "square | rounded (the top corners of a bar attached to the bottom edge; omit for a floating bar)",
     "activeState": "Observed active icon, label, fill, indicator, and contrast treatment.",
     "elevation": "Observed border, shadow, blur, or attached-surface treatment.",
     "safeAreaRelationship": "Observed distance from bottom edge and home indicator.",
@@ -611,6 +614,8 @@ Return strictly valid JSON in this format:
     "inactiveTreatment": "plain | well",
     "width": "content | inset | full",
     "material": "solid | translucent | glass",
+    "activeFill": "solid | gradient (gradient when the active item's fill runs between two colours)",
+    "corners": "square | rounded (the top corners of a bar attached to the bottom edge; omit for a floating bar)",
     "geometry": "Observed height, inset, radius, padding, and item spacing",
     "activeState": "Observed active icon, label, fill, and contrast treatment",
     "elevation": "Observed border, shadow, blur, or attached-surface treatment",

@@ -192,6 +192,75 @@ describe("single-candidate screen-flow mapping", () => {
     expect(mapped.roadmap.map(item => item.surfaceIds)).toEqual([[newId], [newId]]);
   });
 
+  describe("the navigation the person approves with the flow", () => {
+    const decided = (destinations: Array<{ label: string; outputRef: string | null }>, persistent = true) =>
+      ({ persistent, destinations, rationale: "People move between these areas." });
+    /** The smallest response the reader accepts, with the navigation the test gives it. */
+    const response = (navigation: unknown) => normalizeDesignFlowCandidate({
+      facts: [], outputs: [{ ref: "Today Screen", name: "Today", description: "d", actions: [], information: "i",
+        entryCondition: "e", outcome: "o" }],
+      scope: { goal: "g", rationale: "r", outputRefs: ["Today Screen"] }, navigation })!;
+
+    it("resolves each destination to the screen it opens when that screen is in this flow", () => {
+      const { mapped } = materialize(candidate({ navigation: decided([
+        { label: "Today", outputRef: "today" }, { label: "Kids", outputRef: "Child Tasks" }, { label: "Routines", outputRef: "nowhere" }]) }));
+      expect(mapped.scope.navigation).toEqual({ persistent: true, rationale: "People move between these areas.", destinations: [
+        { label: "Today", screenKey: mapped.roadmap[0].stableKey }, { label: "Kids", screenKey: mapped.roadmap[1].stableKey },
+        { label: "Routines", screenKey: null }] });
+    });
+
+    it("plans a destination whose screen is described but not selected for this build", () => {
+      const { mapped } = materialize(candidate({ navigation: decided([{ label: "Today", outputRef: "today" }, { label: "Kids", outputRef: "child" }]),
+        scope: { ...candidate().scope, outputRefs: ["today"] } }));
+      expect(mapped.scope.outputKeys).toHaveLength(1);
+      expect(mapped.scope.navigation?.destinations).toEqual([
+        { label: "Today", screenKey: mapped.roadmap[0].stableKey }, { label: "Kids", screenKey: null }]);
+    });
+
+    it("counts a screen that is already built as part of the flow", () => {
+      const first = materialize();
+      const [today, child] = first.mapped.roadmap;
+      const rows = [{ item: today, status: "planned", screenId: null },
+        { item: child, status: "ready", screenId: "33333333-3333-4333-8333-333333333333" }];
+      const next = candidate({ navigation: decided([{ label: "Today", outputRef: today.stableKey }, { label: "Kids", outputRef: child.stableKey }]),
+        outputs: [{ ...candidate().outputs[0], existingKey: today.stableKey }, { ...candidate().outputs[1], existingKey: child.stableKey }],
+        scope: { ...candidate().scope, outputRefs: [today.stableKey] } });
+      const ids = candidateFactPatch(next, first.state, projectId, "second-turn");
+      const mapped = candidateRoadmap(next, first.state, rows, ids.aliases, ids.superseded, projectId, "second-turn");
+      expect(mapped.scope.navigation?.destinations.map(destination => destination.screenKey)).toEqual([today.stableKey, child.stableKey]);
+    });
+
+    it("gives a screen to one destination only", () => {
+      const { mapped } = materialize(candidate({ navigation: decided([{ label: "Today", outputRef: "today" }, { label: "Home", outputRef: "today" }]) }));
+      expect(mapped.scope.navigation?.destinations.map(destination => destination.screenKey)).toEqual([mapped.roadmap[0].stableKey, null]);
+    });
+
+    it("leaves a flow without a decision undecided, so the older heuristics still apply to it", () => {
+      const { mapped } = materialize();
+      expect("navigation" in mapped.scope).toBe(false);
+      expect(response(undefined).navigation).toBeUndefined();
+      expect(response({ destinations: [{ label: "Today", outputRef: null }] }).navigation).toBeUndefined();
+      expect(response("tabs").navigation).toBeUndefined();
+    });
+
+    it("draws a bar only from two or more distinct, named destinations", () => {
+      expect(response(decided([{ label: "Today", outputRef: "today screen" }])).navigation).toMatchObject({ persistent: false, destinations: [] });
+      const two = response(decided([{ label: "Today", outputRef: "Today Screen" }, { label: "  pets ", outputRef: "" }]));
+      expect(two.navigation).toEqual({ persistent: true, rationale: "People move between these areas.",
+        destinations: [{ label: "Today", outputRef: "today-screen" }, { label: "pets", outputRef: null }] });
+      // filler labels and repeats do not count toward the two
+      expect(response(decided([{ label: "Tab 1", outputRef: null }, { label: "Today", outputRef: null }, { label: "TODAY", outputRef: null }])).navigation)
+        .toMatchObject({ persistent: false, destinations: [] });
+      expect(response(decided(["A", "B", "C", "D", "E", "F", "G"].map(label => ({ label, outputRef: null })))).navigation?.destinations).toHaveLength(5);
+    });
+
+    it("keeps no destinations for an app without persistent navigation, and gives its reason", () => {
+      const none = response({ persistent: false, destinations: [{ label: "Today", outputRef: null }, { label: "Pets", outputRef: null }], rationale: "" });
+      expect(none.navigation).toMatchObject({ persistent: false, destinations: [] });
+      expect(none.navigation?.rationale).toMatch(/no persistent navigation/);
+    });
+  });
+
   it("retains confirmed truth and redirects links when evidence review demotes its replacement", () => {
     const saved = applyProductPatch(base(), { operations: [
       { op: "put_fact", fact: { id: "confirmed-home", section: "surfaces", label: "home",

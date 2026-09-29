@@ -619,6 +619,8 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
           ["plain", "well"] as const),
         width: oneOf(readField(primaryNavigationRecord, ["width", "widthMode", "width_mode"]), ["content", "inset", "full"] as const),
         material: oneOf(readField(primaryNavigationRecord, ["material"]), ["solid", "translucent", "glass"] as const),
+        activeFill: oneOf(readField(primaryNavigationRecord, ["activeFill", "active_fill"]), ["solid", "gradient"] as const),
+        corners: oneOf(readField(primaryNavigationRecord, ["corners", "cornerShape", "corner_shape"]), ["square", "rounded"] as const),
       }
     : null;
   const rawCount = readField(raw, ["screenCountEstimate", "screen_count_estimate", "visibleScreenCount", "visible_screen_count", "screenCount", "screen_count"]);

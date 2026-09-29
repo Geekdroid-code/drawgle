@@ -11,7 +11,8 @@ export function preparedPlanKey(state: ProductPlanning, keys: string[], shared: 
   const canonical = (value: unknown): unknown => Array.isArray(value) ? value.map(canonical)
     : value && typeof value === "object" ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => [k, canonical(v)])) : value;
   return createHash("sha256").update(JSON.stringify(canonical({ version: 4, screenReference: state.screenReference, phase: state.phase, approval: state.scope?.approvedRevision,
-    contentRevision: state.contentRevision, manifest: state.scope?.manifest, reference: state.experience?.referenceHash,
+    // navigation is absent for a scope approved before it was decided there, so those keys are unchanged
+    contentRevision: state.contentRevision, manifest: state.scope?.manifest, navigation: state.scope?.navigation, reference: state.experience?.referenceHash,
     requirementsKey: designRequirementsKey(state), sourceFrames: state.experience?.sourceFrames,
     input: state.input, keys, shared }))).digest("hex");
 }

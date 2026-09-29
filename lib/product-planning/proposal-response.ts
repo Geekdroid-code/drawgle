@@ -34,4 +34,12 @@ export const proposalResponseSchema = { type: Type.OBJECT, properties: {
   removeOutputKeys: strings,
   scope: { type: Type.OBJECT, properties: { goal: string, rationale: string,
     outputRefs: strings, surfaceRefs: strings }, required: ["goal", "rationale", "outputRefs", "surfaceRefs"] },
-}, required: ["facts", "removeFactIds", "outputs", "removeOutputKeys", "scope"] };
+  navigation: { type: Type.OBJECT, description: "Whether this app has one persistent bottom navigation bar, and what it holds. The person approves it with the screens.", properties: {
+    persistent: { type: Type.BOOLEAN, description: "True only when the product has peer areas people move between all day, such as Today, Pets, Routines. False for a linear flow, a single task, or a hierarchy of detail screens." },
+    destinations: { type: Type.ARRAY, description: "The bar's destinations, in order, when persistent: 2 to 5 short labels. Empty when persistent is false.", items: { type: Type.OBJECT, properties: {
+      label: { type: Type.STRING, description: "A short product-specific name shown under the icon, such as Pets or Routines." },
+      outputRef: { type: Type.STRING, nullable: true, description: "The ref of the output this destination opens, or a currentRoadmap stableKey. Null when no screen in this plan opens it yet." },
+    }, required: ["label", "outputRef"] } },
+    rationale: { type: Type.STRING, description: "One sentence: why the product does or does not need persistent navigation." },
+  }, required: ["persistent", "destinations", "rationale"] },
+}, required: ["facts", "removeFactIds", "outputs", "removeOutputKeys", "scope", "navigation"] };

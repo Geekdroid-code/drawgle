@@ -38,6 +38,7 @@ How to write the plan
 - surfaceRefs, journeyRefs and decisionRefs name fact refs from this plan or active fact ids.
 - dependencyRefs are rare build prerequisites, never navigation order.
 - scope.outputRefs lists the screens to design now, in order. scope.goal says in one sentence what these screens let people do.
+- navigation decides whether the app has one persistent bottom bar. The person approves it with the screens. persistent is true only when the product has peer areas that people move between (for example Today, Pets, Routines, Family). Then destinations lists 2 to 5 of them in order, each with a short label and the outputRef of the screen that opens it (null when no screen in this plan does). A linear flow, a single task, or a hierarchy of detail screens has no bar: persistent false and no destinations. Decide from the product and its screens, never from how a visual reference looks. Keep currentNavigation unless the conversation changed it.
 Return JSON only.`;
 
 export const PROPOSAL_READY_REPLY = "The screen flow is ready to review. Use the approval card to start generation.";
@@ -103,6 +104,7 @@ export async function runProposalPlanner(input: {
     activeFacts: activeFacts(before).map(({ id, section, label, detail, source }) => ({ id, section, label, detail, source })),
     currentRoadmap: current.map(row => ({ ...row.item, status: row.status })),
     currentSelection: before.scope?.outputKeys ?? [],
+    currentNavigation: before.scope?.navigation ?? null,
     experience: before.experience ? { direction: before.experience.direction, informationHierarchy: before.experience.informationHierarchy,
       navigation: before.experience.navigation, adaptations: before.experience.adaptations } : null,
     ...(retry ? { note: "The previous response was incomplete or not valid JSON. Return the complete plan; keep every text field concise." } : {}),
@@ -147,9 +149,11 @@ export async function runProposalPlanner(input: {
     mapped = candidateRoadmap(structured, factState, current, safe.aliases, safe.superseded, projectId, clientTurnId);
     const oldScope = before.scope;
     const scopeChanged = !oldScope || JSON.stringify({ goal: oldScope.goal, rationale: oldScope.rationale,
-      surfaceIds: oldScope.surfaceIds, outputKeys: oldScope.outputKeys, manifest: oldScope.manifest })
+      surfaceIds: oldScope.surfaceIds, outputKeys: oldScope.outputKeys, manifest: oldScope.manifest,
+      navigation: oldScope.navigation })
       !== JSON.stringify({ goal: mapped.scope.goal, rationale: mapped.scope.rationale,
-        surfaceIds: mapped.scope.surfaceIds, outputKeys: mapped.scope.outputKeys, manifest: mapped.scope.manifest });
+        surfaceIds: mapped.scope.surfaceIds, outputKeys: mapped.scope.outputKeys, manifest: mapped.scope.manifest,
+        navigation: mapped.scope.navigation });
     const contentChanged = JSON.stringify(factState.blueprint) !== JSON.stringify(before.blueprint)
       || mapped.itemsToSave.length > 0 || mapped.removeKeys.length > 0 || scopeChanged;
     draft = { ...factState, contentRevision: (before.contentRevision ?? 0) + (contentChanged ? 1 : 0), scope: mapped.scope };

@@ -1,7 +1,7 @@
 import { SCREEN_REFERENCE_INSTRUCTION } from "./reference-authority";
 import "server-only";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
-import { type ProductPlanning, activeFacts } from "@/lib/product-planning/model";
+import { type ProductPlanning, type ScopeNavigation, activeFacts } from "@/lib/product-planning/model";
 import { formatProductTruth, groundCharterInProduct, productScopeContract } from "@/lib/product-planning/generation-context";
 import { reconcileScreenBriefsWithDesignRequirements } from "@/lib/product-planning/reconcile-design";
 import { scopeParents } from "@/lib/product-planning/scope-outputs";
@@ -41,10 +41,18 @@ import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } f
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import { savedProjectBlueprint } from "@/lib/generation/saved-blueprint";
 import {
+  applyApprovedNavigation,
+  approvedNavigationLinkedScreens,
+  approvedNavigationScreenNames,
+  formatApprovedNavigation,
+  navigationMatchesApproved,
+} from "@/lib/generation/approved-navigation";
+import {
   applyReferenceNavigationRolesToScreens,
   applyReferenceNavigationStyle,
   applyNavigationPlanToScreens,
   deriveReferenceNavigationPlan,
+  minimumNavigationItems,
   normalizeNavigationPlan,
   renderDeterministicNavigationShell,
   validateNavigationShell,
@@ -461,6 +469,8 @@ const normalizeNavigationEvidenceSource = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value !== "string") return value;
   const normalized = value.toLowerCase();
+  // Before the loose patterns below: "approved" contains "app".
+  if (/^approved[-_\s]?scope$/.test(normalized)) return "approved-scope";
   if (/reference|image|screenshot/.test(normalized)) return "reference";
   if (/prompt|user|explicit/.test(normalized)) return "explicit-prompt";
   if (/product|architecture|app|domain/.test(normalized)) return "product-architecture";
@@ -501,13 +511,18 @@ const NavigationDesignContractSchema = z.object({
     (value) => value === "well" || value === "plain" ? value : undefined,
     z.enum(["plain", "well"]).optional(),
   ),
+  // Carried from the saved plan; the planner does not choose it.
+  active_fill: z.preprocess(
+    (value) => value === "gradient" || value === "solid" ? value : undefined,
+    z.enum(["solid", "gradient"]).optional(),
+  ),
 }).nullable().optional();
 
 const NavigationPlanSchema = z.object({
   version: z.preprocess((value) => Number(value), z.literal(2)),
   decision: z.preprocess(normalizeNavigationDecision, z.enum(["none", "project-native", "reference-derived"])),
   evidence: z.object({
-    source: z.preprocess(normalizeNavigationEvidenceSource, z.enum(["explicit-prompt", "reference", "product-architecture"]).nullable()),
+    source: z.preprocess(normalizeNavigationEvidenceSource, z.enum(["explicit-prompt", "reference", "product-architecture", "approved-scope"]).nullable()),
     reason: z.string().trim().min(1).max(1200),
   }),
   enabled: BooleanishSchema.optional(),
@@ -1735,6 +1750,7 @@ const toNavigationPlan = (parsed?: ParsedNavigationPlan | null): NavigationPlan 
           elevation: parsed.design.elevation,
           centerActionItemId: parsed.design.center_action_item_id ?? null,
           inactiveTreatment: parsed.design.inactive_treatment ?? "plain",
+          ...(parsed.design.active_fill === "gradient" ? { activeFill: "gradient" as const } : {}),
         }
       : null,
     enabled,
@@ -1762,7 +1778,8 @@ const navigationBlueprintIssues = (navigationPlan?: ParsedNavigationPlan | null)
 
   const issues: string[] = [];
   if (!navigationPlan.evidence?.source) issues.push("positive evidence source is required");
-  const minimumItems = decision === "project-native" ? 3 : 2;
+  // A bar the person approved with the flow may hold two peer areas; one the planner chose needs three.
+  const minimumItems = minimumNavigationItems(decision, 2, navigationPlan.evidence?.source);
   if (navigationPlan.items.length < minimumItems || navigationPlan.items.length > 5) {
     issues.push(decision + " requires " + minimumItems + "-5 destinations");
   }
@@ -1804,11 +1821,14 @@ export const enforceNavigationEvidencePolicy = ({
   roadmap,
   prompt,
   mode,
+  approvedNavigation,
 }: {
   navigationPlan?: ParsedNavigationPlan | null;
   roadmap?: z.infer<typeof ProjectRoadmapSchema> | null;
   prompt: string;
   mode: ReferenceTransferMode;
+  /** What the person approved with the flow. Their approval is evidence; a model's claim of it is not. */
+  approvedNavigation?: ScopeNavigation | null;
 }): ParsedNavigationPlan | undefined => {
   if (!navigationPlan || navigationPlan.decision === "none") {
     return navigationPlan ?? undefined;
@@ -1818,8 +1838,9 @@ export const enforceNavigationEvidencePolicy = ({
     && !hasExplicitNavigationRequest(prompt);
   const claimedStyleReferenceArchitecture = navigationPlan.evidence.source === "reference"
     && mode !== "recreate";
+  const claimedApproval = navigationPlan.evidence.source === "approved-scope" && !approvedNavigation;
 
-  if (!claimedExplicitEvidence && !claimedStyleReferenceArchitecture) {
+  if (!claimedExplicitEvidence && !claimedStyleReferenceArchitecture && !claimedApproval) {
     return navigationPlan;
   }
 
@@ -1842,9 +1863,11 @@ export const enforceNavigationEvidencePolicy = ({
     };
   }
 
-  const reason = claimedExplicitEvidence
-    ? "Persistent navigation was removed because the user did not explicitly request it and the roadmap did not establish at least three peer root product areas."
-    : "Persistent navigation was removed because a style reference supplies visual craft, not product information architecture.";
+  const reason = claimedApproval
+    ? "Persistent navigation was removed because the screen flow the person approved did not include it."
+    : claimedExplicitEvidence
+      ? "Persistent navigation was removed because the user did not explicitly request it and the roadmap did not establish at least three peer root product areas."
+      : "Persistent navigation was removed because a style reference supplies visual craft, not product information architecture.";
 
   return {
     version: 2,
@@ -3233,6 +3256,15 @@ export async function planUiFlow({
     // shared navigation. The approved experience and full flow govern that.
     intentContract.allowSharedNavigation = true;
   }
+  // The person approved the navigation with the flow. That decision replaces the heuristics below;
+  // a flow approved before navigation was decided in it (no decision) keeps them. Recreated frames
+  // own their own navigation.
+  const approvedNavigation: ScopeNavigation | null = productPlanning && resolvedReferenceMode !== "user_recreate"
+    ? productPlanning.scope?.navigation ?? null
+    : null;
+  const approvedNavigationPersistent = Boolean(approvedNavigation?.persistent && approvedNavigation.destinations.length >= 2);
+  const approvedScreenNames = productPlanning ? approvedNavigationScreenNames(productPlanning) : new Map<string, string>();
+  if (approvedNavigationPersistent) intentContract.allowSharedNavigation = true;
   if (productExecutionKeys) {
     intentContract.exactScreenCount = resolvedScopeContract.finalScreenCount;
     intentContract.maxInitialScreens = resolvedScopeContract.finalScreenCount;
@@ -3250,7 +3282,8 @@ export async function planUiFlow({
     hasReferenceAnalysis: Boolean(referenceAnalysis),
     hasProjectVisualMemory: Boolean(providedReferenceDna || existingCharter?.referenceDna),
   });
-  const forceFiniteFlowWithoutPersistentNav = !productExecutionKeys && looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
+  const forceFiniteFlowWithoutPersistentNav = !approvedNavigation && !productExecutionKeys
+    && looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
   const fallbackRequiresBottomNav = screenCountContract.disableSharedNavigation ? false : inferLegacyRequiresBottomNav({
     prompt,
     planningMode,
@@ -3346,6 +3379,10 @@ export async function planUiFlow({
     });
   }
 
+  if (approvedNavigation) {
+    parts.push({ text: formatApprovedNavigation(approvedNavigation, approvedScreenNames) });
+  }
+
   if (referenceAnalysis) {
     parts.push({
       text: plannerMode === "style"
@@ -3396,6 +3433,15 @@ export async function planUiFlow({
     rawBlueprint = savedBlueprintCandidate;
     parsedBlueprint = savedBlueprint;
     llmLog?.("[planUiFlow] reused the saved project blueprint", { executionKeys: productExecutionKeys ?? [] });
+    if (approvedNavigation) {
+      // The saved navigation is what an earlier batch drew; the approved decision is the newest word on it.
+      const applied = applyApprovedNavigation(savedBlueprint.data, approvedNavigation, approvedScreenNames);
+      const revalidated = ProjectBlueprintSchema.safeParse(applied);
+      if (revalidated.success) {
+        rawBlueprint = applied;
+        parsedBlueprint = revalidated;
+      }
+    }
   } else {
     const policy = geminiPolicyForTask("project_planning", {
       systemInstruction: plannerBlueprintStepInstruction(plannerMode, { referenceDrivesDirection }),
@@ -3482,6 +3528,25 @@ export async function planUiFlow({
       };
     }
 
+    // The approved navigation is applied here, before the checks below: it is valid by construction, so
+    // it never costs a repair call. Only when the planner's own navigation could not be read is it
+    // applied after the repair, so the repair can still supply the destinations' icons.
+    const withApprovedNavigation = (current: ReturnType<typeof ProjectBlueprintSchema.safeParse>) => {
+      if (!approvedNavigation || !current.success) return null;
+      const applied = applyApprovedNavigation(current.data, approvedNavigation, approvedScreenNames);
+      const revalidated = ProjectBlueprintSchema.safeParse(applied);
+      return revalidated.success ? { raw: applied as unknown, parsed: revalidated } : null;
+    };
+    let approvedNavigationApplied = false;
+    if (!canonicalBlueprint.navigationRecovered) {
+      const approved = withApprovedNavigation(parsedBlueprint);
+      if (approved) {
+        rawBlueprint = approved.raw;
+        parsedBlueprint = approved.parsed;
+        approvedNavigationApplied = true;
+      }
+    }
+
     if (parsedBlueprint.success) {
       const navigationIssues = canonicalBlueprint.navigationRecovered
         ? canonicalBlueprint.issues
@@ -3517,10 +3582,13 @@ export async function planUiFlow({
           llmLog("[TOKEN USAGE] plan-ui-flow-navigation-repair", repairResponse.usageMetadata as Record<string, unknown>);
         }
         const repairedRaw = normalizePlannerBlueprintResponse(parseJsonResponse<unknown>(repairResponse.text || "{}"));
-        const repairedBlueprint = ProjectBlueprintSchema.safeParse(repairedRaw);
+        const repairedPlanned = ProjectBlueprintSchema.safeParse(repairedRaw);
+        const repairedApproved = withApprovedNavigation(repairedPlanned);
+        const repairedBlueprint = repairedApproved?.parsed ?? repairedPlanned;
         if (repairedBlueprint.success && navigationBlueprintIssues(repairedBlueprint.data.navigation_plan).length === 0) {
-          rawBlueprint = repairedRaw;
+          rawBlueprint = repairedApproved?.raw ?? repairedRaw;
           parsedBlueprint = repairedBlueprint;
+          if (repairedApproved) approvedNavigationApplied = true;
         } else {
           llmLog?.("[navigation:v2] blueprint repair rejected", {
             issues: repairedBlueprint.success
@@ -3531,12 +3599,21 @@ export async function planUiFlow({
       }
     }
 
+    if (!approvedNavigationApplied) {
+      const approved = withApprovedNavigation(parsedBlueprint);
+      if (approved) {
+        rawBlueprint = approved.raw;
+        parsedBlueprint = approved.parsed;
+      }
+    }
+
     if (parsedBlueprint.success) {
       const evidenceAdjustedNavigation = enforceNavigationEvidencePolicy({
         navigationPlan: parsedBlueprint.data.navigation_plan,
         roadmap: parsedBlueprint.data.roadmap,
         prompt,
         mode: plannerMode,
+        approvedNavigation,
       });
       if (JSON.stringify(evidenceAdjustedNavigation) !== JSON.stringify(parsedBlueprint.data.navigation_plan)) {
         const navigationEnabled = Boolean(
@@ -3804,13 +3881,20 @@ export async function planUiFlow({
     adjustedContract.reason = `Overridden: raw plan contained ${rawScreenCount} screens but the screen count contract defaulted to 1.`;
   }
 
+  // A project's saved architecture is kept from batch to batch, unless the person has since approved a
+  // flow that decides navigation the other way.
+  const savedArchitectureStillApproved = !approvedNavigation
+    || deriveRequiresBottomNav(existingCharter?.navigationArchitecture) === approvedNavigationPersistent;
   const navigationArchitecture = adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
     ? createNavigationArchitecture({ requiresBottomNav: false })
     : coerceNavigationArchitecture({
         parsedNavigationArchitecture: parsed.data.navigation_architecture ?? null,
         existingNavigationArchitecture: existingCharter?.navigationArchitecture,
-        requiresBottomNav: parsed.data.requires_bottom_nav ?? fallbackRequiresBottomNav,
-        lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
+        requiresBottomNav: approvedNavigation
+          ? approvedNavigationPersistent
+          : parsed.data.requires_bottom_nav ?? fallbackRequiresBottomNav,
+        lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture)
+          && savedArchitectureStillApproved,
       });
 
   const charter = groundCharterInProduct(withReferenceDna(enrichProjectCharter({
@@ -3848,12 +3932,17 @@ export async function planUiFlow({
   const parsedScreens = planningMode === "single-screen"
       ? parsed.data.screens.slice(0, 1)
       : parsed.data.screens;
+  // A screen the approved bar opens is a peer root screen, whatever the brief planner called it: the
+  // bar's own destinations cannot be detail screens.
+  const approvedRootScreens = new Set(approvedNavigation
+    ? approvedNavigationLinkedScreens(approvedNavigation, approvedScreenNames).map(normalizeScreenName)
+    : []);
   const rawScreens = parsedScreens.map((screenPlan) => {
     const roadmapItem = parsed.data.roadmap?.items.find((item) => item.stable_key === screenPlan.roadmap_stable_key)
       ?? parsed.data.roadmap?.items.find((item) => normalizeScreenName(item.name) === normalizeScreenName(screenPlan.name));
     const base = {
       name: screenPlan.name,
-      type: screenPlan.type,
+      type: approvedRootScreens.has(normalizeScreenName(screenPlan.name)) ? "root" as const : screenPlan.type,
       description: screenPlan.description,
     };
     return {
@@ -3930,7 +4019,10 @@ export async function planUiFlow({
   // A brief decides what a screen does; the reference and the tokens decide how it looks.
   // In style mode a value written into a brief would be built as an order.
   const screens = plannerMode === "style" ? stripScreenBriefValues(normalizedScreens) : normalizedScreens;
-  const suppliedNavigationPlan = (productExecutionKeys && existingNavigationPlan?.enabled ? existingNavigationPlan : null)
+  // The saved navigation stands while it is what the person approved; a flow approved since that decides
+  // it differently is the newer word.
+  const savedNavigationStillApproved = !approvedNavigation || navigationMatchesApproved(existingNavigationPlan, approvedNavigation);
+  const suppliedNavigationPlan = (productExecutionKeys && existingNavigationPlan?.enabled && savedNavigationStillApproved ? existingNavigationPlan : null)
     ?? toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
   const referenceNavigationPlan = plannerMode === "recreate"
     ? deriveReferenceNavigationPlan({ screens, referenceAnalysis })
@@ -3938,6 +4030,8 @@ export async function planUiFlow({
   const navigationCandidate = suppliedNavigationPlan && (
     suppliedNavigationPlan.enabled
     || (suppliedNavigationPlan.version === 2 && suppliedNavigationPlan.decision !== "none")
+    // An approved "no navigation" is a decision, kept as the plan's evidence rather than replaced by a default.
+    || suppliedNavigationPlan.evidence?.source === "approved-scope"
   )
     ? suppliedNavigationPlan
     : referenceNavigationPlan;

@@ -580,6 +580,181 @@ describe("reference-built navigation", () => {
   });
 });
 
+describe("an attached, icon-only bar with the active item in a filled circle", () => {
+  const areas = ["today", "pets", "routines", "family"].map((id, index) => ({
+    id, label: id, icon: id === "pets" ? "paw-print" : "circle", role: `Area ${index + 1}`,
+    availability: "generated" as const, linkedScreenName: `Area ${index + 1}`,
+  }));
+  const screens: ScreenPlan[] = areas.map((_, index) => ({ name: `Area ${index + 1}`, type: "root", description: "Root area" }));
+  const bar = (overrides: Partial<NonNullable<NavigationPlan["design"]>> = {}) => normalizeNavigationPlan({
+    navigationPlan: { ...v2Plan(areas, "project-native", "fixed-tab-rail"),
+      design: { ...design("fixed-tab-rail"), width: "full", labels: "hidden", activeTreatment: "icon-fill", radiusPx: 24, border: false, elevation: "none", ...overrides } },
+    screens, navigationArchitecture: architecture,
+  });
+  const activeIcon = '.dg-nav-item[data-active="true"] .dg-nav-icon{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));';
+
+  it("draws it attached to the bottom edge with rounded top corners and no labels", () => {
+    const plan = bar();
+    const shell = renderDeterministicNavigationShell(plan);
+    expect(validateNavigationShell(shell, plan)).toBe(true);
+    expect(shell).toContain('data-navigation-layout="attached-edge-rail"');
+    expect(shell).toContain("width:100%;");
+    // only the top corners round: the bottom edge is the screen's
+    expect(shell).toContain("border-radius:24px 24px 0 0;");
+    expect(shell).toContain(".dg-nav-label{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;display:none;}");
+    expect(shell).toContain('aria-label="pets"');
+    expect(shell).toContain('data-lucide="paw-print"');
+  });
+
+  it("runs the attached bar flush to the bottom edge, with the home indicator's room inside it, and leaves a dock floating", () => {
+    const shell = renderDeterministicNavigationShell(bar());
+    expect(shell).toContain("margin:0 auto;padding:7px 12px calc(5px + var(--dg-effective-safe-area-bottom));");
+    expect(shell).not.toContain("margin:0 auto calc(var(--dg-navigation-safe-offset)");
+    const dock = renderDeterministicNavigationShell(bar({ anatomy: "floating-dock", labels: "always", width: "content" }));
+    expect(dock).toContain("margin:0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom));");
+  });
+
+  it("draws the active item as a solid circle by default and as the action gradient when the reference's is one", () => {
+    const solid = renderDeterministicNavigationShell(bar());
+    expect(solid).toContain(`${activeIcon}color:var(--dg-navigation-active-content`);
+    expect(solid).toContain("border-radius:var(--dg-radii-pill,9999px);background:transparent;");
+    expect(solid).not.toContain("--dg-gradient-action-primary");
+
+    const gradient = renderDeterministicNavigationShell(bar({ activeFill: "gradient" }));
+    expect(gradient).toContain(`${activeIcon}background-image:var(--dg-gradient-action-primary);color:var(--dg-navigation-active-content`);
+    // the bar has no labels to share the room with: the icons draw larger, in a circle twice their size
+    expect(gradient).toContain(".dg-nav-icon{display:flex;height:44px;width:44px;flex:0 0 44px;");
+    expect(gradient).toContain(".dg-nav-icon svg{height:22px;width:22px;stroke-width:2;}");
+    expect(gradient).toContain("--dg-navigation-anatomy-height:74px;");
+    // a design that asks for bigger icons gets them
+    const large = renderDeterministicNavigationShell(bar({ iconSizePx: 24 }));
+    expect(large).toContain(".dg-nav-icon{display:flex;height:48px;width:48px;flex:0 0 48px;");
+    expect(large).toContain("--dg-navigation-anatomy-height:78px;");
+  });
+
+  it("fills the other active treatments with the gradient too, but not a tint", () => {
+    expect(renderDeterministicNavigationShell(bar({ activeTreatment: "compact-chip", activeFill: "gradient" })))
+      .toContain('.dg-nav-item[data-active="true"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));background-image:var(--dg-gradient-action-primary);color:');
+    expect(renderDeterministicNavigationShell(bar({ activeTreatment: "underline", activeFill: "gradient" })))
+      .toContain('::after{content:"";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));background-image:var(--dg-gradient-action-primary);}');
+    // a tint is a wash of the action colour behind the item, not a fill
+    expect(renderDeterministicNavigationShell(bar({ activeTreatment: "tint", activeFill: "gradient" })))
+      .toContain('.dg-nav-item[data-active="true"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));background:color-mix(in srgb,var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827)) 10%,transparent);}');
+    const center = normalizeNavigationPlan({
+      navigationPlan: { ...v2Plan(areas, "project-native", "center-action-dock"), design: { ...design("center-action-dock"), centerActionItemId: "pets", activeFill: "gradient" } },
+      screens, navigationArchitecture: architecture,
+    });
+    expect(renderDeterministicNavigationShell(center)).toContain(".dg-nav-item-center-action .dg-nav-icon{height:48px;");
+    expect(renderDeterministicNavigationShell(center)).toContain("background-image:var(--dg-gradient-action-primary);");
+  });
+
+  it("keeps a square attached bar square, and its icon well the size it was with labels", () => {
+    const shell = renderDeterministicNavigationShell(bar({ radiusPx: 0, labels: "always" }));
+    expect(shell).toContain("border-radius:0;");
+    expect(shell).not.toContain("24px 24px 0 0");
+    expect(shell).toContain(".dg-nav-icon{display:flex;height:26px;width:26px;flex:0 0 26px;");
+    expect(shell).toContain("--dg-navigation-anatomy-height:68px;");
+    // no other anatomy takes the attached bar's corners
+    expect(renderDeterministicNavigationShell(bar({ anatomy: "floating-dock", labels: "always" }))).not.toContain("24px 24px 0 0");
+  });
+
+  it("keeps the fill in the stored design, and drops one it does not know", () => {
+    expect(normalizeNavigationDesignContract({ ...design("fixed-tab-rail"), activeFill: "gradient" }).activeFill).toBe("gradient");
+    expect(normalizeNavigationDesignContract({ ...design("fixed-tab-rail"), activeFill: "solid" })).not.toHaveProperty("activeFill");
+    expect(normalizeNavigationDesignContract({ ...design("fixed-tab-rail"), activeFill: "rainbow" as never })).not.toHaveProperty("activeFill");
+    expect(normalizeNavigationDesignContract(design("fixed-tab-rail"))).not.toHaveProperty("activeFill");
+    const stored = parseStoredNavigationPlan({ ...bar({ activeFill: "gradient" }) });
+    expect(stored.design?.activeFill).toBe("gradient");
+  });
+
+  describe("built from the reference's evidence", () => {
+    const evidence = (extra: Record<string, unknown>) => normalizeReferenceAnalysis({
+      overallVisualStyle: "Warm wellness UI", screenCountEstimate: 1, screenReferences: [{ index: 1, suggestedRole: "Today" }],
+      primaryNavigation: { present: true, anatomy: "fixed-tab-rail", labels: "hidden", activeTreatment: "icon-fill", width: "full", material: "solid",
+        geometry: "Icon-only bar attached to the bottom edge", activeState: "A gradient circle behind the icon", elevation: "Flat", ...extra },
+    }).analysis?.primaryNavigation;
+    const planned = () => bar({ anatomy: "floating-dock", radiusPx: 30, labels: "always", activeTreatment: "tint" });
+
+    it("reads how the reference fills its active item and rounds its attached bar", () => {
+      expect(evidence({ activeFill: "gradient", corners: "rounded" })).toMatchObject({ activeFill: "gradient", corners: "rounded" });
+      expect(evidence({ active_fill: "solid", cornerShape: "square" })).toMatchObject({ activeFill: "solid", corners: "square" });
+      expect(evidence({ activeFill: "sparkly", corners: "pointy" })).toMatchObject({ activeFill: null, corners: null });
+    });
+
+    it("draws the bar as the reference does: attached, rounded on top, icon-only, a gradient circle", () => {
+      const plan = applyReferenceNavigationStyle(planned(), evidence({ activeFill: "gradient", corners: "rounded" }));
+      expect(plan.design).toMatchObject({ anatomy: "fixed-tab-rail", labels: "hidden", activeTreatment: "icon-fill", width: "full", radiusPx: 24, activeFill: "gradient" });
+      const shell = renderDeterministicNavigationShell(plan);
+      expect(shell).toContain('data-navigation-layout="attached-edge-rail"');
+      expect(shell).toContain("border-radius:24px 24px 0 0;");
+      expect(shell).toContain("background-image:var(--dg-gradient-action-primary);");
+      expect(plan.items.map((item) => item.id)).toEqual(["today", "pets", "routines", "family"]);
+    });
+
+    it("draws a square attached bar square, and a bar whose corners the reference does not describe with the rail's own", () => {
+      expect(applyReferenceNavigationStyle(planned(), evidence({ corners: "square" })).design?.radiusPx).toBe(0);
+      expect(applyReferenceNavigationStyle(planned(), evidence({})).design?.radiusPx).toBe(0);
+      expect(applyReferenceNavigationStyle(planned(), evidence({})).design).not.toHaveProperty("activeFill");
+    });
+
+    it("does not carry a dock's offset, gaps or shadow onto a bar attached to the bottom edge", () => {
+      const dock = { ...design("floating-dock"), safeAreaOffsetPx: 24, itemGapPx: 12, elevation: "medium" as const, border: false, radiusPx: 30 };
+      const floating = normalizeNavigationPlan({ navigationPlan: { ...v2Plan(areas, "project-native"), design: dock }, screens, navigationArchitecture: architecture });
+      const attached = applyReferenceNavigationStyle(floating, evidence({ corners: "rounded" }));
+      expect(attached.design).toMatchObject({ anatomy: "fixed-tab-rail", safeAreaOffsetPx: 4, itemGapPx: 0, elevation: "none", border: true, radiusPx: 24 });
+      // the same construction, kept, when the reference is built the way the planner built it
+      const same = applyReferenceNavigationStyle(floating, evidence({ anatomy: "floating-dock", labels: "always" }));
+      expect(same.design).toMatchObject({ anatomy: "floating-dock", safeAreaOffsetPx: 24, itemGapPx: 12, elevation: "medium", border: false, radiusPx: 30 });
+    });
+
+    it("never lets an attached bar's corners change a dock's radius", () => {
+      const dock = evidence({ anatomy: "floating-dock", corners: "rounded", activeFill: "solid" });
+      const plan = applyReferenceNavigationStyle(planned(), dock);
+      expect(plan.design).toMatchObject({ anatomy: "floating-dock", radiusPx: 30 });
+      // a solid fill is the default, so it is not written into the design
+      expect(plan.design).not.toHaveProperty("activeFill");
+    });
+  });
+});
+
+describe("a bar the person approved with the flow", () => {
+  const two = [
+    { id: "today", label: "Today", icon: "sun", role: "See the day", availability: "generated" as const, linkedScreenName: "Today" },
+    { id: "pets", label: "Pets", icon: "paw-print", role: "Every pet", availability: "generated" as const, linkedScreenName: "Pet Library" },
+  ];
+  const screens: ScreenPlan[] = [{ name: "Today", type: "root", description: "Today" }, { name: "Pet Library", type: "root", description: "Pets" }];
+  const source = (source: "approved-scope" | "product-architecture"): NavigationPlan => ({
+    ...v2Plan(two), evidence: { source, reason: "Two peer areas" },
+  });
+
+  it("keeps two destinations, where a bar the planner chose needs three", () => {
+    const approved = normalizeNavigationPlan({ navigationPlan: source("approved-scope"), screens, navigationArchitecture: architecture });
+    expect(approved.enabled).toBe(true);
+    expect(approved.items).toHaveLength(2);
+    expect(approved.evidence?.source).toBe("approved-scope");
+    expect(validateNavigationShell(renderDeterministicNavigationShell(approved), approved)).toBe(true);
+    const chosen = normalizeNavigationPlan({ navigationPlan: source("product-architecture"), screens, navigationArchitecture: architecture });
+    expect(chosen.enabled).toBe(false);
+    expect(validateNavigationShell(renderDeterministicNavigationShell({ ...chosen, ...source("product-architecture") }), source("product-architecture"))).toBe(false);
+  });
+
+  it("is read back from storage with its evidence, and stays enabled", () => {
+    const stored = parseStoredNavigationPlan(JSON.parse(JSON.stringify(source("approved-scope"))));
+    expect(stored).toMatchObject({ enabled: true, decision: "project-native", evidence: { source: "approved-scope" } });
+    expect(stored.items).toHaveLength(2);
+    expect(parseStoredNavigationPlan(JSON.parse(JSON.stringify(source("product-architecture")))).enabled).toBe(false);
+  });
+
+  it("keeps an approved decision of no navigation as none, with the evidence that it was decided", () => {
+    const none = normalizeNavigationPlan({
+      navigationPlan: { ...v2Plan([], "none"), enabled: false, kind: "none", design: null, evidence: { source: "approved-scope", reason: "One flow, one task." } },
+      screens, navigationArchitecture: architecture,
+    });
+    expect(none).toMatchObject({ enabled: false, decision: "none", items: [], evidence: { source: "approved-scope", reason: "One flow, one task." } });
+    expect(parseStoredNavigationPlan(JSON.parse(JSON.stringify(none)))).toMatchObject({ enabled: false, evidence: { source: "approved-scope" } });
+  });
+});
+
 describe("Drawgle DOM root safety", () => {
   const code = '<div data-drawgle-id="root"><h1 data-drawgle-id="title">Hello</h1><p data-drawgle-id="desc">Text</p></div>';
 

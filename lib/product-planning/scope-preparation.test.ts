@@ -19,6 +19,11 @@ describe("approval-card preparation identity", () => {
     expect(scopePreparationKey({ ...approved, contentRevision: (approved.contentRevision ?? 0) + 1 }, keys, shared)).not.toBe(key);
     expect(scopePreparationKey({ ...approved, experience: { ...approved.experience!, referenceHash: "new-pixels" } }, keys, shared)).not.toBe(key);
     expect(scopePreparationKey(approved, keys, { ...shared, navigationPlan: { version: 2 } as never })).not.toBe(key);
+    // the navigation the person approved is part of what was prepared; a scope with none keeps the key it had
+    const withBar = (persistent: boolean) => ({ ...approved, scope: { ...approved.scope!, navigation: { persistent, rationale: "", destinations: [] } } });
+    expect(scopePreparationKey(withBar(true), keys, shared)).not.toBe(key);
+    expect(scopePreparationKey(withBar(true), keys, shared)).not.toBe(scopePreparationKey(withBar(false), keys, shared));
+    expect(scopePreparationKey({ ...approved, scope: { ...approved.scope!, navigation: undefined } }, keys, shared)).toBe(key);
     const previous = process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE;
     try {
       process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = "on";

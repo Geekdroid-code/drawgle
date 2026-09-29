@@ -219,6 +219,54 @@ describe("single-candidate proposal turn", () => {
     expect((await h.run({ kind: "question_answers", text: "Calendar view?\nMonthly grid" })).failure).toBeUndefined();
   });
 
+  describe("navigation decided with the flow", () => {
+    const decided = (persistent: boolean) => ({ ...candidate, navigation: persistent
+      ? { persistent, rationale: "Today and Week are the two areas people switch between.",
+        destinations: [{ label: "Today", outputRef: "today" }, { label: "Week", outputRef: null }] }
+      : { persistent, rationale: "One task, done in one screen.", destinations: [] } });
+
+    it("asks for the decision, saves it with the screens and shows it back on the next turn", async () => {
+      const h = harness();
+      mocks.generate.mockImplementationOnce(async request => {
+        expect(JSON.parse(request.contents[0].parts[0].text).currentNavigation).toBeNull();
+        expect(request.config.systemInstruction).toMatch(/navigation decides whether the app has one persistent bottom bar/);
+        expect(request.config.systemInstruction).toMatch(/never from how a visual reference looks/);
+        return respond(proposalResponseFixture(decided(true)));
+      });
+      expect((await h.run()).failure).toBeUndefined();
+      const saved = { persistent: true, rationale: "Today and Week are the two areas people switch between.",
+        destinations: [{ label: "Today", screenKey: h.getRows()[0].item.stableKey }, { label: "Week", screenKey: null }] };
+      expect(h.getState().scope?.navigation).toEqual(saved);
+      // it survives the round trip through the saved planning state
+      expect(readProductPlanning(h.getState())?.scope?.navigation).toEqual(saved);
+      mocks.generate.mockImplementationOnce(async request => {
+        expect(JSON.parse(request.contents[0].parts[0].text).currentNavigation).toEqual(saved);
+        return respond(proposalResponseFixture(decided(true)));
+      });
+      expect((await h.run({ kind: "new_request", text: "Keep it as it is" })).failure).toBeUndefined();
+    });
+
+    it("counts a changed navigation as a change to the flow, and an unchanged one as none", async () => {
+      const h = harness();
+      mocks.generate.mockResolvedValue(respond(proposalResponseFixture(decided(true))));
+      await h.run();
+      const first = h.getState().contentRevision;
+      await h.run({ kind: "new_request", text: "Same again" });
+      expect(h.getState().contentRevision).toBe(first);
+      mocks.generate.mockResolvedValue(respond(proposalResponseFixture(decided(false))));
+      await h.run({ kind: "new_request", text: "One task only" });
+      expect(h.getState().scope?.navigation).toEqual({ persistent: false, destinations: [], rationale: "One task, done in one screen." });
+      expect(h.getState().contentRevision).toBe((first ?? 0) + 1);
+    });
+
+    it("leaves a response that decides nothing undecided", async () => {
+      const h = harness();
+      expect((await h.run()).failure).toBeUndefined();
+      expect(h.getState().scope?.status).toBe("proposed");
+      expect(h.getState().scope?.navigation).toBeUndefined();
+    });
+  });
+
   it("revises the saved screens on a later turn without duplicating them", async () => {
     const h = harness();
     await h.run();

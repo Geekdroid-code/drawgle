@@ -4,7 +4,7 @@ vi.mock("server-only", () => ({}));
 
 import { enforceNavigationEvidencePolicy } from "@/lib/generation/service";
 
-const navigationPlan = (source: "explicit-prompt" | "reference") => ({
+const navigationPlan = (source: "explicit-prompt" | "reference" | "approved-scope") => ({
   version: 2 as const,
   decision: source === "reference" ? "reference-derived" as const : "project-native" as const,
   evidence: { source, reason: "Planner claimed this source." },
@@ -105,5 +105,44 @@ describe("navigation evidence policy", () => {
       mode: "prompt",
     });
     expect(result).toBe(input);
+  });
+
+  describe("navigation the person approved with the flow", () => {
+    const approved = {
+      persistent: true,
+      rationale: "Today and Pets are the two areas people switch between.",
+      destinations: [{ label: "One", screenKey: "screen:one" }, { label: "Two", screenKey: null }],
+    };
+
+    it("passes an approved decision through, even for two destinations and a style reference", () => {
+      const input = { ...navigationPlan("approved-scope"), items: navigationPlan("approved-scope").items.slice(0, 2) };
+      const result = enforceNavigationEvidencePolicy({
+        navigationPlan: input,
+        roadmap: roadmap(["Onboarding", "Chat Interface"]),
+        prompt: "Use this image only as a visual style reference.",
+        mode: "style",
+        approvedNavigation: approved,
+      });
+      expect(result).toBe(input);
+    });
+
+    it("does not take a model's claim of approval for the approval itself", () => {
+      const result = enforceNavigationEvidencePolicy({
+        navigationPlan: navigationPlan("approved-scope"),
+        roadmap: roadmap(["Onboarding", "Chat Interface"]),
+        prompt: "Create an onboarding screen and a chat interface.",
+        mode: "style",
+      });
+      expect(result).toMatchObject({ decision: "none", evidence: { source: null }, enabled: false, items: [] });
+      expect(result?.evidence.reason).toContain("approved");
+    });
+
+    it("leaves an approved decision of no navigation as none", () => {
+      const none = { ...navigationPlan("approved-scope"), decision: "none" as const, enabled: false, kind: "none" as const, items: [], design: null };
+      expect(enforceNavigationEvidencePolicy({
+        navigationPlan: none, roadmap: roadmap(["Portfolio", "Markets", "Activity"]), prompt: "Three screens", mode: "prompt",
+        approvedNavigation: { persistent: false, rationale: "A linear flow", destinations: [] },
+      })).toBe(none);
+    });
   });
 });

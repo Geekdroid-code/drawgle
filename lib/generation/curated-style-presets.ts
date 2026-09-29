@@ -80,6 +80,8 @@ export const referenceNavigationSchema = z.object({
   inactiveTreatment: z.enum(["plain", "well"]).nullable().optional(),
   width: z.enum(["content", "inset", "full"]).nullable().optional(),
   material: z.enum(["solid", "translucent", "glass"]).nullable().optional(),
+  activeFill: z.enum(["solid", "gradient"]).nullable().optional(),
+  corners: z.enum(["square", "rounded"]).nullable().optional(),
 });
 
 /** Every phone in the image, each with its box, and the two classifications the tokens are calibrated from. */

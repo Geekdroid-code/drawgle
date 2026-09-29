@@ -517,7 +517,8 @@ export interface NavigationArchitecture {
 export type NavigationPlanKind = "bottom-tabs" | "none";
 
 export type NavigationDecision = "none" | "project-native" | "reference-derived";
-export type NavigationEvidenceSource = "explicit-prompt" | "reference" | "product-architecture";
+/** "approved-scope": the person approved this navigation (or its absence) with the screen flow. */
+export type NavigationEvidenceSource = "explicit-prompt" | "reference" | "product-architecture" | "approved-scope";
 export type NavigationDestinationAvailability = "generated" | "planned";
 export type NavigationAnatomy =
   | "fixed-tab-rail"
@@ -541,6 +542,8 @@ export interface NavigationDesignContract {
   centerActionItemId?: string | null;
   /** How destinations other than the active one are drawn: bare icons, or circular icon wells. */
   inactiveTreatment?: "plain" | "well";
+  /** What fills the active item: the solid action colour (default), or the project's action gradient. */
+  activeFill?: "solid" | "gradient";
 }
 
 export interface NavigationPlanItem {
@@ -858,6 +861,10 @@ export interface ReferenceNavigationEvidence {
   inactiveTreatment?: NonNullable<NavigationDesignContract["inactiveTreatment"]> | null;
   width?: NavigationDesignContract["width"] | null;
   material?: NavigationDesignContract["surface"] | null;
+  /** Whether the active item is filled with one colour or a gradient between two. */
+  activeFill?: NonNullable<NavigationDesignContract["activeFill"]> | null;
+  /** The top corners of a bar attached to the bottom edge: square, or rounded. */
+  corners?: "square" | "rounded" | null;
 }
 /**
  * Corner radius of the main cards, judged against a 390pt screen: square 0-4pt,

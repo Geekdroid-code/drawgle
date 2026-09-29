@@ -37,7 +37,8 @@ export function scopePreparationKey(state: ProductPlanning, keys: string[], shar
     // Approval changes discovery to canvas without changing this design.
     version, tokenPolicy: earlyDesignMode() === "on" ? "project-wide-v1" : "screen-scoped-v1",
     contentRevision: state.contentRevision ?? 0,
-    manifest: state.scope?.manifest, keys, experience: state.experience,
+    // Absent for a scope approved before navigation was decided in it, so those keys are unchanged.
+    manifest: state.scope?.manifest, navigation: state.scope?.navigation, keys, experience: state.experience,
     reference: { provenance: state.experience?.provenance, hash: state.experience?.referenceHash,
       screenReference: state.screenReference },
     requirements: designRequirementsKey(state), input: state.input, shared,

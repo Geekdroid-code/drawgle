@@ -51,12 +51,12 @@ A build does this, and refuses instead of salvaging:
 
 ## Approving one
 
-Open `scripts/curated/out/<id>.png`. [An example](design-eval/after-step-1/review-sheet-example.png) is in the repository; it was made from the fixture with stubbed model output, not from an approved preset. Left to right it shows the reference, the phone the specimen recreates, the specimen, and every component drawn with the preset's tokens, as the builder will copy them.
+Open `scripts/curated/out/<id>.png`. [An example](design-eval/after-step-1/review-sheet-example.png) is in the repository; it was made from the fixture with stubbed model output, not from an approved preset. Left to right it shows the reference, the phone the specimen recreates, the specimen with the bar the renderer will draw under it, and every component drawn with the preset's tokens, as the builder will copy them.
 
 Check that:
 
 - the analysis found every phone, and the palette and the card radius read right;
-- the navigation is what the reference shows (for the mindfulness reference: icon-only, attached to the bottom edge, the active item in a filled circle);
+- the bar under the specimen is the reference's (for the mindfulness reference: icon-only, attached to the bottom edge with rounded top corners, the active item in a gradient circle). It is built from the preset's `navigation`, with sample destinations, exactly as every project's shared navigation will be; only the destinations are the product's;
 - the specimen looks like the reference's phone, and each component looks right on its own and carries no content of the reference's (no names, numbers or copy that belong to one product);
 - there are enough components to build most screens from: a handful or more.
 

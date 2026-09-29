@@ -3,6 +3,7 @@ import { createNavigationArchitecture, resolveScreenChromePolicy, shouldForceImm
 import type {
   NavigationArchitecture,
   NavigationDesignContract,
+  NavigationEvidenceSource,
   NavigationPlan,
   NavigationPlanItem,
   ProjectNavigationData,
@@ -14,6 +15,20 @@ import type {
 const LEGACY_MIN_SHARED_NAV_ITEMS = 2;
 const PROJECT_NATIVE_MIN_ITEMS = 3;
 const MAX_SHARED_NAV_ITEMS = 5;
+/** Top-corner radius of an attached bar the reference draws with rounded corners. */
+const ROUNDED_ATTACHED_BAR_RADIUS_PX = 24;
+
+/**
+ * A bar the planner chose for a project needs three destinations. One the person approved with the
+ * screen flow is what they saw on the approval card, so two peer areas are enough.
+ */
+export const minimumNavigationItems = (
+  decision: NavigationPlan["decision"] | undefined,
+  version: NavigationPlan["version"] | undefined,
+  source: NavigationEvidenceSource | null | undefined,
+) => version === 2 && decision === "project-native" && source !== "approved-scope"
+  ? PROJECT_NATIVE_MIN_ITEMS
+  : LEGACY_MIN_SHARED_NAV_ITEMS;
 const MEANINGLESS_LABEL_PATTERN = /^(?:tab|item|menu|page|section|destination)(?:\s*\d+)?$/i;
 
 const escapeHtml = (value: string) =>
@@ -41,7 +56,11 @@ const visualBriefAnatomy = (brief: string): NavigationDesignContract["anatomy"] 
 };
 
 export function defaultNavigationDesignContract(visualBrief = ""): NavigationDesignContract {
-  const anatomy = visualBriefAnatomy(visualBrief);
+  return defaultDesignForAnatomy(visualBriefAnatomy(visualBrief));
+}
+
+/** The construction an anatomy starts from: its own width, labels, radius, offset, gaps, border and shadow. */
+export function defaultDesignForAnatomy(anatomy: NavigationDesignContract["anatomy"]): NavigationDesignContract {
   const contracts: Record<NavigationDesignContract["anatomy"], NavigationDesignContract> = {
     "fixed-tab-rail": {
       anatomy: "fixed-tab-rail",
@@ -173,6 +192,8 @@ export function normalizeNavigationDesignContract(
       ? slugify(candidate.centerActionItemId, "")
       : null,
     inactiveTreatment: candidate.inactiveTreatment === "well" ? "well" : "plain",
+    // Solid is the default and is left unwritten, so plans made before the option existed are unchanged.
+    ...(candidate.activeFill === "gradient" ? { activeFill: "gradient" as const } : {}),
   };
 }
 const disabledNavigationPlan = (
@@ -210,6 +231,10 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const radiusDelta = Math.min(8, Math.max(4, Math.round(design.radiusPx / 3)));
   const innerRadiusPx = design.radiusPx === 0 ? 0 : Math.max(0, design.radiusPx - radiusDelta);
   const overlapBufferPx = design.anatomy === "center-action-dock" ? 20 : 8;
+  // An attached bar without labels has nothing but its icons: they draw a little larger, each in a circle
+  // twice its size, and the bar grows to hold the circle.
+  const attachedIconOnly = design.anatomy === "fixed-tab-rail" && design.labels === "hidden";
+  const iconGlyphPx = attachedIconOnly ? Math.max(design.iconSizePx, 22) : design.iconSizePx;
   const contentWidth = Math.min(356, itemCount * 70 + 32);
   const requestedWidth = design.width === "full"
     ? "100%"
@@ -242,14 +267,17 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
         return {
           key: "attached-edge-rail",
           width: "100%",
-          height: "68px",
-          margin: "0 auto calc(var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom))",
-          padding: "7px 12px 5px",
-          radius: "0",
+          height: attachedIconOnly ? `${iconGlyphPx * 2 + 30}px` : "68px",
+          // Attached means flush: the bar's surface runs to the bottom edge, and the home indicator's room
+          // is padding inside it, as on the device. A gap under it would make it a floating bar.
+          margin: "0 auto",
+          padding: "7px 12px calc(5px + var(--dg-effective-safe-area-bottom))",
+          // Attached to the bottom edge: only the top corners can round, and only when the design says so.
+          radius: design.radiusPx > 0 ? `${design.radiusPx}px ${design.radiusPx}px 0 0` : "0",
           innerDisplay: `grid;grid-template-columns:repeat(${itemCount},minmax(0,1fr))`,
           itemDirection: "column",
           itemPadding: "4px 6px",
-          iconBox: design.iconSizePx + 6,
+          iconBox: attachedIconOnly ? iconGlyphPx * 2 : design.iconSizePx + 6,
         };
       case "glass-dock":
         return {
@@ -342,13 +370,15 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
   const wellCss = design.inactiveTreatment === "well"
     ? "[data-drawgle-primary-nav] .dg-nav-item:not([data-active=\"true\"]) .dg-nav-icon{background:color-mix(in srgb,var(--dg-navigation-muted-content,var(--dg-color-text-low-emphasis,#94a3b8)) 7%,var(--dg-navigation-surface,var(--dg-color-surface-card,#fff)));box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--dg-navigation-border,var(--dg-color-border-divider,#e5e7eb)) 90%,transparent);}"
     : "";
+  // The action gradient the project's tokens define; the solid colour stays underneath as the fallback.
+  const gradientFill = design.activeFill === "gradient" ? "background-image:var(--dg-gradient-action-primary);" : "";
   const activeCss = design.activeTreatment === "underline"
-    ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]::after{content:\"\";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));}"
+    ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]::after{content:"";position:absolute;left:24%;right:24%;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));${gradientFill}}`
     : design.activeTreatment === "compact-chip"
-      ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}"
+      ? `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"]{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));${gradientFill}color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`
       : design.activeTreatment === "tint"
         ? "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));background:color-mix(in srgb,var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827)) 10%,transparent);}"
-        : "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"] .dg-nav-icon{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}";
+        : `[data-drawgle-primary-nav] .dg-nav-item[data-active="true"] .dg-nav-icon{background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));${gradientFill}color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`;
 
   const items = navItems.map((item) => {
     const generated = item.availability !== "planned" && Boolean(item.linkedScreenName);
@@ -375,14 +405,14 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     "[data-drawgle-primary-nav] .dg-nav-item[data-availability=\"planned\"]{cursor:default;}",
     "[data-drawgle-primary-nav] .dg-nav-item[data-active=\"true\"]{color:var(--dg-navigation-content,var(--dg-color-action-primary,#111827));}",
     `[data-drawgle-primary-nav] .dg-nav-icon{display:flex;height:${anatomyLayout.iconBox}px;width:${anatomyLayout.iconBox}px;flex:0 0 ${anatomyLayout.iconBox}px;align-items:center;justify-content:center;border-radius:var(--dg-radii-pill,9999px);background:transparent;color:currentColor;}`,
-    `[data-drawgle-primary-nav] .dg-nav-icon svg{height:${design.iconSizePx}px;width:${design.iconSizePx}px;stroke-width:2;}`,
+    `[data-drawgle-primary-nav] .dg-nav-icon svg{height:${iconGlyphPx}px;width:${iconGlyphPx}px;stroke-width:2;}`,
     `[data-drawgle-primary-nav] .dg-nav-label{max-width:72px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:currentColor;${labelCss}}`,
     activeOnlyCss,
     activeCss,
     capsuleCss,
     wellCss,
     "[data-drawgle-primary-nav] .dg-nav-item-center-action{transform:translateY(-14px);overflow:visible;}",
-    "[data-drawgle-primary-nav] .dg-nav-item-center-action .dg-nav-icon{height:48px;width:48px;flex-basis:48px;border:5px solid var(--dg-navigation-surface,var(--dg-color-surface-card,#fff));box-shadow:0 8px 20px rgba(15,23,42,.16);background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}",
+    `[data-drawgle-primary-nav] .dg-nav-item-center-action .dg-nav-icon{height:48px;width:48px;flex-basis:48px;border:5px solid var(--dg-navigation-surface,var(--dg-color-surface-card,#fff));box-shadow:0 8px 20px rgba(15,23,42,.16);background:var(--dg-navigation-active-surface,var(--dg-color-action-primary,#111827));${gradientFill}color:var(--dg-navigation-active-content,var(--dg-color-action-on-primary-text,#fff));}`,
     "</style>",
     '<div class="dg-nav-shell-inner">',
     items,
@@ -480,16 +510,29 @@ export function applyReferenceNavigationStyle(
   evidence?: ReferenceAnalysis["primaryNavigation"],
 ): NavigationPlan {
   if (!navigationPlan.enabled || !evidence?.present) return navigationPlan;
-  const base = normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief);
+  const planned = normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief);
   const observed = [evidence.geometry, evidence.activeState, evidence.elevation].join(". ");
+  const anatomy = evidence.anatomy ?? planned.anatomy;
+  // The planner tuned its safe-area offset, gaps, icon size, border and shadow for the anatomy it chose. When
+  // the reference is built another way, those are the new anatomy's to set: a dock's offset would float an
+  // attached bar above the bottom edge.
+  const base = anatomy === planned.anatomy ? planned : { ...planned, ...defaultDesignForAnatomy(anatomy) };
+  // Corners are only observable on an attached bar, whose top corners round or stay square. Every other
+  // anatomy is drawn with its own radius, so a bar's corners never override a dock's.
+  const attachedRadiusPx = anatomy !== "fixed-tab-rail" || !evidence.corners
+    ? base.radiusPx
+    : evidence.corners === "rounded" ? ROUNDED_ATTACHED_BAR_RADIUS_PX : 0;
+  const activeFill = evidence.activeFill ?? base.activeFill;
   const design: NavigationDesignContract = {
     ...base,
-    anatomy: evidence.anatomy ?? base.anatomy,
+    anatomy,
     labels: evidence.labels ?? base.labels,
     activeTreatment: evidence.activeTreatment ?? base.activeTreatment,
     inactiveTreatment: evidence.inactiveTreatment ?? base.inactiveTreatment,
     width: evidence.width ?? base.width,
     surface: evidence.material ?? base.surface,
+    radiusPx: attachedRadiusPx,
+    ...(activeFill ? { activeFill } : {}),
     centerActionItemId: evidence.anatomy === "center-action-dock" ? base.centerActionItemId : null,
   };
   return {
@@ -698,9 +741,7 @@ export function normalizeNavigationPlan({
     });
   }
 
-  const minimumItems = decision === "project-native" && isV2
-    ? PROJECT_NATIVE_MIN_ITEMS
-    : LEGACY_MIN_SHARED_NAV_ITEMS;
+  const minimumItems = minimumNavigationItems(decision, isV2 ? 2 : 1, evidence.source);
   const validCount = normalizedItems.length >= minimumItems && normalizedItems.length <= MAX_SHARED_NAV_ITEMS;
   if (!validCount) {
     return disabledNavigationPlan(
@@ -777,9 +818,7 @@ export function applyNavigationPlanToScreens(screens: ScreenPlan[], navigationPl
 
 export function validateNavigationShell(shellCode: string, navigationPlan: NavigationPlan) {
   if (!navigationPlan.enabled || navigationPlan.kind === "none") return shellCode.trim().length === 0;
-  const minimumItems = navigationPlan.version === 2 && navigationPlan.decision === "project-native"
-    ? PROJECT_NATIVE_MIN_ITEMS
-    : LEGACY_MIN_SHARED_NAV_ITEMS;
+  const minimumItems = minimumNavigationItems(navigationPlan.decision, navigationPlan.version, navigationPlan.evidence?.source);
   if (navigationPlan.items.length < minimumItems || navigationPlan.items.length > MAX_SHARED_NAV_ITEMS) return false;
 
   const navRootCount = (shellCode.match(/<nav\b[^>]*\bdata-drawgle-primary-nav\b/gi) ?? []).length;
@@ -1010,7 +1049,8 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
   const evidenceRecord = isRecord(value.evidence) ? value.evidence : null;
   const evidenceSource = evidenceRecord?.source === "explicit-prompt" ||
       evidenceRecord?.source === "reference" ||
-      evidenceRecord?.source === "product-architecture"
+      evidenceRecord?.source === "product-architecture" ||
+      evidenceRecord?.source === "approved-scope"
     ? evidenceRecord.source
     : null;
   const items: NavigationPlanItem[] = rawItems.flatMap((item, index) => {
@@ -1027,9 +1067,7 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
       availability: item.availability === "planned" || !linkedScreenName ? "planned" : "generated",
     }];
   });
-  const minimumItems = version === 2 && decision === "project-native"
-    ? PROJECT_NATIVE_MIN_ITEMS
-    : LEGACY_MIN_SHARED_NAV_ITEMS;
+  const minimumItems = minimumNavigationItems(decision, version, evidenceSource);
   const enabled = version === 1
     ? value.enabled === true && items.length > 0
     : value.enabled === true &&

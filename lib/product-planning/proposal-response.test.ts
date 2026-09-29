@@ -21,6 +21,15 @@ it("asks for a flat fact list with every product section available", () => {
   expect(facts.items.properties.section.enum).toEqual(productSectionSchema.options);
 });
 
+it("asks for the navigation decision with the screens, and for each destination's screen", () => {
+  const { navigation } = proposalResponseSchema.properties;
+  expect(navigation.properties.persistent.type).toBe("BOOLEAN");
+  expect(navigation.required).toEqual(["persistent", "destinations", "rationale"]);
+  expect(navigation.properties.destinations.items.required).toEqual(["label", "outputRef"]);
+  expect(navigation.properties.destinations.items.properties.outputRef.nullable).toBe(true);
+  expect(proposalResponseSchema.required).toContain("navigation");
+});
+
 it("still reads the retired grouped fact shape from an older response", () => {
   const candidate = normalizeDesignFlowCandidate({
     facts: { identity: [{ ref: "app", label: "Chore app", detail: "Family chores", source: "assumption", evidence: "", links: [] }],

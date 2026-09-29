@@ -15,6 +15,24 @@ describe("product scope approval card", () => {
     fireEvent.click(screen.getByRole("button", { name: "Approve & generate" }));
     expect(onApprove).toHaveBeenCalledWith(7);
   });
+  it("shows the bottom navigation the person is approving, and which of its areas come later", () => {
+    const state = proposeProductScope(productFixture());
+    state.scope!.navigation = { persistent: true, rationale: "People move between these four areas.", destinations: [
+      { label: "Today", screenKey: "screen:today" }, { label: "Pets", screenKey: "screen:pets" },
+      { label: "Routines", screenKey: null }, { label: "Family", screenKey: null }] };
+    render(<ProductScopeCard state={state} onApprove={vi.fn()} />);
+    expect(screen.getByText(/Bottom navigation: Today · Pets · Routines · Family/)).toBeTruthy();
+    expect(screen.getByText(/Routines, Family come later/)).toBeTruthy();
+  });
+  it("says so when the flow has no bottom navigation, and says nothing for a flow that never decided", () => {
+    const decided = proposeProductScope(productFixture());
+    decided.scope!.navigation = { persistent: false, rationale: "One task in one screen.", destinations: [] };
+    const { unmount } = render(<ProductScopeCard state={decided} onApprove={vi.fn()} />);
+    expect(screen.getByText("No bottom navigation")).toBeTruthy();
+    unmount();
+    render(<ProductScopeCard state={proposeProductScope(productFixture())} onApprove={vi.fn()} />);
+    expect(screen.queryByText(/bottom navigation/i)).toBeNull();
+  });
   it("disables approval during an active turn and removes stale proposals", () => {
     const state = proposeProductScope(productFixture());
     state.lease = { id: "active", expiresAt: new Date(Date.now() + 60_000).toISOString() };
