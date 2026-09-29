@@ -904,7 +904,6 @@ html[data-drawgle-theme-vt="active"]::view-transition-old(root) {
   --color-mk-body: #454545;
   --color-mk-glass: rgb(237 237 237 / 0.64);
   --font-marketing: var(--font-inter-tight), "Inter Tight", ui-sans-serif, system-ui, sans-serif;
-  --font-hand: var(--font-caveat), "Caveat", cursive;
   --ease-mk: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
@@ -955,11 +954,6 @@ html:has(.mk-root) {
 
 @keyframes mk-spin {
   to { transform: rotate(360deg); }
-}
-
-@keyframes mk-feature-progress {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
 }
 
 @layer components {

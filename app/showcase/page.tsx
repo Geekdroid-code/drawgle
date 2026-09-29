@@ -38,10 +38,8 @@ export default function ShowcasePage() {
           kicker="Drawgle screen showcase"
           lead="Premium mobile screens,"
           emphasis="rendered live for you to explore."
-          emphasisTone="accent"
-          breakBeforeEmphasis
           description={`Browse ${curatedShowcaseScreenCount} interactive screens across ${showcaseCollections.length} original visual directions. Fork an exact editable project, or remix its visual style into your own brief.`}
-          className="mx-auto max-w-4xl text-center"
+          className="mb-0 max-w-4xl sm:mb-0"
         />
 
         <ShowcaseGallery />

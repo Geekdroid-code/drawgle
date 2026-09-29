@@ -363,7 +363,7 @@ export function HeroPrompt() {
           <Sparkles className="size-4 text-mk-accent" />
           Need inspiration? Start from a proven direction
         </div>
-        <div className="mk-hide-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4">
+        <div className="mk-hide-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto overflow-y-hidden overscroll-x-contain px-4 pb-2 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 lg:grid-cols-4">
           {ideas.map(({ id, title, screen, collection }) => {
             const selected = style?.id === id && prompt === collection.prompt;
             return (

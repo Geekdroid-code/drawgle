@@ -28,14 +28,14 @@ export function CtaBanner({ secondary }: { secondary?: { label: string; href: st
             className="pointer-events-none absolute left-1/2 top-0 h-[300px] w-[640px] max-w-full -translate-x-1/2 bg-gradient-to-b from-mk-accent/10 to-transparent blur-3xl"
           />
           <div className="relative z-10 mx-auto max-w-3xl">
-            <div className="mb-5 inline-flex select-none items-center gap-1.5 rounded-full border border-black/[0.04] bg-white/70 px-3 py-1 text-xs font-semibold text-neutral-500">
-              <DrawgleLogo className="size-3 text-mk-accent" />
-              <span className="text-[10px] uppercase tracking-wider">Start designing in seconds</span>
+            <div className="mb-5 inline-flex select-none items-center gap-2 rounded-full border border-black/[0.04] bg-white px-3.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-800">
+              <DrawgleLogo className="size-3.5 text-mk-accent" />
+              <span>Start designing in seconds</span>
             </div>
 
             <h2 className="mb-4 text-3xl font-medium leading-[1.12] tracking-tight text-mk-body sm:mb-5 sm:text-4xl md:text-5xl lg:text-[54px]">
               Design your next mobile app <br className="hidden sm:inline" />
-              <span className="font-semibold text-mk-ink">at the speed of thought.</span>
+              <span className="font-semibold text-mk-accent">at the speed of thought.</span>
             </h2>
 
             <p className="mx-auto mb-8 max-w-xl text-sm font-normal leading-relaxed text-mk-body sm:mb-10 sm:text-base md:text-lg">

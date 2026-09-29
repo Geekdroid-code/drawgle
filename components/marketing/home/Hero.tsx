@@ -6,8 +6,7 @@ import { motion, useReducedMotion, useScroll, useTransform } from "motion/react"
 import { ArrowRight, Play, Star } from "lucide-react";
 
 import { DrawgleLogo } from "@/components/DrawgleLogo";
-import { DitherAura } from "@/components/marketing/motion/DitherAura";
-import { DitherField } from "@/components/marketing/motion/DitherField";
+import { DitherField, WIDE_FIELDS } from "@/components/marketing/motion/DitherField";
 import { EASE } from "@/components/marketing/motion/hooks";
 import { DemoFilm, PLAY_DEMO_EVENT } from "./DemoFilm";
 import { HeroPrompt } from "./HeroPrompt";
@@ -18,6 +17,9 @@ const builders = [
   { src: "/content/manoj.jpg", alt: "Manoj, indie app builder" },
   { src: "/content/vishnu.webp", alt: "Vishnu, iOS engineer" },
 ];
+
+// Keeps the whole content column clean on larger screens; the dither lives in the margins.
+const WIDE_QUIET_ZONE = { y: 0.42, height: 0.34, width: 0.3, depth: 0.97 };
 
 function rise(delay: number, y = 18) {
   return {
@@ -32,8 +34,9 @@ function FilmReveal({ children }: { children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "start 0.25"] });
-  const rotateX = useTransform(scrollYProgress, [0, 1], [14, 0]);
-  const scale = useTransform(scrollYProgress, [0, 1], [0.93, 1]);
+  // A gentle recline that settles flat; kept small so it reads as depth, not a flip.
+  const rotateX = useTransform(scrollYProgress, [0, 1], [9, 0]);
+  const scale = useTransform(scrollYProgress, [0, 1], [0.95, 1]);
 
   return (
     <div ref={ref} style={{ perspective: 1800 }}>
@@ -43,7 +46,6 @@ function FilmReveal({ children }: { children: ReactNode }) {
 }
 
 export function Hero() {
-  const contentRef = useRef<HTMLDivElement>(null);
   const watchDemo = () => {
     document.getElementById("demo-player")?.scrollIntoView({ behavior: "smooth", block: "center" });
     window.dispatchEvent(new Event(PLAY_DEMO_EVENT));
@@ -51,15 +53,17 @@ export function Hero() {
 
   return (
     <section className="relative overflow-hidden bg-white pb-16 pt-28 sm:pt-32 md:pb-24 md:pt-36">
-      {/* Phones: a drifting dither field. Larger screens: the same dither as an aura that hugs the content. */}
+      {/* A drifting dither field that keeps to the edges; on larger screens it also follows the cursor. */}
       <DitherField className="absolute inset-x-0 top-0 h-[1080px] opacity-[0.42] [mask-image:linear-gradient(to_bottom,#000_72%,transparent)] md:hidden" />
-      <DitherAura
-        anchorRef={contentRef}
-        className="absolute inset-x-0 top-0 hidden h-[1080px] opacity-[0.34] [mask-image:linear-gradient(to_bottom,#000_76%,transparent)] md:block"
+      <DitherField
+        fields={WIDE_FIELDS}
+        quietZone={WIDE_QUIET_ZONE}
+        density={0.6}
+        className="absolute inset-x-0 top-0 hidden h-[1080px] opacity-[0.4] [mask-image:linear-gradient(to_bottom,#000_72%,transparent)] md:block"
       />
 
       <div className="relative mx-auto max-w-6xl px-4 text-center sm:px-6">
-        <div ref={contentRef} className="mx-auto max-w-[860px]">
+        <div className="mx-auto max-w-[860px]">
           <motion.a
             {...rise(0, 15)}
             href="#how-it-works"
@@ -100,7 +104,7 @@ export function Hero() {
 
           <motion.div
             {...rise(0.4, 12)}
-            className="relative mt-9 inline-flex select-none flex-col items-center justify-center gap-4 sm:mt-10 sm:flex-row sm:gap-6"
+            className="mt-9 inline-flex select-none flex-col items-center justify-center gap-4 sm:mt-10 sm:flex-row sm:gap-6"
           >
             <div className="flex items-center gap-2.5">
               <div className="flex -space-x-2 p-0.5">
@@ -139,15 +143,6 @@ export function Hero() {
               Watch the 58-second film
             </button>
 
-            <div className="pointer-events-none absolute -right-56 top-1/2 hidden -translate-y-1/2 items-center gap-1.5 text-left lg:flex">
-              <svg className="size-10 shrink-0 -scale-x-100 rotate-12 text-mk-accent opacity-80" viewBox="0 0 50 50" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-                <path d="M10 40 C 20 20, 35 15, 42 12" strokeLinecap="round" strokeDasharray="3 3" />
-                <path d="M35 8 L 44 12 L 38 20" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-              <span className="max-w-[150px] font-hand text-[17px] font-semibold leading-[1.05] text-mk-accent">
-                Watch it live before you give your money to us
-              </span>
-            </div>
           </motion.div>
         </div>
 

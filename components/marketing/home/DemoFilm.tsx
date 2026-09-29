@@ -270,7 +270,7 @@ export function DemoFilm() {
         </AnimatePresence>
       </div>
 
-      <nav aria-label="Film chapters" className="mk-hide-scrollbar flex items-center gap-1 overflow-x-auto px-1 pb-0.5 pt-2 sm:justify-center sm:pt-2.5">
+      <nav aria-label="Film chapters" className="mk-hide-scrollbar flex items-center gap-1 overflow-x-auto overflow-y-hidden px-1 pb-0.5 pt-2 sm:justify-center sm:pt-2.5">
         {CHAPTERS.map((chapter, index) => (
           <button
             key={chapter.label}

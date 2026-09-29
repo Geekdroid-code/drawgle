@@ -3,7 +3,7 @@
 import { useRef } from "react";
 import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
 
-import { Reveal } from "@/components/marketing/Reveal";
+import { Kicker, Reveal } from "@/components/marketing/Reveal";
 
 const lead = "Translating design ideas into production-ready mobile apps is slow and fragmented.";
 const emphasis = "Drawgle turns natural prompts into editable mobile UI your coding agent can build from.";
@@ -35,7 +35,7 @@ export function Challenge() {
     <section className="bg-white py-16 text-center sm:py-20 md:py-24">
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <Reveal y={15}>
-          <span className="mb-4 block text-xs font-semibold uppercase tracking-wide text-neutral-400 sm:text-sm">The Challenge</span>
+          <Kicker className="mb-5">The challenge</Kicker>
         </Reveal>
         <h2
           ref={ref}

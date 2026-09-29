@@ -123,7 +123,6 @@ export default function PricingPage() {
               kicker="Compare plans"
               lead="The same workflow on every plan."
               emphasis="Only the capacity changes."
-              breakBeforeEmphasis
               description="Choose the monthly credit capacity that fits your design and development workflow."
             />
 

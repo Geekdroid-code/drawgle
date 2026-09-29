@@ -46,9 +46,8 @@ export default function AlternativesIndexPage() {
           kicker="Drawgle alternatives"
           lead="Mobile UI design alternatives,"
           emphasis="compared honestly."
-          breakBeforeEmphasis
           description="Compare AI UI generators, design platforms, wireframing tools, app builders, and prototyping software by the job each product actually does best."
-          className="mx-auto mb-14 max-w-4xl text-center"
+          className="max-w-4xl"
         />
 
         <section className="mx-auto grid max-w-5xl gap-5 md:grid-cols-2">

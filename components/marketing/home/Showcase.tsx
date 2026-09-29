@@ -33,26 +33,29 @@ function ScreenFan({ collection }: { collection: ShowcaseCollection }) {
   ];
 
   return (
-    <div className="relative -mb-24 mt-8 h-[300px] sm:-mb-28">
-      {phones.map(({ key, screen, className }) => (
-        <div
-          key={key}
-          className={cn(
-            "absolute rounded-[26px] bg-[#e9e9eb] p-[3px] ring-1 ring-black/[0.08] transition-[translate,rotate] duration-500 ease-mk",
-            className,
-          )}
-        >
-          <div className="relative aspect-[390/844] overflow-hidden rounded-[23px] bg-white">
-            <Image
-              src={screen.screenshot}
-              alt={`${collection.name} ${screen.label} screen designed with Drawgle`}
-              fill
-              sizes="(max-width: 768px) 40vw, 150px"
-              className="object-cover object-top"
-            />
+    // mt-auto pins the fan to the card's bottom edge, so every card crops its phones at the same height.
+    <div className="mt-auto pt-8">
+      <div className="relative -mb-24 h-[300px] sm:-mb-28">
+        {phones.map(({ key, screen, className }) => (
+          <div
+            key={key}
+            className={cn(
+              "absolute rounded-[26px] bg-[#e9e9eb] p-[3px] ring-1 ring-black/[0.08] transition-[translate,rotate] duration-500 ease-mk",
+              className,
+            )}
+          >
+            <div className="relative aspect-[390/844] overflow-hidden rounded-[23px] bg-white">
+              <Image
+                src={screen.screenshot}
+                alt={`${collection.name} ${screen.label} screen designed with Drawgle`}
+                fill
+                sizes="(max-width: 768px) 40vw, 150px"
+                className="object-cover object-top"
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -65,19 +68,17 @@ export function Showcase() {
           kicker="Showcase"
           lead="Don't start from scratch."
           emphasis="Fork a flow or remix its style."
-          breakBeforeEmphasis
           description="Fork a showcase project to reuse its editable screens, or remix only its colors, typography, radii, and shadows as the starting design system for your own app."
         />
 
-        <div className="mk-hide-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-5 overflow-x-auto px-4 pb-2 md:mx-0 md:grid md:grid-cols-2 md:gap-6 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-3 lg:gap-7">
-          {featured.map((collection, index) => (
-            <Reveal
-              key={collection.id}
-              delay={(index % 3) * 0.1}
-              y={35}
-              className="w-[82%] max-w-[360px] shrink-0 snap-start md:w-auto md:max-w-none"
-            >
-              <article className="mk-surface group relative flex h-full flex-col overflow-hidden rounded-[30px] p-6 sm:p-7">
+        {/* Phones: a horizontal rail that never scrolls vertically. Larger screens: a grid. */}
+        <Reveal y={35}>
+          <div className="mk-hide-scrollbar -mx-4 flex snap-x snap-mandatory scroll-px-4 gap-4 overflow-x-auto overflow-y-hidden overscroll-x-contain px-4 md:mx-0 md:grid md:grid-cols-2 md:gap-6 md:overflow-visible md:px-0 lg:grid-cols-3 lg:gap-7">
+            {featured.map((collection) => (
+              <article
+                key={collection.id}
+                className="mk-surface group relative flex w-[84%] max-w-[340px] shrink-0 snap-start flex-col overflow-hidden rounded-[30px] p-6 sm:p-7 md:w-auto md:max-w-none"
+              >
                 <div className="mb-3 flex items-center gap-2">
                   <span className="flex -space-x-1" aria-hidden="true">
                     {collection.palette.map((color) => (
@@ -113,9 +114,9 @@ export function Showcase() {
 
                 <ScreenFan collection={collection} />
               </article>
-            </Reveal>
-          ))}
-        </div>
+            ))}
+          </div>
+        </Reveal>
 
         <Reveal y={12} className="mt-10 flex justify-center sm:mt-12">
           <MkButton href="/showcase" variant="secondary">

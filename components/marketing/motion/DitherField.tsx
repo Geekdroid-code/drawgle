@@ -17,7 +17,7 @@ const BAYER = [
   43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21,
 ].map((value) => (value + 0.5) / 64);
 
-type Field = {
+export type DitherFieldSpot = {
   /** Resting center, as a fraction of width / height. */
   x: number;
   y: number;
@@ -32,7 +32,8 @@ type Field = {
   phase: number;
 };
 
-const FIELDS: Field[] = [
+// Phones: soft color at the edges, sized to a narrow screen.
+const FIELDS: DitherFieldSpot[] = [
   { x: 0.06, y: 0.2, r: 0.26, color: [48, 93, 222], strength: 1.05, ax: 0.03, ay: 0.05, speed: 0.21, phase: 0 },
   { x: 0.95, y: 0.16, r: 0.24, color: [139, 92, 246], strength: 1, ax: 0.03, ay: 0.04, speed: 0.17, phase: 1.7 },
   { x: 0.9, y: 0.6, r: 0.22, color: [255, 106, 61], strength: 0.95, ax: 0.04, ay: 0.05, speed: 0.19, phase: 3.1 },
@@ -41,16 +42,31 @@ const FIELDS: Field[] = [
   { x: 0.34, y: 0.02, r: 0.16, color: [236, 72, 153], strength: 0.7, ax: 0.04, ay: 0.02, speed: 0.25, phase: 5.2 },
 ];
 
+// Larger screens: the same palette in smaller patches that keep to the margins, so the content column stays clean.
+export const WIDE_FIELDS: DitherFieldSpot[] = [
+  { x: 0.03, y: 0.3, r: 0.15, color: [48, 93, 222], strength: 1, ax: 0.015, ay: 0.05, speed: 0.21, phase: 0 },
+  { x: 0.96, y: 0.14, r: 0.14, color: [139, 92, 246], strength: 1, ax: 0.015, ay: 0.04, speed: 0.17, phase: 1.7 },
+  { x: 0.97, y: 0.62, r: 0.13, color: [255, 106, 61], strength: 0.95, ax: 0.015, ay: 0.05, speed: 0.19, phase: 3.1 },
+  { x: 0.05, y: 0.74, r: 0.12, color: [255, 176, 32], strength: 0.9, ax: 0.015, ay: 0.04, speed: 0.23, phase: 4.4 },
+  { x: 0.86, y: 0.95, r: 0.12, color: [16, 185, 129], strength: 0.85, ax: 0.03, ay: 0.02, speed: 0.15, phase: 2.2 },
+  { x: 0.17, y: 0.03, r: 0.09, color: [236, 72, 153], strength: 0.7, ax: 0.03, ay: 0.02, speed: 0.25, phase: 5.2 },
+];
+
 const POINTER_COLOR: [number, number, number] = [48, 93, 222];
 const FRAME_MS = 66;
+/** The cursor glow never grows past this, in CSS pixels, however wide the field is. */
+const POINTER_MAX_RADIUS = 150;
 
 export function DitherField({
   className,
+  fields = FIELDS,
   cell = 4,
   quietZone = { y: 0.27, height: 0.19, width: 0.37, depth: 0.95 },
   density = 0.72,
 }: {
   className?: string;
+  /** Color patches. Pass a stable (module-level) array. */
+  fields?: DitherFieldSpot[];
   /** CSS pixels per dither pixel. */
   cell?: number;
   /** A squircle-shaped area (fractions of the field) kept nearly clear for the headline. */
@@ -114,12 +130,12 @@ export function DitherField({
       p.y += (p.ty - p.y) * 0.18;
       p.power += (p.target - p.power) * 0.12;
 
-      const count = FIELDS.length + 1;
+      const count = fields.length + 1;
       const cx = new Float32Array(count);
       const cy = new Float32Array(count);
       const inv = new Float32Array(count);
       const power = new Float32Array(count);
-      FIELDS.forEach((field, index) => {
+      fields.forEach((field, index) => {
         const drift = reduced ? 0 : t * field.speed + field.phase;
         cx[index] = (field.x + field.ax * Math.sin(drift)) * width;
         cy[index] = (field.y + field.ay * Math.cos(drift * 0.8)) * height;
@@ -127,10 +143,10 @@ export function DitherField({
         inv[index] = 1 / (radius * radius);
         power[index] = field.strength;
       });
-      const pi = FIELDS.length;
+      const pi = fields.length;
       cx[pi] = p.x * width;
       cy[pi] = p.y * height;
-      const pointerRadius = 0.1 * width;
+      const pointerRadius = Math.min(0.1 * width, POINTER_MAX_RADIUS / cell);
       inv[pi] = 1 / (pointerRadius * pointerRadius);
       power[pi] = p.power;
 
@@ -172,7 +188,7 @@ export function DitherField({
                   break;
                 }
               }
-              const color = chosen === pi ? POINTER_COLOR : FIELDS[chosen].color;
+              const color = chosen === pi ? POINTER_COLOR : fields[chosen].color;
               data[offset] = color[0];
               data[offset + 1] = color[1];
               data[offset + 2] = color[2];
@@ -205,7 +221,7 @@ export function DitherField({
       cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [cell, density, playing, quietZone.depth, quietZone.height, quietZone.width, quietZone.y, reduced]);
+  }, [cell, density, fields, playing, quietZone.depth, quietZone.height, quietZone.width, quietZone.y, reduced]);
 
   useEffect(() => {
     if (reduced) return;

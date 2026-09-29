@@ -4,7 +4,7 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 
-import { Reveal } from "@/components/marketing/Reveal";
+import { Reveal, SectionHeader } from "@/components/marketing/Reveal";
 import { EASE } from "@/components/marketing/motion/hooks";
 import type { FaqEntry } from "@/lib/marketing/home-content";
 import { siteConfig } from "@/lib/seo/config";
@@ -58,9 +58,9 @@ function Question({ item, index, open, onToggle }: { item: FaqEntry; index: numb
 
 export function Faq({
   items,
-  kicker = "Frequently Asked Questions",
-  lead = "Everything you need",
-  emphasis = "to know",
+  kicker = "FAQs",
+  lead = "Everything you need to know",
+  emphasis = "before you start.",
   id = "faqs",
 }: {
   items: FaqEntry[];
@@ -76,12 +76,7 @@ export function Faq({
   return (
     <section id={id} className="scroll-mt-24 bg-white py-20 sm:py-28">
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
-        <Reveal className="mb-14 text-center">
-          <span className="mb-3 block text-xs font-semibold uppercase tracking-wide text-neutral-400 sm:text-sm">{kicker}</span>
-          <h2 className="text-3xl font-medium tracking-tight text-mk-body sm:text-4xl md:text-5xl">
-            {lead} <span className="font-semibold text-mk-ink">{emphasis}</span>
-          </h2>
-        </Reveal>
+        <SectionHeader kicker={kicker} lead={lead} emphasis={emphasis} />
 
         <div className="mx-auto flex max-w-3xl flex-col gap-3.5 sm:gap-4">
           {groups.map((group, groupIndex) =>

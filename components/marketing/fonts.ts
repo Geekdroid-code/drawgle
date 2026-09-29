@@ -1,4 +1,4 @@
-import { Caveat, Inter_Tight } from "next/font/google";
+import { Inter_Tight } from "next/font/google";
 import { GeistMono } from "geist/font/mono";
 
 export const interTight = Inter_Tight({
@@ -8,12 +8,5 @@ export const interTight = Inter_Tight({
   display: "swap",
 });
 
-export const caveat = Caveat({
-  subsets: ["latin"],
-  weight: ["500", "600"],
-  variable: "--font-caveat",
-  display: "swap",
-});
-
 /** Font variables every public page needs. Apply once on the page root. */
-export const marketingFontVariables = `${interTight.variable} ${caveat.variable} ${GeistMono.variable}`;
+export const marketingFontVariables = `${interTight.variable} ${GeistMono.variable}`;
