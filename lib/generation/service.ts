@@ -19,7 +19,10 @@ import {
   normalizeDesignTokens,
   type CalibrationEvidence,
 } from "@/lib/design-tokens";
+import { describeSurfaceClasses, describeTokenLanguage } from "@/lib/generation/design-classes";
+import { stripDesignValues, stripDesignValuesDeep } from "@/lib/generation/design-value-scrub";
 import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/generation/measured-colors";
+import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
 import { userNamedColorRoles } from "@/lib/generation/user-color-roles";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
@@ -1383,10 +1386,13 @@ const buildScreenFamilyContract = ({
           ...designStyle.densityRules.slice(0, 2),
         ]
     : [];
-  const portableCraftCues = referenceAnalysis?.screenReferences
-    .flatMap((screen) => screen.stylingCues)
-    .filter(Boolean)
-    .slice(0, 4) ?? [];
+  // The reference's shape and depth reach the planner as categories. Its styling cues used to be
+  // copied here verbatim, values included ("Warm cream background (#FDFBF0)", "High corner
+  // radius (24pt+)"), and every later stage repeated them as orders.
+  const portableCraftCues = describeSurfaceClasses({
+    radiusClass: referenceAnalysis?.radiusClass,
+    surfaceElevation: referenceAnalysis?.surfaceElevation,
+  });
   const summary = designStyle
     ? `${designStyle.label}: ${designStyle.premiumIntent}`
     : portableStyleMode && signals
@@ -1412,7 +1418,7 @@ const buildScreenFamilyContract = ({
         "Every planned screen must look like it belongs to the same product family while keeping a screen-specific composition.",
       ];
 
-  return {
+  const contract: ScreenFamilyContract = {
     summary,
     surfaces: signals?.surfaces ?? designStyle?.creativeDirectionSeed.surfaceLanguage ?? [
       tokenColor?.surface?.card ? `Use card surfaces from approved tokens such as ${tokenColor.surface.card}.` : "Use one shared card/surface language.",
@@ -1428,6 +1434,9 @@ const buildScreenFamilyContract = ({
     imagery: designStyle?.assetAndImageryRules.join(" ") ?? "Use bitmap imagery only when it is visible in the reference, explicitly requested, or truly required by the screen purpose; otherwise use CSS, icons, charts, and text structure.",
     consistencyRules: consistencyRules.slice(0, 8),
   };
+
+  // A style reference is transferred by intent: nothing numeric may reach the planner from an older stored analysis.
+  return portableStyleMode ? stripDesignValuesDeep(contract) : contract;
 };
 const normalizeScreenBriefs = ({
   screens,
@@ -1453,6 +1462,14 @@ const normalizeScreenBriefs = ({
     description: `${screen.description}\n\n${profileContext}`.slice(0, 9000),
   };
 });
+
+/** Removes px, hex and opacity values from a style-mode brief and its construction contracts. */
+export const stripScreenBriefValues = (screens: ScreenPlan[]): ScreenPlan[] => screens.map((screen) => ({
+  ...screen,
+  description: stripDesignValues(screen.description),
+  layoutContract: screen.layoutContract ? stripDesignValuesDeep(screen.layoutContract) : screen.layoutContract,
+  referenceTransfer: screen.referenceTransfer ? stripDesignValuesDeep(screen.referenceTransfer) : screen.referenceTransfer,
+}));
 
 const attachReferenceScreenTargets = ({
   screens,
@@ -1870,6 +1887,23 @@ const fallbackScreensFromReference = ({
   return screens.length > 0 ? screens : [fallbackScreenPlan(prompt)];
 };
 
+/**
+ * A style reference is transferred by intent, so its charter describes the design
+ * language in words and the tokens carry every value. Anything numeric that an
+ * older stored analysis, a fallback or a model slip put there is removed.
+ */
+const withoutDesignValues = (charter: ProjectCharter, referenceMode?: ReferenceMode | null): ProjectCharter =>
+  isStyleReferenceMode(referenceMode)
+    ? {
+        ...charter,
+        imageReferenceSummary: charter.imageReferenceSummary ? stripDesignValues(charter.imageReferenceSummary) : charter.imageReferenceSummary,
+        designRationale: stripDesignValues(charter.designRationale),
+        creativeDirection: charter.creativeDirection ? stripDesignValuesDeep(charter.creativeDirection) : charter.creativeDirection,
+        designSystemSignals: charter.designSystemSignals ? stripDesignValuesDeep(charter.designSystemSignals) : charter.designSystemSignals,
+        referenceScreens: charter.referenceScreens ? stripDesignValuesDeep(charter.referenceScreens) : charter.referenceScreens,
+      }
+    : charter;
+
 export const fallbackProjectCharter = ({
   prompt,
   image,
@@ -1888,7 +1922,7 @@ export const fallbackProjectCharter = ({
   designStyle?: DesignStylePack | null;
   navigationArchitecture: NavigationArchitecture;
   existingCharter?: ProjectCharter | null;
-}): ProjectCharter => ({
+}): ProjectCharter => withoutDesignValues({
   originalPrompt: prompt.trim() || existingCharter?.originalPrompt || "Create a polished mobile app experience from the provided reference.",
   imageReferenceSummary: image
     ? isStyleReferenceMode(referenceMode)
@@ -1914,7 +1948,7 @@ export const fallbackProjectCharter = ({
     ? existingCharter?.creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis })
     : creativeDirection,
   designStyle: summarizeDesignStyle(designStyle) ?? existingCharter?.designStyle ?? null,
-});
+}, referenceMode);
 
 const truncateText = (value: string, maxLength: number) =>
   value.trim().replace(/\s+\n/g, "\n").replace(/[ \t]{2,}/g, " ").slice(0, maxLength).trim();
@@ -2018,7 +2052,7 @@ const enrichProjectCharter = ({
   designStyle?: DesignStylePack | null;
   navigationArchitecture: NavigationArchitecture;
   diagnostics?: ProjectCharter["planningDiagnostics"] | null;
-}): ProjectCharter => ({
+}): ProjectCharter => withoutDesignValues({
   ...base,
   imageReferenceSummary: base.imageReferenceSummary
     ?? (referenceAnalysis
@@ -2032,7 +2066,7 @@ const enrichProjectCharter = ({
   designSystemSignals: base.designSystemSignals ?? referenceAnalysis?.designSystemSignals ?? null,
   planningDiagnostics: diagnostics ?? base.planningDiagnostics ?? { source },
   charterSource: source,
-});
+}, referenceMode);
 
 const salvageProjectCharterFromRawPlan = ({
   rawPlan,
@@ -2893,12 +2927,16 @@ export async function planScreenBriefsForBuild({
     navigation_plan: navigationPlan ?? undefined,
     charter: {
       originalPrompt: charter.originalPrompt || prompt,
-      imageReferenceSummary: charter.imageReferenceSummary ?? null,
+      imageReferenceSummary: plannerMode === "style" && charter.imageReferenceSummary
+        ? stripDesignValues(charter.imageReferenceSummary)
+        : charter.imageReferenceSummary ?? null,
       appType: charter.appType || "Mobile product",
       targetAudience: charter.targetAudience || "Primary users",
       navigationModel: charter.navigationModel || navigationArchitecture.primaryNavigation,
       keyFeatures: charter.keyFeatures?.length ? charter.keyFeatures : [prompt.slice(0, 200)],
-      designRationale: charter.designRationale || "Use the approved project design system.",
+      designRationale: plannerMode === "style"
+        ? stripDesignValues(charter.designRationale || "Use the approved project design system.")
+        : charter.designRationale || "Use the approved project design system.",
       creativeDirection: plannerMode === "style"
         ? toPortableCreativeDirection(charter.creativeDirection)
         : charter.creativeDirection ?? null,
@@ -2938,7 +2976,9 @@ export async function planScreenBriefsForBuild({
   if (requestImage) parts.push({ text: "Request-local image: adapt its relevant layout and content to the approved tokens and navigation. This is not a new project design system." }, { inlineData: requestImage });
 
   const screenPolicy = geminiPolicyForTask("project_planning", {
-    systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
+    systemInstruction: plannerScreenBriefStepInstruction(plannerMode, {
+      referenceDrivesDirection: Boolean(charter.referenceDna?.analysis),
+    }),
     responseMimeType: "application/json",
     temperature: 0.15,
   });
@@ -3037,7 +3077,7 @@ export async function planScreenBriefsForBuild({
       })),
     });
 
-    return { screens: mergedWithTransfer, planned: true };
+    return { screens: plannerMode === "style" ? stripScreenBriefValues(mergedWithTransfer) : mergedWithTransfer, planned: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     llmLog?.("[plan-screen-briefs-for-build] failed", {
@@ -3205,7 +3245,12 @@ export async function planUiFlow({
     planningMode,
     referenceAnalysis,
   });
-  const creativeDirection = projectContext?.trim()
+  // A style reference is the art direction, and the builder sees it. A model's paraphrase of it is
+  // where "32px" and "glass-morphism dock" first appeared, so no creative direction is written for it.
+  // Prompt-only projects keep one: there it is the only art direction.
+  const referenceDrivesDirection = plannerMode === "style"
+    && (Boolean(toInlineImage(image)) || Boolean(referenceAnalysis));
+  const creativeDirection = projectContext?.trim() || referenceDrivesDirection
     ? null
     : await generateCreativeDirection({
         prompt,
@@ -3215,7 +3260,7 @@ export async function planUiFlow({
         designStyle: resolvedDesignStyle,
         llmLog,
       });
-  const resolvedCreativeDirection = projectContext?.trim()
+  const resolvedCreativeDirection = projectContext?.trim() || referenceDrivesDirection
     ? null
     : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
   const planningCreativeDirection = plannerMode === "style"
@@ -3302,7 +3347,11 @@ export async function planUiFlow({
 
   if (designTokens?.tokens) {
     parts.push({
-      text: `Approved Token Context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
+      text: plannerMode === "style"
+        // The planner names structure and intent; the builder applies the token values, which a planner
+        // would otherwise copy into every brief as an order.
+        ? `Approved Token Language (words only; the builder applies the token values):\n${describeTokenLanguage(designTokens).join("\n")}`
+        : `Approved Token Context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
     });
   }
 
@@ -3334,7 +3383,7 @@ export async function planUiFlow({
     llmLog?.("[planUiFlow] reused the saved project blueprint", { executionKeys: productExecutionKeys ?? [] });
   } else {
     const policy = geminiPolicyForTask("project_planning", {
-      systemInstruction: plannerBlueprintStepInstruction(plannerMode),
+      systemInstruction: plannerBlueprintStepInstruction(plannerMode, { referenceDrivesDirection }),
       responseMimeType: "application/json",
       temperature: 0.1,
     });
@@ -3569,11 +3618,17 @@ export async function planUiFlow({
   let parsed = PlanSchema.safeParse(rawPlan);
 
   if (parsedBlueprint.success) {
+    // The discovery designer already mapped the reference's components onto this product. The brief
+    // planner gets that mapping as its own labelled evidence, not as one field of a JSON dump.
+    const componentMapping = plannerMode === "style"
+      ? formatReferenceComponentMapping({ adaptations: productPlanning?.experience?.adaptations })
+      : null;
     const screenParts: Array<Record<string, unknown>> = [
-      ...parts.filter((part) => typeof part.text !== "string" || !part.text.startsWith("Approved Token Context:\n")),
+      ...parts.filter((part) => typeof part.text !== "string" || !part.text.startsWith("Approved Token ")),
       {
         text: `Approved Project Blueprint:\n${JSON.stringify(parsedBlueprint.data, null, 2)}`,
       },
+      ...(componentMapping ? [{ text: componentMapping }] : []),
       {
         text: `Initial batch contract:\n${formatScreenCountContract(screenCountContract)}\n${parsedBlueprint.data.roadmap
           ? planningMode === "single-screen"
@@ -3583,7 +3638,7 @@ export async function planUiFlow({
       },
     ];
     const screenPolicy = geminiPolicyForTask("project_planning", {
-      systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
+      systemInstruction: plannerScreenBriefStepInstruction(plannerMode, { referenceDrivesDirection }),
       responseMimeType: "application/json",
       temperature: 0.1,
     });
@@ -3845,7 +3900,7 @@ export async function planUiFlow({
     })),
     referenceAnalysis,
   );
-  const screens = normalizeScreenBriefs({
+  const normalizedScreens = normalizeScreenBriefs({
     prompt,
     screens: ensureBuilderGradeScreenBriefs({
       referenceAnalysis,
@@ -3857,6 +3912,9 @@ export async function planUiFlow({
       }),
     }),
   });
+  // A brief decides what a screen does; the reference and the tokens decide how it looks.
+  // In style mode a value written into a brief would be built as an order.
+  const screens = plannerMode === "style" ? stripScreenBriefValues(normalizedScreens) : normalizedScreens;
   const suppliedNavigationPlan = (productExecutionKeys && existingNavigationPlan?.enabled ? existingNavigationPlan : null)
     ?? toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
   const referenceNavigationPlan = plannerMode === "recreate"
@@ -3964,14 +4022,21 @@ export async function generateDesignTokens({
       responseMimeType: "application/json",
       temperature: 0.35,
     });
-    const creativeDirection = (await generateCreativeDirection({
-      prompt,
-      image,
-      referenceAnalysis,
-      referenceMode: resolvedReferenceMode,
-      designStyle,
-      llmLog,
-    })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
+    // A style reference is the art direction and the builder sees it; a model's paraphrase of it is
+    // where "32px" and "glass-morphism dock" first appeared. The tokens take the analysis and the
+    // measured palette as their evidence. Prompt-only projects keep a creative direction, because
+    // there it is the only art direction there is.
+    const referenceIsTheDirection = promptMode === "style" && (Boolean(inlineImage) || Boolean(referenceAnalysis));
+    const creativeDirection = referenceIsTheDirection
+      ? null
+      : (await generateCreativeDirection({
+        prompt,
+        image,
+        referenceAnalysis,
+        referenceMode: resolvedReferenceMode,
+        designStyle,
+        llmLog,
+      })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
     if (designStyleContract) {
       parts.push({
@@ -4008,9 +4073,11 @@ export async function generateDesignTokens({
       });
     }
 
-    parts.push({
-      text: `Creative Direction:\n${formatCreativeDirection(creativeDirection)}`,
-    });
+    if (creativeDirection) {
+      parts.push({
+        text: `Creative Direction:\n${formatCreativeDirection(creativeDirection)}`,
+      });
+    }
 
     if (measuredPalette) {
       parts.push({ text: formatMeasuredColors(measuredPalette, referenceAnalysis ?? {}) });

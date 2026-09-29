@@ -188,7 +188,6 @@ describe("state-scoped prompt construction", () => {
       "900-1800 chars",
       "no generic stacked blocks",
       "Component specificity",
-      "Material specificity",
       "Viewport fit",
       "Final self-audit",
     ];
@@ -201,6 +200,54 @@ describe("state-scoped prompt construction", () => {
       expect(plannerScreenBriefStepInstruction(mode)).toContain("ScreenFamilyContract is CONTEXT, not OUTPUT");
       expect(plannerScreenBriefStepInstruction(mode)).toContain("NEVER restate, echo, or summarize them inside the screen description");
     }
+  });
+
+  it("keeps materials and values out of style-mode briefs and leaves them to the reference", () => {
+    const style = plannerScreenBriefStepInstruction("style");
+    // materials belong to the reference and its preset; the rule stays for the other modes
+    expect(style).not.toContain("Material specificity");
+    expect(plannerScreenBriefStepInstruction("prompt")).toContain("Material specificity");
+    expect(plannerScreenBriefStepInstruction("recreate")).toContain("Material specificity");
+
+    // MUST PRESERVE names structure only
+    expect(style).toContain("MUST PRESERVE: Only structure whose loss would materially damage this screen: which components appear, the focal element and the content order. Never token values, sizes, colours or materials.");
+    expect(plannerScreenBriefStepInstruction("prompt")).toContain("MUST PRESERVE: Only screen-specific structural decisions whose loss would materially damage this screen.");
+
+    // the eight decisions are about content, hierarchy and components, not values
+    expect(style).toContain("at least 8 concrete decisions about content, hierarchy and components");
+    expect(style).toContain("px, hex or opacity values");
+    expect(plannerScreenBriefStepInstruction("prompt")).toContain("at least 8 concrete visible layout and composition decisions");
+
+    // the reference's components can be named in the brief
+    expect(style).toContain("REFERENCE COMPONENT MAPPING");
+    expect(style).toContain("Never reproduce the reference's sections, their order or its content.");
+    expect(plannerScreenBriefStepInstruction("prompt")).not.toContain("REFERENCE COMPONENT MAPPING");
+
+    // the mode contract no longer asks the planner to write materials, shadows or radii
+    expect(style).not.toContain("material quality, shadows, radii, blur/glass");
+    expect(style).toContain("the plan names structure and intent, never values");
+  });
+
+  it("gives a style reference the art direction instead of a second creative direction", () => {
+    const withReference = plannerBlueprintStepInstruction("style", { referenceDrivesDirection: true });
+    const withoutReference = plannerBlueprintStepInstruction("style");
+
+    expect(withReference).not.toContain('"creativeDirection"');
+    expect(withReference).not.toContain("Creative direction is the product-wide art-direction thesis");
+    expect(withReference).toContain("The style reference is the product-wide art direction.");
+    expect(withReference).toContain("charter.designRationale must be executable layout rules");
+    expect(withReference).not.toContain("creativeDirection.compositionPrinciples");
+    // the blueprint JSON is still well formed around the removed block
+    expect(withReference).toContain('"designRationale": "Human layout contract: viewport budget, horizontal rail, vertical rhythm, nav reservation, card density, wrapping/truncation policy, and consistency rules."\n  }\n}');
+    // a design style without a reference, and prompt mode, keep their creative direction
+    expect(withoutReference).toContain('"creativeDirection"');
+    expect(withoutReference).toContain("Creative direction is the product-wide art-direction thesis");
+    expect(plannerBlueprintStepInstruction("prompt", { referenceDrivesDirection: true })).toContain('"creativeDirection"');
+    // both style variants tell the planner to keep values out of the charter
+    for (const instruction of [withReference, withoutReference]) {
+      expect(instruction).toContain("Never write px or pt sizes, hex colours, opacity or blur values into the charter");
+    }
+    expect(plannerBlueprintStepInstruction("prompt")).not.toContain("Never write px or pt sizes, hex colours");
   });
 
   it("isolates planner mode rules instead of asking the model to branch", () => {

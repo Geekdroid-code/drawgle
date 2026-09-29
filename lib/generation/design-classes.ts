@@ -1,4 +1,5 @@
-import type { RadiusClass, SurfaceElevation } from "@/lib/types";
+import { hasCastShadow, parseShadowLayers } from "@/lib/shadow-css";
+import type { DesignTokens, RadiusClass, SurfaceElevation } from "@/lib/types";
 
 /**
  * Radius and elevation reach the model layers as categories, never as numbers.
@@ -94,3 +95,42 @@ export const describeSurfaceClasses = ({
   radiusClass ? RADIUS_CLASS_DESCRIPTION[radiusClass] : null,
   surfaceElevation ? SURFACE_ELEVATION_DESCRIPTION[surfaceElevation] : null,
 ].filter((line): line is string => Boolean(line));
+
+/** The class a card radius in px falls into, using the same ranges the analysis is judged against. */
+export const radiusClassForPx = (px: number): RadiusClass =>
+  px <= 5 ? "square" : px <= 11 ? "soft" : px <= 17 ? "rounded" : "very-rounded";
+
+/** The most opaque a "soft" surface shadow layer may be. Token calibration caps a soft reference's shadow here. */
+export const SOFT_SHADOW_MAX_ALPHA = 0.08;
+
+/** How a surface shadow token separates cards: none is flat, a light diffuse one is soft, anything more is strong. */
+export const surfaceElevationOfShadow = (shadow: string | null | undefined): SurfaceElevation => {
+  const layers = parseShadowLayers(shadow).filter((layer) => !layer.inset);
+  if (!hasCastShadow(shadow)) return layers.some((layer) => layer.alpha > 0.015) ? "hairline" : "flat-tone";
+  return layers.every((layer) => layer.alpha <= SOFT_SHADOW_MAX_ALPHA) ? "soft-shadow" : "strong-shadow";
+};
+
+const firstFontFamily = (stack: string | undefined) =>
+  stack?.split(",")[0]?.replace(/["']/g, "").trim() || null;
+
+/**
+ * The approved tokens in words, for the layers that plan structure. Fonts are names
+ * and the rest is the same category language the analysis uses, so a planner sees
+ * the design language without a single value it could copy into a brief.
+ */
+export const describeTokenLanguage = (designTokens: DesignTokens | null | undefined): string[] => {
+  const tokens = designTokens?.tokens;
+  if (!tokens) return [];
+  const heading = firstFontFamily(tokens.typography?.heading_font_family);
+  const body = firstFontFamily(tokens.typography?.body_font_family);
+  const appRadius = Number.parseFloat(String(tokens.radii?.app ?? ""));
+  const shape = describeSurfaceClasses({
+    radiusClass: Number.isFinite(appRadius) ? radiusClassForPx(appRadius) : null,
+    surfaceElevation: tokens.shadows ? surfaceElevationOfShadow(tokens.shadows.surface) : null,
+  });
+  return [
+    heading && body ? `Fonts: ${heading} for headings and ${body} for everything else.` : null,
+    shape.length ? `Shape and depth: ${shape.join("; ")}.` : null,
+    "Surface ladder: the page, then cards one tone step above it, then inset tiles and fields inside cards, then pastel tints, then one focal accent.",
+  ].filter((line): line is string => Boolean(line));
+};

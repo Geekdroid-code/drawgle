@@ -54,6 +54,8 @@ const referenceImage = async () => {
 const tokenCall = () => generate.mock.calls.map(([request]) => request)
   .find((request) => String(request.config?.systemInstruction ?? "").includes("Design Token System"));
 const tokenPromptText = () => (tokenCall()?.contents.parts as Array<{ text?: string }>).map((part) => part.text ?? "").join("\n");
+const creativeDirectionCalls = () => generate.mock.calls.map(([request]) => request)
+  .filter((request) => String(request.config?.systemInstruction ?? "").includes("elite mobile product Art Director"));
 
 beforeEach(() => {
   generate.mockReset();
@@ -168,5 +170,53 @@ describe("generateDesignTokens measures and calibrates", () => {
     expect(tokenPromptText()).not.toContain("MEASURED COLORS");
     expect(tokens.tokens?.color?.background?.primary).toBe("#F9F6F0");
     expect(tokens.tokens?.radii?.app).toBe("20px");
+  });
+});
+
+describe("generateDesignTokens leaves the art direction to a style reference", () => {
+  it("writes no creative direction when a reference image is the direction", async () => {
+    await generateDesignTokens({
+      prompt: "An app for families with multiple pets",
+      image: await referenceImage(),
+      referenceMode: "curated_style",
+      referenceAnalysis: analysis,
+    });
+    expect(creativeDirectionCalls()).toHaveLength(0);
+    expect(tokenPromptText()).not.toContain("Creative Direction:");
+    // the measured palette and the shape language are what the token model works from instead
+    expect(tokenPromptText()).toContain("MEASURED COLORS");
+  });
+
+  it("writes none when only a stored reference analysis is the direction", async () => {
+    await generateDesignTokens({ prompt: "A pet app", referenceMode: "curated_style", referenceAnalysis: analysis });
+    expect(creativeDirectionCalls()).toHaveLength(0);
+    expect(tokenPromptText()).not.toContain("Creative Direction:");
+  });
+
+  it("still writes one for a prompt-only project, where it is the only art direction", async () => {
+    await generateDesignTokens({ prompt: "A recipe app", referenceMode: "internal_style", referenceAnalysis: null });
+    expect(creativeDirectionCalls()).toHaveLength(1);
+    expect(tokenPromptText()).toContain("Creative Direction:");
+  });
+
+  it("still writes one for an explicit design style with no reference", async () => {
+    const stylePack = {
+      id: "soft-clay", label: "Soft clay", version: 1, premiumIntent: "warm depth", bestFor: [],
+      tokenSeed: {}, creativeDirectionSeed: {}, layoutGrammar: [], componentRecipes: [], navigationRecipes: [],
+      assetAndImageryRules: [], densityRules: [], antiPatterns: [],
+    } as unknown as DesignStylePack;
+    await generateDesignTokens({ prompt: "A habit tracker", referenceMode: "internal_style", designStyle: stylePack, referenceAnalysis: null });
+    expect(creativeDirectionCalls()).toHaveLength(1);
+    expect(tokenPromptText()).toContain("Creative Direction:");
+  });
+
+  it("keeps Image to UI exactly as it was: its analysis is the source, and a direction is still written", async () => {
+    await generateDesignTokens({
+      prompt: "Recreate this screen",
+      image: await referenceImage(),
+      referenceMode: "user_recreate",
+      referenceAnalysis: analysis,
+    });
+    expect(creativeDirectionCalls()).toHaveLength(1);
   });
 });

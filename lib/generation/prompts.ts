@@ -148,6 +148,16 @@ When navigation is enabled, design is REQUIRED and must use this shape:
   "inactive_treatment": "plain | well (well draws other destinations as circular icon wells)"
 }`;
 
+/**
+ * With a style reference, the reference is the art direction: the blueprint
+ * carries no creative direction of its own, because a model's paraphrase of
+ * an image the builder already sees is where "32px" and "glass dock" first appeared.
+ */
+const plannerBlueprintJsonContractWithoutCreativeDirection = plannerBlueprintJsonContract.replace(
+  /,\n    "creativeDirection": \{[\s\S]*?\n    \}\n(?=  \}\n\})/,
+  "\n",
+);
+
 const plannerScreensJsonContract = `Return JSON with this exact top-level shape:
 {
   "screens": [
@@ -235,7 +245,7 @@ Use reference analysis to increase specificity and preserve the strongest useful
   if (mode === "style") {
     return `MODE: STYLE_REFERENCE.
 The reference is visual inspiration only. It may be uploaded by the user or selected internally by Drawgle.
-Use reference analysis for material quality, shadows, radii, blur/glass, typography character, icon weight, color rhythm, nav treatment, polish, micro-shapes, and component craftsmanship.
+Use reference analysis to decide which of its components and devices (its focal device, control vocabulary, iconography, density and navigation character) each screen borrows. The builder sees the reference image and owns material, depth, colour and shape: the plan names structure and intent, never values.
 Do not preserve exact section order, object positions, domain content, data values, or full screenshot anatomy.
 Plan screen anatomy from the user prompt, existing project context, charter, and navigation needs.
 The target screen's user job is the only layout authority. Existing screens and references provide visual-system continuity, never a reusable page template.
@@ -250,7 +260,22 @@ Preserve every explicit user design decision and intelligently complete only wha
 Invent product-specific screen anatomy and avoid generic app-category templates.`;
 };
 
-const buildPlannerModeInstruction = (mode: GenerationPromptMode) => `${plannerSharedModeContract}
+export type PlannerPromptOptions = {
+  /** A style reference (a curated or uploaded image) is the art direction: no creative direction of its own. */
+  referenceDrivesDirection?: boolean;
+};
+
+const CREATIVE_DIRECTION_THESIS = "- Creative direction is the product-wide art-direction thesis. Do not water it down into generic product language.";
+const REFERENCE_DIRECTION_THESIS = "- The style reference is the product-wide art direction. Keep its signature moves recognizable and do not water them down into generic product language.";
+
+const referenceDrivesDirection = (mode: GenerationPromptMode, options: PlannerPromptOptions) =>
+  mode === "style" && options.referenceDrivesDirection === true;
+
+const buildPlannerModeInstruction = (mode: GenerationPromptMode, options: PlannerPromptOptions = {}) => `${
+  referenceDrivesDirection(mode, options)
+    ? plannerSharedModeContract.replace(CREATIVE_DIRECTION_THESIS, REFERENCE_DIRECTION_THESIS)
+    : plannerSharedModeContract
+}
 
 ${plannerModeContract(mode)}`;
 
@@ -261,14 +286,15 @@ export const plannerPromptInstruction = buildPlannerModeInstruction("prompt");
 const plannerBlueprintModeRules = (mode: GenerationPromptMode) => mode === "recreate"
   ? `- Recreate navigation evidence: use decision "reference-derived" when the structural reference visibly contains persistent navigation. Preserve observed item count, order, labels, icon meaning, anatomy, active states, geometry, elevation, and safe-area relationship. A legitimate two-item reference is valid.`
   : mode === "style"
-    ? `- Style-reference navigation evidence is visual craft only. Do not copy its destinations or information architecture. Use decision "project-native" only when the prompt or product architecture provides positive evidence for peer root areas.`
+    ? `- Style-reference navigation evidence is visual craft only. Do not copy its destinations or information architecture. Use decision "project-native" only when the prompt or product architecture provides positive evidence for peer root areas.
+- Describe the design language in words. Never write px or pt sizes, hex colours, opacity or blur values into the charter: the tokens carry them.`
     : `- Prompt-only navigation must come from explicit prompt intent or a clearly described product architecture with peer root areas. Never imply that navigation was observed in a reference.`;
 
-export const plannerBlueprintStepInstruction = (mode: GenerationPromptMode) => `${buildPlannerModeInstruction(mode)}
+export const plannerBlueprintStepInstruction = (mode: GenerationPromptMode, options: PlannerPromptOptions = {}) => `${buildPlannerModeInstruction(mode, options)}
 
 STEP: PROJECT BLUEPRINT ONLY.
 Create the project charter, navigation architecture, navigation plan, and compact product roadmap. Do not return detailed screen briefs in this step.
-${plannerBlueprintJsonContract}
+${referenceDrivesDirection(mode, options) ? plannerBlueprintJsonContractWithoutCreativeDirection : plannerBlueprintJsonContract}
 
 Blueprint rules:
 - Produce a compact product roadmap before any detailed screen briefs. Roadmap items are route or destination canvases, including root and detail screens; local modal, sheet, picker, active-tab, and confirmation states are not parent roadmap items.
@@ -292,18 +318,19 @@ ${plannerBlueprintModeRules(mode)}
 - visual_brief must state why the chosen anatomy fits this product and why the most obvious alternative was rejected. The renderer uses design as a real construction contract.
 - Use Lucide icon names. Select one supported design anatomy and provide bounded measurements; the renderer, not the builder, owns navigation HTML.
 - charter.navigationModel must match navigation_architecture. keyFeatures must be durable product capabilities, not screen names.
-- charter.designRationale and creativeDirection.compositionPrinciples must be executable layout rules: viewport budget, screen-edge padding, horizontal rail, section rhythm, card/content padding, typography discipline, bottom-safe content stop points, dense-row vs spacious-hero usage, wrapping/truncation, and overflow avoidance.
+- charter.designRationale${referenceDrivesDirection(mode, options) ? "" : " and creativeDirection.compositionPrinciples"} must be executable layout rules: viewport budget, screen-edge padding, horizontal rail, section rhythm, card/content padding, typography discipline, bottom-safe content stop points, dense-row vs spacious-hero usage, wrapping/truncation, and overflow avoidance.
 - If Current Project Context contains approved navigation architecture or plan, preserve it unless the user explicitly asks to add, remove, or redesign primary navigation.`;
 
 const plannerScreenModeRule = (mode: GenerationPromptMode) => mode === "recreate"
   ? `- Mode cues: recreate mode needs at least 3 reference-traceable cues, including one layer/containment/depth cue when visible. In recreate collages, map visible screens left-to-right unless instructed otherwise. A visible structural-reference state may set explicitly_requested and default_selected true. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.`
   : mode === "style"
     ? `- Mode cues: style mode needs at least 3 borrowed visual invariants from material, typography, edge/depth, iconography, or density. reference_transfer.layout_source MUST be "screen-purpose". Put source-only section order, component topology, hero scaffolds, connector/decorative systems, and object positions in reject unless the target screen's task independently requires them. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.
-- The builder sees the reference image and owns visual treatment. In PREMIUM DESIGN DECISIONS, say which reference devices this screen uses and for which content (its focal device, control vocabulary such as chips, icon wells, or sliders, and its depth treatment). Say what must stand out, never how to decorate it: do not prescribe colored side borders, stripe indicators, or outlined boxes the reference does not show.`
+- The builder sees the reference image and owns visual treatment. In PREMIUM DESIGN DECISIONS, say which reference devices this screen uses and for which content (its focal device, control vocabulary such as chips, icon wells, or sliders, and its depth treatment). Say what must stand out, never how to decorate it: do not prescribe colored side borders, stripe indicators, or outlined boxes the reference does not show.
+- When a REFERENCE COMPONENT MAPPING is supplied, name the reference component a screen should use in KEY COMPONENTS whenever it fits that screen's job (for example the calendar strip for a week selector, or the stat-tile pair for two counts). Never reproduce the reference's sections, their order or its content.`
     : `- Mode cues: prompt-only mode needs at least 3 concrete cues traceable to the user brief and Creative Direction, including one product-specific composition or component-construction decision. Do not claim that any cue was observed in an image.
 - Say what must stand out, never how to decorate it: do not prescribe colored side borders, stripe indicators, or outlined boxes for status or priority.`;
 
-export const plannerScreenBriefStepInstruction = (mode: GenerationPromptMode) => `${buildPlannerModeInstruction(mode)}
+export const plannerScreenBriefStepInstruction = (mode: GenerationPromptMode, options: PlannerPromptOptions = {}) => `${buildPlannerModeInstruction(mode, options)}
 
 STEP: SCREEN BRIEFS ONLY.
 Use the provided project blueprint as fixed product architecture. Create only the screen list and builder-ready screen descriptions.
@@ -321,7 +348,9 @@ Rules:
   * KEY COMPONENTS: Actual components and data needed for THIS screen and how they are arranged.
   * PREMIUM DESIGN DECISIONS: 2-5 screen-specific compositional decisions that make this screen feel intentionally designed rather than a generic app template (describing composition, hierarchy, imagery, grouping, negative space, emphasis, or interaction — not design tokens).
   * INTERACTION: What can be tapped, swiped, expanded, or edited and what state changes occur.
-  * MUST PRESERVE: Only screen-specific structural decisions whose loss would materially damage this screen.
+  * MUST PRESERVE: ${mode === "style"
+    ? "Only structure whose loss would materially damage this screen: which components appear, the focal element and the content order. Never token values, sizes, colours or materials."
+    : "Only screen-specific structural decisions whose loss would materially damage this screen."}
 - ScreenFamilyContract is CONTEXT, not OUTPUT: The planner receives ScreenFamilyContract, creative direction, and design style as background continuity context. Silently respect them to ensure family coherence, but NEVER restate, echo, or summarize them inside the screen description. Do not output global palette names, typography tables, generic radii, global shadows, standard spacing scales, icon family notes, global surface language, or ScreenFamilyContract summaries. The builder receives approved design tokens separately.
 - Screen-specific decisions over vague placeholders: Descriptions must overwhelmingly contain concrete, screen-specific design choices. Never write vague meta-instructions such as "Design around its primary user task", "Invent a task-native hierarchy", or "Use components required by this workflow". The planner itself must make those decisions and explicitly describe what the hierarchy, components, and layout ARE.
 - Human design language vs. tokens: Describe design intent and construction in human design language. Do not output Drawgle utility names, CSS variables, Tailwind classes, token identifiers (such as dg-type-*, dg-surface-*, dg-text-*, dg-radius-*, dg-shadow-*, dg-action-*, dg-gradient-*, var(--dg-*)), raw color values, or implementation instructions. The builder receives the approved design tokens separately and is responsible for mapping your visual decisions onto them.
@@ -330,14 +359,17 @@ Rules:
 - Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
-- Material specificity: call out typography hierarchy, imagery, chart geometry, background planes, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues without repeating token class names.
-- Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the approved product shell or evidence clearly reuses it.
+${mode === "style"
+  ? ""
+  : "- Material specificity: call out typography hierarchy, imagery, chart geometry, background planes, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues without repeating token class names.\n"}- Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the approved product shell or evidence clearly reuses it.
 - Viewport fit: include a 390px fit note and how the screen avoids overflow and text collision. On shared-navigation screens, the renderer supplies the bottom content clearance; the plan must not assign a numeric value or spacer.
 - Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products.
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
 - State proposals: return an empty state_variants array unless this execution supplies explicitly approved state variants. Selection highlights and border changes are inline interactions, never separate paid outputs. Do not invent companion states. When approved, state_variants are local states of the same route shell, not destinations. Suggest at most three meaningful states opened by visible controls: modal/dialog/sheet/popover, active tab with a distinct content body, filtered/search results, selected detail panel, or a concrete form flow. Never use onboarding, auth, profile/settings routes, checkout, navigation destinations, theme/dark mode, hover/focus styling, or generic loading/empty states as local paid states. Set explicitly_requested and default_selected true only when the user prompt explicitly requires that visible state, except for the additional recreate-mode evidence rule above. Every edit_instruction must preserve the parent shell, navigation, tokens, typography, spacing, and overall layout.
 ${plannerScreenModeRule(mode)}
-- Final self-audit: every description must contain at least 8 concrete visible layout and composition decisions in human design language (never token identifiers, dg-* classes, CSS declarations, or echoed ScreenFamilyContract boilerplate) and preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
+- Final self-audit: every description must contain at least 8 concrete ${mode === "style"
+  ? "decisions about content, hierarchy and components (what appears, in which order, at which emphasis, in which component) in human design language (never token identifiers, dg-* classes, CSS declarations, px, hex or opacity values, or echoed ScreenFamilyContract boilerplate)"
+  : "visible layout and composition decisions in human design language (never token identifiers, dg-* classes, CSS declarations, or echoed ScreenFamilyContract boilerplate)"} and preserve consistency in spacing scale, card padding, type roles, nav family, and edge/radius language.`;
 
 const creativeDirectionSharedInstruction = `You are an elite mobile product Art Director.
 Your job is to invent or infer a premium, opinionated creative direction that will keep the generated UI out of generic AI-app territory.

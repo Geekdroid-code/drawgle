@@ -1,5 +1,5 @@
 import { deltaE2000, hexToLab, mixHex, parseHex, shiftLightness } from "@/lib/color-lab";
-import { RADIUS_CLASS_PX } from "@/lib/generation/design-classes";
+import { RADIUS_CLASS_PX, SOFT_SHADOW_MAX_ALPHA } from "@/lib/generation/design-classes";
 import type { MeasuredPalette } from "@/lib/generation/reference-palette";
 import type { ColorRole } from "@/lib/generation/user-color-roles";
 import { capShadow, softShadow } from "@/lib/shadow-css";
@@ -522,7 +522,6 @@ const RADIUS_CLASS_RANGE_PX: Record<RadiusClass, [number, number]> = {
   "very-rounded": [18, 24],
 };
 const SOFT_SHADOW_MAX_BLUR_PX = 16;
-const SOFT_SHADOW_MAX_ALPHA = 0.08;
 const OVERLAY_SHADOW_MAX_ALPHA = 0.16;
 const ACTION_SNAP_MAX_DELTA_E = 12;
 /** A card sits one tone step above the page; a tile inside it sits one step from the card. */
