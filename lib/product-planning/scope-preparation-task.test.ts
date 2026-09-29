@@ -7,8 +7,19 @@ import { enqueueScopePreparation } from "./scope-preparation-task";
 
 describe("scope preparation dispatch", () => {
   afterEach(() => vi.unstubAllEnvs());
+  it("is off unless explicitly enabled, because unused preparations cost a planning pass", async () => {
+    vi.stubEnv("DRAWGLE_PROGRESSIVE_GENERATION_ENABLED", undefined);
+    vi.stubEnv("DRAWGLE_SCOPE_PREPARATION", undefined);
+    mocks.trigger.mockClear();
+    const state = designerFixture();
+    state.scope = { ...state.scope!, status: "proposed" };
+    await enqueueScopePreparation({} as never, "project", "owner", state);
+    expect(mocks.trigger).not.toHaveBeenCalled();
+  });
+
   it("uses a global exact-snapshot key and changes it when shared design changes", async () => {
     vi.stubEnv("DRAWGLE_PROGRESSIVE_GENERATION_ENABLED", undefined);
+    vi.stubEnv("DRAWGLE_SCOPE_PREPARATION", "on");
     let tokens: unknown = null;
     const admin = { from: (table: string) => {
       const query = { select: () => query, eq: () => query,

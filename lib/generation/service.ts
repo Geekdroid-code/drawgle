@@ -1742,6 +1742,24 @@ const navigationBlueprintIssues = (navigationPlan?: ParsedNavigationPlan | null)
   return issues;
 };
 
+/** Drops duplicate and filler destinations and unlinks planned ones, as the V2 rules require. */
+const tidyNavigationBlueprint = (navigationPlan?: ParsedNavigationPlan) => {
+  if (!navigationPlan || (navigationPlan.decision ?? "none") === "none") return navigationPlan;
+  const labels = new Set<string>();
+  const roles = new Set<string>();
+  const items = navigationPlan.items.filter((item) => {
+    const label = item.label.trim().toLowerCase();
+    const role = item.role.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ");
+    if (/^(?:tab|item|menu|page|section|destination)(?:\s*\d+)?$/i.test(item.label) || labels.has(label) || roles.has(role)) {
+      return false;
+    }
+    labels.add(label);
+    roles.add(role);
+    return true;
+  }).slice(0, 5).map((item) => item.availability === "planned" ? { ...item, linked_screen_name: null } : item);
+  return { ...navigationPlan, items };
+};
+
 const NON_ROOT_NAVIGATION_AREA_PATTERN = /\b(onboarding|splash|welcome|login|sign[\s-]?up|register|auth|checkout|confirmation|detail|chat|assistant|conversation|camera|player|tracking|modal)\b/i;
 
 export const enforceNavigationEvidencePolicy = ({
@@ -3361,6 +3379,14 @@ export async function planUiFlow({
 
   let rawBlueprint: unknown = canonicalBlueprint.blueprint;
   let parsedBlueprint = ProjectBlueprintSchema.safeParse(rawBlueprint);
+
+  if (parsedBlueprint.success && !canonicalBlueprint.navigationRecovered) {
+    // Structural navigation slips are fixed here, not by asking the model again.
+    parsedBlueprint = {
+      ...parsedBlueprint,
+      data: { ...parsedBlueprint.data, navigation_plan: tidyNavigationBlueprint(parsedBlueprint.data.navigation_plan) },
+    };
+  }
 
   if (parsedBlueprint.success) {
     const navigationIssues = canonicalBlueprint.navigationRecovered
