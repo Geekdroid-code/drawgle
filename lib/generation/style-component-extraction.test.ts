@@ -95,7 +95,8 @@ describe("extractStyleComponents", () => {
   it("gets a component that was over the size limit only by its long class names under it", () => {
     const long = "rounded-[var(--dg-radii-app)] bg-[var(--dg-color-surface-card)] text-[var(--dg-color-text-high-emphasis)] shadow-[var(--dg-shadows-overlay)]";
     const item = `<div class="${long}"><span class="${long}">x</span></div>`;
-    const markup = `<div data-dg-component="row" class="${long} flex">${item.repeat(2)}${item.repeat(1)}</div>`;
+    // enough of them to be over the limit as written, and under it once their classes are the short ones
+    const markup = `<div data-dg-component="row" class="${long} flex">${item.repeat(2)}${item.repeat(2)}${item.repeat(2)}</div>`;
     expect(markup.length - "<div data-dg-component=\"row\" data-dg-use=\"\"></div>".length).toBeGreaterThan(MAX_STYLE_COMPONENT_HTML_CHARS);
     const { components, skipped } = extractStyleComponents(markup);
     expect(skipped).toEqual([]);
@@ -103,7 +104,7 @@ describe("extractStyleComponents", () => {
   });
 
   it("skips a component that is still too large to copy, and says why", () => {
-    const huge = `<div data-dg-component="chart-panel" class="p-4">${Array.from({ length: 6 }, (_, index) => `<svg viewBox="0 0 10 10"><path d="${"M0 0L1 1".repeat(120)}" data-n="${index}"></path></svg>`).join("")}</div>`;
+    const huge = `<div data-dg-component="chart-panel" class="p-4">${Array.from({ length: 6 }, (_, index) => `<svg viewBox="0 0 10 10"><path d="${"M0 0L1 1".repeat(400)}" data-n="${index}"></path></svg>`).join("")}</div>`;
     const { components, skipped } = extractStyleComponents(`${huge}<div data-dg-component="chip" class="dg-tint-1 dg-radius-pill px-3">Label</div>`);
     expect(components.map((component) => component.name)).toEqual(["chip"]);
     expect(skipped).toHaveLength(1);

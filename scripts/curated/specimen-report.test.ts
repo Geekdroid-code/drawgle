@@ -56,6 +56,13 @@ describe("what the report says of a rebuilt phone", () => {
     expect(report.tallestBlock).toMatchObject({ height: 60 });
   });
 
+  it("finds the blocks inside a single wrapper that holds the whole screen", async () => {
+    const block = (margin: number) => `<div style="height:60px;margin-top:${margin}px">Block</div>`;
+    const report = await measure(screen(`<div style="display:flex;flex-direction:column">${block(0)}${block(16)}${block(24)}${block(12)}</div>`));
+    expect(report.gaps).toEqual([16, 24, 12]);
+    expect(report.tallestBlock).toMatchObject({ height: 60 });
+  });
+
   it("names the tallest block and how tall it is against the screen's width", async () => {
     const report = await measure(screen('<div style="height:40px">Bar</div><div data-dg-component="media-hero-card" style="height:393px">Card</div>'));
     expect(report.tallestBlock).toMatchObject({ name: "media-hero-card", height: 393, ratioToWidth: 1 });
@@ -77,6 +84,20 @@ describe("what the report says of a rebuilt phone", () => {
     const missing = await measure(screen('<h1 style="font-family:\'ZzNotAFontAtAll\', sans-serif;margin:0">Title</h1>'));
     expect(missing.title).toMatchObject({ fontFamily: "ZzNotAFontAtAll", generic: false, available: false });
     expect(specimenFlags(missing).join("\n")).toContain('"ZzNotAFontAtAll" is not on the page');
+  });
+
+  it("flags a screen whose blocks are all separated by the section gap", async () => {
+    // the fixture's tokens: an element gap of 16px and a section gap of 24px
+    const preset = presetFixture();
+    const layout = { ...preset.tokens.tokens!.mobile_layout, element_gap: "16px", section_gap: "24px" };
+    const withGaps = { ...preset, tokens: { ...preset.tokens, tokens: { ...preset.tokens.tokens, mobile_layout: layout } } };
+    const block = (margin: number) => `<div style="height:60px;margin-top:${margin}px">Block</div>`;
+    const flat = await measureSpecimen({ browser, preset: withGaps, html: screen(`${block(0)}${block(24)}${block(24)}${block(24)}`), offline: true });
+    expect(flat.tokenGaps).toEqual({ element: 16, section: 24 });
+    expect(specimenFlags(flat).join(" | ")).toContain("the section gap (24px) separates 3 of 3 blocks");
+
+    const varied = await measureSpecimen({ browser, preset: withGaps, html: screen(`${block(0)}${block(16)}${block(16)}${block(24)}`), offline: true });
+    expect(specimenFlags(varied).join(" | ")).not.toContain("section gap");
   });
 
   it("prints its numbers as lines, and the checks after them", async () => {

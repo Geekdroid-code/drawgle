@@ -119,3 +119,19 @@ describe("the reference analysis names the typeface from its letters and describ
     expect(referenceAnalysisStyleInstruction).toContain("Do not call a layout airy, spacious, generous or relaxed");
   });
 });
+
+describe("the reference analysis tells an attached bar from a floating one by the bar's edges", () => {
+  it("in both analysis prompts, with the phone frame's own corners ruled out as a gap", () => {
+    for (const prompt of [referenceAnalysisStyleInstruction, referenceAnalysisRecreateInstruction]) {
+      expect(prompt).toContain("Attached or floating is decided by the bar's edges.");
+      expect(prompt).toContain("reach the edges of the screen with no page background visible below or beside it, even when its top corners are rounded");
+      expect(prompt).toContain("The rounded outer corners of a phone frame in a mockup are not a gap");
+      expect(prompt).toContain("Count every icon of the bar, even when it has no labels.");
+      expect(prompt).toContain("activeTreatment is icon-fill when the active icon sits inside a filled circle or capsule");
+    }
+  });
+
+  it("asks the style analysis for the bar's icon count, which a preset's sample bar is drawn from", () => {
+    expect(referenceAnalysisStyleInstruction).toMatch(/"primaryNavigation": \{\s+"present": true,\s+"itemCount": 5,/);
+  });
+});

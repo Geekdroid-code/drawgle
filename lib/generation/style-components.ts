@@ -10,7 +10,12 @@ import type { ProjectReferenceDna, StyleComponent } from "@/lib/types";
  */
 
 export const MAX_STYLE_COMPONENTS = 10;
-export const MAX_STYLE_COMPONENT_HTML_CHARS = 700;
+/**
+ * The mindfulness reference's featured media card, its search field and its highlighted row are 1147, 719 and
+ * 790 characters once trimmed. They are what its vocabulary is made of, so a limit below them left only chips
+ * and badges. The block budget below is what bounds what a screen build pays.
+ */
+export const MAX_STYLE_COMPONENT_HTML_CHARS = 1200;
 /** About 1.5k tokens: the block is paid for on every screen build. */
 export const MAX_STYLE_COMPONENTS_BLOCK_CHARS = 6000;
 
@@ -79,8 +84,10 @@ export const SPECIMEN_MARKING_INSTRUCTION = [
   "SPECIMEN: this build becomes the source of the project's reusable components.",
   'Mark the root element of each reusable component with data-dg-component="<kebab-name>" and data-dg-use="<when to use it, under 12 words>",',
   'for example data-dg-component="calendar-strip" data-dg-use="a week selector at the top of a day view".',
-  "Name a component by what it is, never by the content it shows, and mark one element for each kind of component this screen shows, at least six when it has them.",
-  "Mark the smallest reusable unit (one row, one tile, one chip, one field, one card), never a whole list, grid or section, and keep each marked element's markup under about 500 characters.",
-  "Leave decorative art (illustrations, sparkles, blurred shapes, chart plots) out of a marked element, and style it with the token classes and variables only, never raw hex colours.",
-  "Do not mark the status bar or the bottom navigation.",
+  "Name a component by what it is, never by the content it shows.",
+  "Mark composed units, because they carry the design: a whole card with the content inside it, one list row, a field with its buttons, a header row, a stat tile.",
+  "Mark each different kind of card, row, tile and field the screen shows, at most eight in all, and never the same look twice.",
+  "Mark a chip, badge or button on its own only when it appears outside every unit you marked. Never mark a whole list, grid or section.",
+  "Keep each marked element's markup under about 900 characters: leave decorative art (illustrations, sparkles, blurred shapes, chart plots) out of it, and style it with the token classes and variables only, never raw hex colours.",
+  "For this specimen do not draw a status bar or the bottom navigation, although the image shows them: the renderer adds the navigation under this screen, so leave clear space at the bottom for it.",
 ].join(" ");

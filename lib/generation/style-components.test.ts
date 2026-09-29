@@ -5,6 +5,7 @@ import {
   MAX_STYLE_COMPONENT_HTML_CHARS,
   MAX_STYLE_COMPONENTS,
   MAX_STYLE_COMPONENTS_BLOCK_CHARS,
+  SPECIMEN_MARKING_INSTRUCTION,
   styleComponentsOf,
   styleComponentsSchema,
   usableStyleComponents,
@@ -59,9 +60,20 @@ describe("formatStyleComponents", () => {
     expect(block).not.toContain("component-11");
   });
 
+  it("asks the specimen build for composed units, not a flood of chips, and for no navigation of its own", () => {
+    // the first mindfulness build marked ten atoms and left its card, search field and highlighted row out
+    expect(SPECIMEN_MARKING_INSTRUCTION).toContain("Mark composed units, because they carry the design");
+    expect(SPECIMEN_MARKING_INSTRUCTION).toContain("at most eight in all, and never the same look twice");
+    expect(SPECIMEN_MARKING_INSTRUCTION).toContain("Mark a chip, badge or button on its own only when it appears outside every unit you marked");
+    expect(SPECIMEN_MARKING_INSTRUCTION).toContain("under about 900 characters");
+    // the limit is above that, so that a build that goes over a little is not lost
+    expect(MAX_STYLE_COMPONENT_HTML_CHARS).toBeGreaterThan(900);
+    expect(SPECIMEN_MARKING_INSTRUCTION).toContain("do not draw a status bar or the bottom navigation, although the image shows them");
+  });
+
   it("stays inside the size budget by leaving out whole components, never by cutting markup", () => {
-    // ten components at the per-component limit would be about 7.6k characters
-    const large = Array.from({ length: 10 }, (_, index) => withHtml(index + 1, MAX_STYLE_COMPONENT_HTML_CHARS - 40));
+    // ten components of 600 characters would be about 6.9k characters with their names and uses
+    const large = Array.from({ length: 10 }, (_, index) => withHtml(index + 1, 600));
     const block = formatStyleComponents(large)!;
     expect(block.length).toBeLessThanOrEqual(MAX_STYLE_COMPONENTS_BLOCK_CHARS);
     const lines = block.split("\n").filter((line) => line.startsWith("- "));

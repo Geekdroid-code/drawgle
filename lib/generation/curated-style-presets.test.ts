@@ -22,6 +22,7 @@ import {
   presetReference,
   presetTokens,
 } from "@/lib/generation/curated-style-preset-fixtures";
+import { MAX_STYLE_COMPONENT_HTML_CHARS } from "@/lib/generation/style-components";
 import { userNamesTypography } from "@/lib/generation/user-color-roles";
 
 const asJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
@@ -52,7 +53,7 @@ describe("the curated style preset schema", () => {
   rejects("with more than ten components", (preset) => {
     preset.components = Array.from({ length: 11 }, (_, index) => ({ name: `c${index}`, use: "use", html: "<i></i>" }));
   });
-  rejects("with a component that is too large to copy", (preset) => { preset.components[0].html = `<div>${"x".repeat(700)}</div>`; });
+  rejects("with a component that is too large to copy", (preset) => { preset.components[0].html = `<div>${"x".repeat(MAX_STYLE_COMPONENT_HTML_CHARS)}</div>`; });
   rejects("that says nothing of its approval", (preset) => { delete preset.approved; });
 });
 

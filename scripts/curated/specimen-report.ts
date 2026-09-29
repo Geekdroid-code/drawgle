@@ -32,6 +32,8 @@ export type SpecimenReport = {
   bodyFont: { fontFamily: string; generic: boolean; available: boolean };
   /** The space between the screen's blocks, top to bottom, in CSS px at the phone's width. */
   gaps: number[];
+  /** The preset's own gap tokens, which the gaps are read against. */
+  tokenGaps: { element: number | null; section: number | null };
   tallestBlock: { name: string; height: number; ratioToWidth: number } | null;
   /** Round controls that are not round: a 40px by 48px "circle". */
   ovals: number;
@@ -61,11 +63,23 @@ export const SPECIMEN_REPORT_PROBE = `(() => {
   };
 
   const navigation = document.querySelector("[data-drawgle-primary-nav]");
-  const blocks = Array.from(content.children).filter((element) => {
+  const inFlow = (parent) => Array.from(parent.children).filter((element) => {
     if (navigation && (element === navigation || element.contains(navigation))) return false;
     const style = getComputedStyle(element);
     return element.getBoundingClientRect().height > 0 && style.position !== "fixed" && style.position !== "absolute";
-  }).sort((a, b) => rectOf(a).top - rectOf(b).top);
+  });
+  // a screen is often one wrapper that holds its blocks: go down to the element that holds three or more
+  let blocks = inFlow(content);
+  let holder = content;
+  for (let depth = 0; depth < 4 && blocks.length > 0 && blocks.length < 3; depth++) {
+    let tallestChild = blocks[0];
+    for (const child of blocks) if (rectOf(child).height > rectOf(tallestChild).height) tallestChild = child;
+    holder = tallestChild;
+    const inner = inFlow(holder);
+    if (inner.length === 0) break;
+    blocks = inner;
+  }
+  blocks.sort((a, b) => rectOf(a).top - rectOf(b).top);
   const gaps = [];
   for (let index = 1; index < blocks.length; index++) gaps.push(round(rectOf(blocks[index]).top - rectOf(blocks[index - 1]).bottom));
 
@@ -125,6 +139,11 @@ export const SPECIMEN_REPORT_PROBE = `(() => {
   };
 })()`;
 
+const pixels = (value: unknown) => {
+  const match = typeof value === "string" ? /^(-?\d+(?:\.\d+)?)px$/.exec(value.trim()) : null;
+  return match ? Number(match[1]) : null;
+};
+
 export async function measureSpecimen({
   browser,
   preset,
@@ -146,7 +165,9 @@ export async function measureSpecimen({
     await page.setContent(presetDocument(preset, html, { navigation: true }), { waitUntil: offline ? "domcontentloaded" : "networkidle", timeout: 60_000 });
     await page.evaluate("document.fonts.ready.then(() => true)");
     await page.waitForTimeout(offline ? 50 : 700);
-    return await page.evaluate(SPECIMEN_REPORT_PROBE) as SpecimenReport;
+    const probed = await page.evaluate(SPECIMEN_REPORT_PROBE) as Omit<SpecimenReport, "tokenGaps">;
+    const layout = preset.tokens.tokens?.mobile_layout;
+    return { ...probed, tokenGaps: { element: pixels(layout?.element_gap), section: pixels(layout?.section_gap) } };
   } finally {
     await context.close();
   }
@@ -166,6 +187,12 @@ export function specimenFlags(report: SpecimenReport): string[] {
   }
   if (report.bodyFont.generic) flags.push(`the body font is the generic keyword "${report.bodyFont.fontFamily}"`);
   else if (!report.bodyFont.available) flags.push(`the body font "${report.bodyFont.fontFamily}" is not on the page`);
+  const { section, element } = report.tokenGaps;
+  // one gap on every block: the section gap was used where neighbouring blocks only needed the element gap
+  if (section !== null && element !== null && section > element && report.gaps.length >= 3
+    && report.gaps.filter((gap) => Math.abs(gap - section) <= 1).length >= Math.ceil(report.gaps.length * 0.75)) {
+    flags.push(`the section gap (${section}px) separates ${report.gaps.filter((gap) => Math.abs(gap - section) <= 1).length} of ${report.gaps.length} blocks, where the element gap (${element}px) belongs between neighbouring blocks`);
+  }
   if (report.ovals > 0) flags.push(`${report.ovals} round control${report.ovals === 1 ? " is" : "s are"} stretched into an oval`);
   return flags;
 }
