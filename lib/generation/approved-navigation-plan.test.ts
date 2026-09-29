@@ -138,6 +138,43 @@ describe("a flow approved with persistent navigation", () => {
   });
 });
 
+describe("a flow approved with persistent navigation whose planner drew an unusable bar", () => {
+  /** The planner's navigation could not be read: a bar with no design, which the blueprint schema refuses. */
+  const unreadable = () => {
+    const base = blueprint("bar of four");
+    return { ...base, navigation_plan: { ...base.navigation_plan, design: null } };
+  };
+  const respondWithRepair = (repair: unknown) => mocks.generate.mockImplementation(async (request: { config?: { systemInstruction?: string }; contents: { parts: Array<{ text?: string }> } }) => {
+    const instruction = String(request.config?.systemInstruction ?? "");
+    if (instruction.includes("STEP: PROJECT BLUEPRINT ONLY")) {
+      const repairing = request.contents.parts.some((part) => part.text?.includes("NAVIGATION V2 REPAIR ONLY"));
+      return { text: JSON.stringify(repairing ? repair : unreadable()) };
+    }
+    if (instruction.includes("STEP: SCREEN BRIEFS ONLY")) return { text: JSON.stringify(screenBriefs) };
+    throw new Error(`Unexpected model call: ${instruction.slice(0, 80)}`);
+  });
+
+  it("lets the repair supply the icons, then applies the approved destinations to what it returns", async () => {
+    respondWithRepair(blueprint("bar of four"));
+    const result = await plan(flow(approved));
+    // the blueprint, the repair the unreadable navigation still earns, and the briefs
+    expect(mocks.generate).toHaveBeenCalledTimes(3);
+    expect(result.navigationPlan).toMatchObject({ enabled: true, evidence: { source: "approved-scope" } });
+    expect(result.navigationPlan.items.map((entry) => [entry.id, entry.label, entry.icon, entry.linkedScreenName])).toEqual([
+      ["today", "Today", "sun", "Today"], ["pets", "Pets", "paw-print", "Pet Library"]]);
+  });
+
+  it("still draws the approved bar when the repair returns nothing usable, with the neutral icon", async () => {
+    respondWithRepair({});
+    const result = await plan(flow(approved));
+    expect(mocks.generate).toHaveBeenCalledTimes(3);
+    expect(result.navigationPlan).toMatchObject({ enabled: true, decision: "project-native", evidence: { source: "approved-scope" } });
+    expect(result.navigationPlan.items.map((entry) => [entry.label, entry.icon, entry.linkedScreenName])).toEqual([
+      ["Today", "circle", "Today"], ["Pets", "circle", "Pet Library"]]);
+    expect(result.screens.map((screen) => screen.navigationItemId)).toEqual(["today", "pets", null]);
+  });
+});
+
 describe("a flow approved without navigation", () => {
   it("stays without navigation, though the planner drew a bar", async () => {
     respondWith("bar of four");
