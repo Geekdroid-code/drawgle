@@ -6,9 +6,13 @@ vi.mock("server-only", () => ({}));
 
 const generate = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/ai/gemini", () => ({ createGeminiClient: () => ({ models: { generateContent: generate } }) }));
+// These tests are about the model path, so no preset is approved, whatever the presets file holds.
+vi.mock("@/lib/generation/generated/curated-style-presets.json", () => ({ default: {} }));
 
 import { hexDeltaE } from "@/lib/color-lab";
+import { loadableFontFamily } from "@/lib/font-stack";
 import { generateDesignTokens } from "@/lib/generation/service";
+import { buildGoogleFontHref } from "@/lib/token-runtime";
 import type { DesignStylePack, ReferenceAnalysis } from "@/lib/types";
 
 /** What the token model returned for the pet project. */
@@ -198,6 +202,57 @@ describe("generateDesignTokens measures and calibrates", () => {
     expect(tokenPromptText()).not.toContain("MEASURED COLORS");
     expect(tokens.tokens?.color?.background?.primary).toBe("#F9F6F0");
     expect(tokens.tokens?.radii?.app).toBe("20px");
+  });
+});
+
+describe("generateDesignTokens checks the analysis against the curator's notes", () => {
+  it("gives the token model a curated reference's notes on its typeface and density", async () => {
+    await generateDesignTokens({
+      prompt: "A pet app", image: await referenceImage(), referenceMode: "curated_style", referenceId: "mindfulness-meditation-beige-light", referenceAnalysis: analysis,
+    });
+    expect(tokenPromptText()).toContain("CURATOR'S NOTES");
+    expect(tokenPromptText()).toContain("Typography character: geometric sans, functional ui sans.");
+  });
+
+  it("has no notes to give for an uploaded reference", async () => {
+    await generateDesignTokens({ prompt: "A pet app", image: await referenceImage(), referenceMode: "user_style", referenceAnalysis: analysis });
+    expect(tokenPromptText()).not.toContain("CURATOR'S NOTES");
+  });
+});
+
+describe("generateDesignTokens keeps the fonts the evidence chose", () => {
+  const modelReturns = (typography: Record<string, string>, recommendedFonts: string[]) =>
+    generate.mockImplementation(async (request: { config?: { systemInstruction?: string } }) =>
+      String(request.config?.systemInstruction ?? "").includes("elite mobile product Art Director")
+        ? { text: "{}" }
+        : { text: JSON.stringify({ ...modelTokens, meta: { recommendedFonts }, tokens: { ...modelTokens.tokens, typography } }) });
+  const generateFor = async () => generateDesignTokens({
+    prompt: "A wellness app", image: await referenceImage(), referenceMode: "curated_style", referenceAnalysis: analysis,
+  });
+
+  it("keeps one family for both roles when the model chose one, as a single-typeface reference has", async () => {
+    modelReturns({ heading_font_family: '"Manrope", sans-serif', body_font_family: '"Manrope", sans-serif' }, ["Manrope"]);
+    const typography = (await generateFor()).tokens?.typography;
+    expect(typography?.heading_font_family).toBe('"Manrope", sans-serif');
+    expect(typography?.body_font_family).toBe('"Manrope", sans-serif');
+  });
+
+  it("does not keep a generic keyword or a device-only face as a font, so that the canvas loads real ones", async () => {
+    // what the preset build of the mindfulness reference got back: headings in `serif`, body in `sans-serif`
+    modelReturns({ heading_font_family: "serif", body_font_family: '"sans-serif", sans-serif' }, ["New York", "SF Pro Display", "Lora", "Inter"]);
+    const tokens = await generateFor();
+    expect(loadableFontFamily(tokens.tokens?.typography?.heading_font_family)).toBe("Lora");
+    expect(loadableFontFamily(tokens.tokens?.typography?.body_font_family)).toBe("Inter");
+    const href = buildGoogleFontHref(tokens) ?? "";
+    expect(href).toContain("family=Lora");
+    expect(href).toContain("family=Inter");
+  });
+
+  it("still gives two families to a model that named two", async () => {
+    modelReturns({ heading_font_family: '"Fraunces", serif', body_font_family: '"Inter", sans-serif' }, ["Fraunces", "Inter"]);
+    const typography = (await generateFor()).tokens?.typography;
+    expect(typography?.heading_font_family).toBe('"Fraunces", serif');
+    expect(typography?.body_font_family).toBe('"Inter", sans-serif');
   });
 });
 

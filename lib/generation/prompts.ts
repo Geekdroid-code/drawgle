@@ -6,6 +6,7 @@ import { formatReferenceTransferContract } from "@/lib/generation/reference-tran
 import { DRAWGLE_GENERATION_COMPLETE_SENTINEL } from "@/lib/generation/screen-quality";
 import { formatScreenFamilyContract } from "@/lib/generation/screen-family-contract";
 import { formatStyleComponents } from "@/lib/generation/style-components";
+import { buildTypographyRoleContract } from "@/lib/generation/type-roles";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import type { BuildScreenInput, DesignTokens, NavigationArchitecture, ScreenAssetManifest, ScreenChromeKind, ScreenChromePolicy, ScreenPlan, NavigationPlan } from "@/lib/types";
 
@@ -546,6 +547,7 @@ After extracting the precise structural and material facts, also report what the
 Use language that names the character without judging it. This voice description gives the builder something to express, not just something to copy. It is the difference between the builder reproducing values blindly and the builder understanding what those values are *for*.
 
 Rules:
+- Typeface: name it from the letterforms of the largest headings, never from an impression of the style. Serif faces have small feet or flared ends on their strokes; letters that end plainly are sans-serif, and you say which kind (geometric, grotesque, humanist, rounded). A light word beside a bold word is one typeface in two weights, not a pair of typefaces: report two typefaces only when two clearly different letterforms are visible.
 - Multi-screen handling: describe visible phone screens/panels left-to-right. screenCountEstimate counts only visible phone screens/panels; bottom/side tabs, segmented controls, carousel dots, menu items, and labels inside one screen are not screens.
 - Frame completeness: return exactly one screenReferences entry per counted visible screen. boundingBox uses normalized 0-1 coordinates relative to the uploaded image and encloses that screen's visible frame.
 - Visual forensics: before summarizing, inspect each visible screen from absolute background to topmost layer. For every meaningful layer/region, name what it is, where it sits, what contains it, what it contains, and how it separates from the layer behind.
@@ -639,6 +641,8 @@ ${surfaceClassificationRules}
 
 Rules:
 - Classify, do not measure. Radius and elevation are reported only through radiusClass and surfaceElevation. Never write px or pt sizes, hex colour codes, opacity percentages or blur values into any field: colours are measured from the pixels in code. Describe character and relationships instead, for example "cards a tone lighter than the page with no shadow, and tiles a step darker inside the cards".
+- Typeface: name it from the letterforms of the largest headings, never from an impression of the style. Serif faces have small feet or flared ends on their strokes; letters that end plainly are sans-serif, and you say which kind (geometric, grotesque, humanist, rounded). A light word beside a bold word is one typeface in two weights, not a pair of typefaces: report two typefaces only when two clearly different letterforms are visible.
+- Spacing: describe how the gaps relate to each other, not how they feel. For example "cards sit close together, a section title sits nearer its own content than the block above it, and card padding is about the same as the gap between cards". Do not call a layout airy, spacious, generous or relaxed unless the gaps between neighbouring blocks are clearly larger than the padding inside the blocks.
 - Extract 2-6 semanticCompositionPrimitives that explain why the reference composition feels intentional. Each must name its functional purpose, suitability and anti-suitability, adaptation logic, and observable quality details. Do not encode exact section order, coordinates, literal component counts, or source-domain objects in a primitive.
 - Batch selection: return detailed briefs only for roadmap.initial_batch_keys, in that exact order, with the matching roadmap_stable_key. Never replace a selected roadmap item with an unselected one.
 - Return exactly one screenReferences entry for every visible phone screen or app frame counted by screenCountEstimate. boundingBox uses normalized 0-1 image coordinates.
@@ -688,8 +692,8 @@ Shape follows a hierarchy: cards are at most 24px, inset surfaces use the inner 
       "border": { "divider": "HEX", "focused": "HEX" }
     },
     "typography": {
-      "heading_font_family": "CSS font stack used only for headings",
-      "body_font_family": "Different compatible CSS font stack used for all non-heading text",
+      "heading_font_family": "CSS font stack for headings: a real Google Fonts family first, then a generic fallback",
+      "body_font_family": "CSS font stack for all non-heading text: the same family as the headings when the evidence shows one typeface, otherwise a compatible family",
       "nav_title": { "size": "px", "weight": "number", "line_height": "px" },
       "screen_title": { "size": "px", "weight": "number", "line_height": "px" },
       "hero_title": { "size": "px", "weight": "number", "line_height": "px" },
@@ -728,8 +732,10 @@ Shape follows a hierarchy: cards are at most 24px, inset surfaces use the inner 
 
 Rules:
 - recommendedFonts should be a short list of fonts that fit the direction, beginning with the selected heading and body families.
-- heading_font_family and body_font_family are mandatory and must use different primary font families. Never place both selected families into one universal stack.
-- spacing and mobile_layout must be chosen intentionally from the approved evidence, but should still read as one consistent rhythm system across the product. screen_margin defaults to 16px and needs explicit measured evidence to be larger.
+- heading_font_family and body_font_family are mandatory CSS font stacks. The first entry of each is a real family that Google Fonts serves, followed by a generic fallback. It is never a generic keyword on its own (serif, sans-serif, system-ui) and never a face that only some devices have (SF Pro, New York, Helvetica Neue): those load nothing, and the screen falls back to the browser's default font.
+- Typefaces come from the evidence, not from a wish for contrast. When the evidence is an image, read them from the letterforms: serif faces have small feet or flared ends on their strokes, and letters that end plainly are sans-serif. Words in different weights of one typeface (a light word beside a bold one) are ONE family: give heading_font_family and body_font_family the same family and build the hierarchy from size and weight. Choose two different families only when two clearly different letterforms are visible, or when the creative direction calls for a display face.
+- Type roles follow the evidence too. nav_title is the small title in a top app bar, about the size of a section_title. screen_title is the heading that opens a root screen. hero_title is a display-size headline and, when the evidence shows none, stays close to screen_title. Title weights match the weight the evidence shows; do not default titles to bold.
+- spacing and mobile_layout come from the gaps the evidence shows, read against the phone's width (a 393px-wide screen), and read as one consistent rhythm across the product. element_gap is the space between neighbouring blocks that belong together (sibling cards, a field and the chips under it). section_gap is the space before a new titled section and is normally a step larger than element_gap. Typical premium mobile layouts use 8-12px between the rows of one list, 12-16px between neighbouring blocks and 20-28px before a new section; use larger values only when the evidence clearly shows them. Words such as airy, spacious, generous or relaxed describe a feeling and are not evidence for larger gaps. screen_margin defaults to 16px and needs explicit measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
 - color.surface.card is the raised surface and color.surface.inset the tile or field inside it: a tone step each, in the same hue family as the page. Tints and accents come from the evidence, not from invented hues.
 - Use radii.app for outer cards, sheets, panels, inputs, and navigation shells; it never exceeds 24px.
@@ -739,7 +745,7 @@ Rules:
 - shadows.surface is "none" unless the evidence shows cast shadows on cards; shadows.overlay is only for stronger overlays like sheets or floating panels.
 - Use gradients as first-class material tokens when the approved evidence or creative direction uses gradient depth. Provide app_background, action_primary, surface_highlight, and accent_ring values as complete CSS gradient strings. Keep them disciplined and role-based, not a grab bag of decorative effects.
 - If the visual direction is flat/minimal, gradients may be very subtle two-stop values derived from the flat color tokens rather than loud decorative fills.
-- Keep token relationships coherent. Example: airy systems should not use cramped section gaps; sharp systems should not use very soft pill-heavy radii except where intentionally contrasting.
+- Keep token relationships coherent. Example: sharp systems should not use very soft pill-heavy radii except where intentionally contrasting.
 - Keep touch targets mobile-safe even when the visual style is compact.
 
 Output ONLY valid JSON.`;
@@ -824,8 +830,8 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Standard border width: ${standardBorder}`,
     `- Shadows: only where a token defines one. Surface shadow: ${/^\s*none\s*$/i.test(surfaceShadow) ? "none, so cards separate by tone" : surfaceShadow}. Overlay shadow: ${overlayShadow} (sheets and floating panels only).`,
     `- Screen margin: ${screenMargin}`,
-    `- Section gap: ${sectionGap}`,
-    `- Element gap: ${elementGap}`,
+    `- Section gap (the space before a new titled section): ${sectionGap}`,
+    `- Element gap (the space between neighbouring blocks that belong together): ${elementGap}`,
     `- Standard button height: ${buttonHeight}`,
     `- Standard input height: ${inputHeight}`,
     `- Primary text color: ${textHigh}`,
@@ -833,21 +839,6 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Body font family: ${bodyFontFamily} (metrics, copy, controls, labels, and all remaining text)`,
   ].join("\n");
 };
-
-const buildTypographyRoleContract = () => [
-  "- Use typography.nav_title only for top bars, modal headers, and compact detail headers.",
-  "- Use typography.screen_title as the default title for normal app feature screens.",
-  "- Use typography.hero_title only for onboarding, empty states, splash/editorial hero moments, or explicitly large marketing-like screen headlines.",
-  "- Use typography.section_title for cards, grouped content, list sections, and panel headers.",
-  "- Use typography.metric_value only for balances, prices, counters, scores, and numeric hero data.",
-  "- Use typography.body for primary body copy, list item titles, and main descriptive text.",
-  "- Use typography.supporting for supporting copy, subtitles, and secondary descriptions.",
-  "- Use typography.caption for metadata, helper text, timestamps, micro-labels, and small status text.",
-  "- Use typography.button_label for all button labels, pill actions, segmented controls, and tappable navigation labels.",
-  "- Font families are strict: nav_title, screen_title, hero_title, and section_title use typography.heading_font_family; every other text role uses typography.body_font_family.",
-  "- Never use the heading family for metrics, body copy, controls, button labels, tabs, captions, or navigation labels. Never invent a third font family.",
-  "- Do not substitute hero_title for screen_title. Do not invent ad hoc text sizes or font weights outside these semantic roles unless the UI truly requires a one-off chart annotation.",
-].join("\n");
 
 const compactPromptField = (value: unknown, fallback = "none") => {
   if (value === null || value === undefined) {
@@ -1131,7 +1122,7 @@ const buildDesignThinking = (mode: GenerationPromptMode) => {
       : "1. Read the creative direction and tokens as a designer would. Commit to this product's signature moves: one focal device, how surfaces separate (tone and soft elevation rather than lines), a small control vocabulary, and a clear type contrast.",
     `2. Give this screen one focal element for its main job and build it with ${source}'s focal device. Everything else recedes through size, tone, and spacing.`,
     `3. Wherever this screen needs a filter, secondary action, status, progress, or completion control, use ${source}'s version of that control instead of a stock widget.`,
-    "4. Build hierarchy from scale, weight, and tone with at most three levels. Group content into calm islands: generous space between groups, tight spacing inside them.",
+    "4. Build hierarchy from scale, weight, and tone with at most three levels. Group content into calm islands: tight spacing inside a group, more between groups, following the token rhythm.",
     "5. Show status and priority with small devices (chips, dots, tinted pills, icons), never with colored side borders or edge stripes.",
     mode === "style"
       ? "6. Final check: would this screen sit next to the reference as the same product by the same designer? Redesign any region that looks like a generic admin template."
@@ -1210,6 +1201,7 @@ const buildScreenInstruction = ({
       "MODE CONTRACT: IMAGE_TO_UI. The application has confirmed that an image is attached. Treat it as the highest-priority structural evidence for this screen route.",
       "Preserve visible layer order, containment, layout mechanics, edge/depth treatment, navigation style family, and component construction while honoring the project tokens and screen brief.",
       "If rebuilding a screenshot, prioritize its exact original structure and material choices above all else.",
+      "Proportions and spacing follow the image: its frame is a 393px-wide screen, so compare each block's height and each gap with that width and reproduce them. The token spacing is the vocabulary for expressing them, not a reason to open the layout up; where the image is tighter than a token, use a smaller spacing token.",
     ].join(" ")
     : mode === "style"
       ? [
@@ -1259,9 +1251,9 @@ Avoid generic AI-app defaults like stacking identical blocks down the screen. Ca
 
 CRITICAL INSTRUCTION 0.75: HUMAN LAYOUT PREFLIGHT
 Mentally plan spatial orchestration before writing HTML.
-Preflight checklist: establish viewport budget (header, focal center, nav clearance), build flexible containers for real text wraps, and strictly contrast micro-groupings (tight gaps) with macro-sections (section-gap tokens).
+Preflight checklist: establish viewport budget (header, focal center, nav clearance), build flexible containers for real text wraps, and make grouping visible through spacing (tight inside a group, more between groups).
 Use one horizontal rail across the app, normally px-[var(--dg-mobile-layout-screen-margin)] unless the brief explicitly calls for full-bleed media.
-Use one vertical rhythm from the tokens: major sections use gap-[var(--dg-mobile-layout-section-gap)], card internals use p-[var(--dg-spacing-md)] or a clearly tighter token, and small icon/label groups use gap-[var(--dg-spacing-xs)].
+Use one vertical rhythm from the tokens, in three levels. (1) Inside a group (the rows of one list, chips in a rail, a label and its value): gap-[var(--dg-spacing-xs)] to gap-[var(--dg-spacing-sm)]. (2) Between neighbouring blocks that belong together (a header row, a search field, a chip rail, the card that follows them; sibling cards): gap-[var(--dg-mobile-layout-element-gap)]. (3) Before a new titled section: gap-[var(--dg-mobile-layout-section-gap)]. A section title and the content it introduces are one group, so use level 1 or 2 between them, never level 3, and never put the section gap between every block. Card internals use p-[var(--dg-spacing-md)] or a clearly tighter token, and small icon/label groups use gap-[var(--dg-spacing-xs)].
 If shared bottom navigation is injected, mark exactly one real scroll/main content wrapper with dg-shared-nav-clearance and data-drawgle-nav-clearance-owner="true". The renderer supplies its padding; never add a manual bottom-padding formula or empty spacer.
 Every compact card, list row, chip row, and nav-adjacent area must be designed for real text: use min-w-0 on flex text groups, truncate or wrap intentionally, avoid fixed heights that cannot contain the copy, and never let labels collide with icons, badges, prices, or chevrons.
 Every chart, map, gauge, progress ring, or visual panel must contain visible constructed geometry. Do not leave blank chart cards, empty axes, empty map panels, or placeholder rectangles.
@@ -1269,7 +1261,7 @@ If a row/card contains more than two text lines plus controls, increase its heig
 
 CRITICAL INSTRUCTION 1: LIVE DESIGN TOKENS
 You MUST use Drawgle live token utility classes and CSS variables for canonical colors, typography, spacing, sizing, radii, borders, and shadows.
-Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-body, dg-type-caption.
+Preferred examples: dg-bg-primary, dg-surface-card, dg-text-high, dg-text-medium, dg-action-primary, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.
 For token values without a named utility, use Tailwind arbitrary values with CSS variables, e.g. bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], p-[var(--dg-spacing-md)], rounded-[var(--dg-radii-app)]. Outer surfaces use radii.app, nested/inset surfaces use radii.inner, and only true capsules/circular wells use radii.pill.
 Do NOT freeze project token values as raw hex or raw pixels when a token variable exists. Token gradients are canonical for expressive CTAs, app backgrounds, surface highlights, and accent rings. Raw/custom gradients are allowed only for deliberate one-off art details such as charts, maps, illustrations, or non-system lighting effects.
 Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a design token exists for that purpose.
@@ -1277,6 +1269,9 @@ Do NOT invent additional radius tiers, border widths, or shadow strengths. Use o
 
 STRICT DESIGN CONTRACT:
 ${buildStrictDesignContract(designTokens)}
+
+TYPE ROLES:
+${buildTypographyRoleContract()}
 
 ${designStyleContract ? `STYLE CONTRACT:\n${designStyleContract}\n` : ""}
 
@@ -1299,9 +1294,9 @@ ${buildTokenPromptContext(designTokens, "compact_visual")}
 
 ${sharedNavigationSection}OUTPUT RULES:
 - Root element MUST be exactly: <div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
-- Typography family lock: nav_title, screen_title, hero_title, and section_title use var(--dg-typography-heading-font-family). Metrics, body, supporting text, captions, buttons, controls, tabs, and navigation labels use var(--dg-typography-body-font-family). Use the matching dg-type-* class and never add inline font-family declarations or arbitrary font-family utilities.
+- Typography family lock: nav_title, screen_title, hero_title, and section_title use var(--dg-typography-heading-font-family). Metrics, body, supporting text, captions, buttons, controls, tabs, and navigation labels use var(--dg-typography-body-font-family). Use the matching dg-type-* class from TYPE ROLES and never add inline font-family declarations or arbitrary font-family utilities.
 - Safe areas: top container pt-[${safeTop}]. Without shared navigation, bottom content may use pb-[${safeBottom}]. With shared navigation, use only the renderer-owned dg-shared-nav-clearance marker described above.
-- Clickable controls: min-h-[${minTouch}].
+- Clickable controls: at least ${minTouch} tall. An icon-only button is a square of exactly that size (w-[${minTouch}] h-[${minTouch}]); never pair a smaller fixed size with min-h, which stretches a circle into an oval. A small icon beside a title (an arrow or chevron) keeps its visual size and only its hit area grows (padding with a matching negative margin), so the title row is not forced to ${minTouch}.
 - Text colors: use token classes/vars such as dg-text-high or text-[var(--dg-color-text-high-emphasis)] (current high text ${textHigh}).
 - Token lock: major app surfaces, backgrounds, cards, text, actions, nav-adjacent regions, radii, shadows, and spacing must use dg-* utilities or var(--dg-*). Do not use bg-white, bg-gray-*, text-black, raw hex/rgb, or arbitrary px values for system styling when an approved token role exists.
 - No phone frame, device mockup, notch, status bar, markdown fence, html/head/body tags, scripts, JSX, React, className, JS expressions, arrays, map(), template literals, or class/style objects.
@@ -1310,7 +1305,7 @@ ${sharedNavigationSection}OUTPUT RULES:
 - Match supplied project memory, creative direction, naming, IA, and interaction patterns without cloning an unrelated screen.
 - Build every named requirement in Screen Description: all cards, metrics, controls, labels, charts, avatar stacks, CTAs, and visual panels.
 - Allow vertical scrolling for long content; do not clip required bottom content with overflow-hidden.
-- Main content should normally use px-[var(--dg-mobile-layout-screen-margin)] and gap-[var(--dg-mobile-layout-section-gap)] unless the brief requires full-bleed media/maps.
+- Main content should normally use px-[var(--dg-mobile-layout-screen-margin)] and the three-level vertical rhythm from the layout preflight (never one gap between every block), unless the brief requires full-bleed media/maps.
 - Final self-audit: no horizontal overflow, nav overlap, clipped CTA, unreadable/empty chart, blank visual panel, text-icon collision, or random spacing drift.
 - Bitmap assets: declare only APPROVED VISUAL ASSET MANIFEST slots. Never write remote bitmap URLs. Inline data:image/svg+xml is allowed only for simple vector geometry.
 - End with sentinel on its own final line: ${DRAWGLE_GENERATION_COMPLETE_SENTINEL}`;

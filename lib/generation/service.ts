@@ -19,9 +19,11 @@ import {
   normalizeDesignTokens,
   type CalibrationEvidence,
 } from "@/lib/design-tokens";
+import { resolveFontFamilies } from "@/lib/font-stack";
 import { describeSurfaceClasses, describeTokenLanguage } from "@/lib/generation/design-classes";
 import { stripDesignValues, stripDesignValuesDeep } from "@/lib/generation/design-value-scrub";
 import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/generation/measured-colors";
+import { curatedReferenceNotes } from "@/lib/generation/curated-reference-notes";
 import { mergePresetTokens, presetSpecimen, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
 import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
 import { omitCraftBars } from "@/lib/generation/semantic-inspiration";
@@ -912,30 +914,19 @@ const buildApprovedDesignTokens = (
       screen_margin: screenMargin,
     };
 
+    // A font the app can load is kept as the model chose it, one family for both roles included: a
+    // reference set in a single typeface has a single typeface. Only a role with no loadable font
+    // (a generic keyword such as `serif`, a device-only face, nothing) is filled in.
     const typography = next.tokens.typography ?? {};
-    const primaryFamily = (value?: string) => value
-      ?.split(",")[0]
-      ?.replace(/["']/g, "")
-      .trim()
-      .toLowerCase() ?? "";
-    const recommendedFonts = next.meta?.recommendedFonts?.filter((value) => value.trim()) ?? [];
-    const heading = typography.heading_font_family?.trim()
-      || (recommendedFonts[0] ? `"${recommendedFonts[0]}", sans-serif` : '"Manrope", sans-serif');
-    const bodyCandidate = typography.body_font_family?.trim();
-    const compatibleBody = bodyCandidate && primaryFamily(bodyCandidate) !== primaryFamily(heading)
-      ? bodyCandidate
-      : recommendedFonts
-        .find((family) => primaryFamily(family) !== primaryFamily(heading));
-    const body = compatibleBody
-      ? (compatibleBody.includes(",") ? compatibleBody : `"${compatibleBody}", sans-serif`)
-      : primaryFamily(heading) === "inter"
-        ? 'system-ui, sans-serif'
-        : '"Inter", system-ui, sans-serif';
-
+    const fonts = resolveFontFamilies({
+      heading: typography.heading_font_family,
+      body: typography.body_font_family,
+      recommended: next.meta?.recommendedFonts ?? [],
+    });
     next.tokens.typography = {
       ...typography,
-      heading_font_family: heading,
-      body_font_family: body,
+      heading_font_family: fonts.heading,
+      body_font_family: fonts.body,
     };
   }
 
@@ -4192,6 +4183,10 @@ export async function generateDesignTokens({
           : `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
       });
     }
+
+    // The curator's notes on a curated reference's typeface and density check what the analysis says of them.
+    const curatorNotes = resolvedReferenceMode === "curated_style" ? curatedReferenceNotes(referenceId) : null;
+    if (curatorNotes) parts.push({ text: curatorNotes });
 
     if (creativeDirection) {
       parts.push({

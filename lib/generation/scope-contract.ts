@@ -2,6 +2,7 @@ import {
   referenceAnalysisRecreateInstruction,
   referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
+import { curatedReferenceNotes } from "@/lib/generation/curated-reference-notes";
 import { presetReferenceAnalysis, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
 import { normalizeRadiusClass, normalizeSurfaceElevation } from "@/lib/generation/design-classes";
 import {
@@ -975,11 +976,14 @@ export async function analyzeReferenceImageForScope({
     const promptPartText = prompt.trim()
       ? `User/Product Intent: "${prompt}"`
       : "Analyze the mobile UI reference image and describe the visible screen anatomy.";
+    // A curated reference has notes on its typeface and density from the person who added it.
+    const curatorNotes = resolvedReferenceMode === "curated_style" ? curatedReferenceNotes(referenceId) : null;
     const parts: Array<Record<string, unknown>> = [
       inlineImage,
       {
         text: promptPartText,
       },
+      ...(curatorNotes ? [{ text: curatorNotes }] : []),
     ];
 
     llmLog?.("[LLM INPUT] reference-analysis", {

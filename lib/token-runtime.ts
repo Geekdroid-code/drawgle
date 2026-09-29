@@ -1,4 +1,5 @@
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { loadableFontFamily } from "@/lib/font-stack";
 import type { DesignTokens, DesignTokenValues } from "@/lib/types";
 
 type CssVariable = {
@@ -21,22 +22,6 @@ export type TokenPromptMode =
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value);
-
-const GENERIC_FONT_FAMILIES = new Set([
-  "sans-serif",
-  "serif",
-  "monospace",
-  "system-ui",
-  "ui-sans-serif",
-  "ui-serif",
-  "ui-monospace",
-  "-apple-system",
-  "blinkmacsystemfont",
-  "segoe ui",
-  "emoji",
-  "math",
-  "fangsong",
-]);
 
 const HEADING_TYPOGRAPHY_TOKEN_KEYS = [
   "nav_title",
@@ -84,61 +69,11 @@ const escapeHtmlAttribute = (value: string) =>
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-const parseFontFamilyList = (fontFamily?: string | null) => {
-  const value = fontFamily?.trim();
-  if (!value) {
-    return [];
-  }
-
-  const families: string[] = [];
-  let current = "";
-  let quote: string | null = null;
-
-  for (const character of value) {
-    if ((character === "'" || character === "\"") && !quote) {
-      quote = character;
-      continue;
-    }
-
-    if (quote === character) {
-      quote = null;
-      continue;
-    }
-
-    if (character === "," && !quote) {
-      if (current.trim()) {
-        families.push(current.trim());
-      }
-      current = "";
-      continue;
-    }
-
-    current += character;
-  }
-
-  if (current.trim()) {
-    families.push(current.trim());
-  }
-
-  return families
-    .map((family) => family.replace(/^['"]|['"]$/g, "").trim())
-    .filter(Boolean);
-};
-
-const validGoogleFontFamily = (fontFamily?: string | null) => {
-  const family = parseFontFamilyList(fontFamily)[0];
-  if (!family) return null;
-
-  const lowerFamily = family.toLowerCase();
-  if (GENERIC_FONT_FAMILIES.has(lowerFamily) || lowerFamily.startsWith("var(")) return null;
-  return /^[\p{L}\p{N} ._-]+$/u.test(family) ? family : null;
-};
-
 export const getPrimaryGoogleFontFamilies = (designTokens?: DesignTokens | null) => {
   const normalized = normalizeDesignTokens(designTokens ?? {});
   return {
-    heading: validGoogleFontFamily(normalized.tokens?.typography?.heading_font_family),
-    body: validGoogleFontFamily(normalized.tokens?.typography?.body_font_family),
+    heading: loadableFontFamily(normalized.tokens?.typography?.heading_font_family),
+    body: loadableFontFamily(normalized.tokens?.typography?.body_font_family),
   };
 };
 
@@ -399,7 +334,7 @@ export function buildTokenUsageGuide(designTokens?: DesignTokens | null) {
 
   return [
     "Use Drawgle's live project tokens for canonical styling.",
-    `Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-inset, ${TINT_UTILITY_CLASSES}, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-caption, dg-type-button-label.`,
+    `Prefer these utility classes when they match the intended role: dg-bg-primary, dg-bg-secondary, dg-surface-card, dg-surface-inset, ${TINT_UTILITY_CLASSES}, dg-surface-bottom-sheet, dg-text-high, dg-text-medium, dg-text-low, dg-action-primary, dg-gradient-action-primary, dg-gradient-app-background, dg-gradient-surface-highlight, dg-gradient-accent-ring, dg-border-divider, dg-radius-app, dg-radius-inner, dg-radius-pill, dg-shadow-surface, dg-type-nav-title, dg-type-screen-title, dg-type-hero-title, dg-type-section-title, dg-type-metric-value, dg-type-body, dg-type-supporting, dg-type-caption, dg-type-button-label.`,
     "Use dg-radius-app for outer cards, sheets, panels, and navigation surfaces; dg-radius-inner for nested cards, inset panels, segmented tabs, and active navigation items; and dg-radius-pill only for true capsules and circles.",
     "For token values without a named utility, use Tailwind arbitrary values with CSS variables, for example bg-[var(--dg-color-action-primary)], [background-image:var(--dg-gradient-action-primary)], text-[var(--dg-color-text-high-emphasis)], rounded-[var(--dg-radii-inner)], shadow-[var(--dg-shadows-surface)].",
     "Use token gradients for canonical gradient fills. Use raw hex, raw pixels, and custom gradients only for deliberate one-off visual details such as charts, maps, illustrations, or non-system accent marks.",
@@ -433,6 +368,7 @@ const compactVisualTokenPrefixes = [
   "typography.body_font_family",
   "typography.nav_title",
   "typography.screen_title",
+  "typography.hero_title",
   "typography.section_title",
   "typography.metric_value",
   "typography.body",
