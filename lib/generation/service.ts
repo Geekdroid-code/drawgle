@@ -85,6 +85,7 @@ import {
   analyzeReferenceImageForScope,
   preflightGenerationScope,
   resolveGenerationScopeContract,
+  resultForKnownAnalysis,
 } from "@/lib/generation/scope-contract";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
@@ -3220,14 +3221,7 @@ export async function planUiFlow({
     ?? null;
   const referenceAnalysisResult: ReferenceAnalysisResult | null = referencePreflight?.referenceAnalysisResult
     ?? (referenceAnalysis
-      ? {
-          analysis: referenceAnalysis,
-          screenCountEstimate: referenceAnalysis.screenCountEstimate,
-          screenReferenceCount: referenceAnalysis.screenReferences.length,
-          confidence: "medium",
-          source: "salvaged_analysis",
-          diagnostics: ["Reference analysis was provided by caller."],
-        }
+      ? resultForKnownAnalysis(referenceAnalysis, "Reference analysis was provided by caller.", "medium")
       : null);
   const resolvedScopeContract = scopeContract ?? resolveGenerationScopeContract({
     prompt,
