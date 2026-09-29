@@ -901,6 +901,7 @@ const buildApprovedDesignTokens = (
   candidate: unknown,
   screenMargin = "16px",
   calibration: CalibrationEvidence | null = null,
+  { keepDeviceFaces = false }: { keepDeviceFaces?: boolean } = {},
 ): DesignTokens => {
   if (!isRecord(candidate)) {
     throw new Error("Design generation did not return a valid mobile_universal_core token object.");
@@ -922,6 +923,7 @@ const buildApprovedDesignTokens = (
       heading: typography.heading_font_family,
       body: typography.body_font_family,
       recommended: next.meta?.recommendedFonts ?? [],
+      keepDeviceFaces,
     });
     next.tokens.typography = {
       ...typography,
@@ -4245,8 +4247,8 @@ export async function generateDesignTokens({
           system_schema?: string;
           meta?: DesignTokenMetadata;
           tokens?: DesignTokenValues;
-        }, screenMargin, calibration)
-      : buildApprovedDesignTokens(rawTokens, screenMargin, calibration);
+        }, screenMargin, calibration, { keepDeviceFaces: presetNamesFonts })
+      : buildApprovedDesignTokens(rawTokens, screenMargin, calibration, { keepDeviceFaces: presetNamesFonts });
     return preset ? mergePresetTokens({ preset, generated, fonts: presetNamesFonts }) : generated;
   } catch (error) {
     console.error("Failed to generate design tokens", error);

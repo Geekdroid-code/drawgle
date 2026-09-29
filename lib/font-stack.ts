@@ -89,14 +89,20 @@ export const parseFontFamilyList = (fontFamily?: string | null) => {
     .filter(Boolean);
 };
 
-/** The family a stack asks for first, when that is a real font the app can load by name. */
-export const loadableFontFamily = (fontFamily?: string | null): string | null => {
+/** The family a stack asks for first, when that is a font name and not a keyword. */
+export const namedFontFamily = (fontFamily?: string | null): string | null => {
   const family = parseFontFamilyList(fontFamily)[0];
   if (!family) return null;
 
   const lower = family.toLowerCase();
-  if (GENERIC_FONT_FAMILIES.has(lower) || DEVICE_ONLY_FONT_FAMILIES.has(lower) || lower.startsWith("var(")) return null;
+  if (GENERIC_FONT_FAMILIES.has(lower) || lower.startsWith("var(")) return null;
   return /^[\p{L}\p{N} ._-]+$/u.test(family) ? family : null;
+};
+
+/** The family a stack asks for first, when that is a real font the app can load by name. */
+export const loadableFontFamily = (fontFamily?: string | null): string | null => {
+  const family = namedFontFamily(fontFamily);
+  return family && !DEVICE_ONLY_FONT_FAMILIES.has(family.toLowerCase()) ? family : null;
 };
 
 const DEFAULT_HEADING_STACK = '"Manrope", sans-serif';
@@ -110,21 +116,27 @@ const stackOf = (family: string) => `"${family}", sans-serif`;
  * sets everything in one typeface gets one typeface, with hierarchy from size and weight. Only a role
  * with no loadable font is filled in: from the fonts the model recommended, and then from the neutral UI
  * defaults.
+ *
+ * A user who named fonts keeps them even when only some devices have them (`keepDeviceFaces`): the canvas
+ * cannot load such a face, but replacing a font the user asked for is worse than drawing a fallback.
  */
 export function resolveFontFamilies({
   heading,
   body,
   recommended = [],
+  keepDeviceFaces = false,
 }: {
   heading?: string | null;
   body?: string | null;
   recommended?: readonly string[];
+  keepDeviceFaces?: boolean;
 }): { heading: string; body: string } {
-  const named = recommended.map((family) => family.trim()).filter((family) => loadableFontFamily(family));
-  const chosenHeading = loadableFontFamily(heading) ? String(heading).trim() : named[0] ? stackOf(named[0]) : DEFAULT_HEADING_STACK;
-  if (loadableFontFamily(body)) return { heading: chosenHeading, body: String(body).trim() };
+  const usable = keepDeviceFaces ? namedFontFamily : loadableFontFamily;
+  const named = recommended.map((family) => usable(family)).filter((family): family is string => Boolean(family));
+  const chosenHeading = usable(heading) ? String(heading).trim() : named[0] ? stackOf(named[0]) : DEFAULT_HEADING_STACK;
+  if (usable(body)) return { heading: chosenHeading, body: String(body).trim() };
 
-  const headingFamily = loadableFontFamily(chosenHeading)?.toLowerCase();
+  const headingFamily = usable(chosenHeading)?.toLowerCase();
   const other = named.find((family) => family.toLowerCase() !== headingFamily);
   return { heading: chosenHeading, body: other ? stackOf(other) : DEFAULT_BODY_STACK };
 }

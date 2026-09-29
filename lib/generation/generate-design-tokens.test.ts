@@ -248,6 +248,22 @@ describe("generateDesignTokens keeps the fonts the evidence chose", () => {
     expect(href).toContain("family=Inter");
   });
 
+  it("keeps a font the user named, even one that only some devices have, and does not ask Google Fonts for it", async () => {
+    modelReturns({ heading_font_family: '"SF Pro Display", sans-serif', body_font_family: '"SF Pro Display", sans-serif' }, ["SF Pro Display"]);
+    const tokens = await generateDesignTokens({
+      prompt: "A wellness app", image: await referenceImage(), referenceMode: "curated_style", referenceAnalysis: analysis,
+      designRequirements: [
+        "EXPLICIT USER DESIGN REQUIREMENTS",
+        "Preserve these evidenced choices.",
+        JSON.stringify([{ id: "typography", label: "Typography", detail: "Use the SF Pro Display font", evidence: "the user said so" }]),
+      ].join("\n"),
+    });
+    expect(tokens.tokens?.typography?.heading_font_family).toBe('"SF Pro Display", sans-serif');
+    expect(tokens.tokens?.typography?.body_font_family).toBe('"SF Pro Display", sans-serif');
+    // a request that names a face Google Fonts does not serve fails as a whole, so none is made
+    expect(buildGoogleFontHref(tokens)).toBeNull();
+  });
+
   it("still gives two families to a model that named two", async () => {
     modelReturns({ heading_font_family: '"Fraunces", serif', body_font_family: '"Inter", sans-serif' }, ["Fraunces", "Inter"]);
     const typography = (await generateFor()).tokens?.typography;

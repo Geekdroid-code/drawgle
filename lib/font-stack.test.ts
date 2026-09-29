@@ -55,6 +55,19 @@ describe("resolveFontFamilies", () => {
       .toEqual({ heading: '"Manrope", sans-serif', body: '"Inter", sans-serif' });
   });
 
+  it("keeps a font the user named even when only some devices have it, and never a bare keyword", () => {
+    const named = { heading: '"SF Pro Display", sans-serif', body: "Inter, sans-serif", recommended: ["SF Pro Display", "Inter"] };
+    expect(resolveFontFamilies({ ...named, keepDeviceFaces: true })).toEqual({ heading: '"SF Pro Display", sans-serif', body: "Inter, sans-serif" });
+    // without the user's say, the same answer is replaced by a font the canvas can load
+    expect(resolveFontFamilies(named).heading).toBe('"Inter", sans-serif');
+    expect(resolveFontFamilies({ heading: "serif", body: "sans-serif", keepDeviceFaces: true }))
+      .toEqual({ heading: '"Manrope", sans-serif', body: '"Inter", sans-serif' });
+  });
+
+  it("builds a fallback stack from the family's name, not from a whole stack", () => {
+    expect(resolveFontFamilies({ heading: "serif", recommended: ["Lora, Georgia, serif"] }).heading).toBe('"Lora", sans-serif');
+  });
+
   it("gives a missing body the first other recommended family, or the neutral sans", () => {
     expect(resolveFontFamilies({ heading: '"Space Grotesk", sans-serif', recommended: ["Space Grotesk", "DM Sans"] }))
       .toEqual({ heading: '"Space Grotesk", sans-serif', body: '"DM Sans", sans-serif' });
