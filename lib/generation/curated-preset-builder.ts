@@ -1,7 +1,5 @@
 import { createHash } from "node:crypto";
 
-import sharp from "sharp";
-
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import type { CuratedStyleReference } from "@/lib/generation/curated-style-catalog";
 import {
@@ -9,7 +7,8 @@ import {
   curatedStyleEntryHash,
   type CuratedStylePreset,
 } from "@/lib/generation/curated-style-presets";
-import { measureReferencePalette, type NormalizedBox } from "@/lib/generation/reference-palette";
+import { measureReferencePalette } from "@/lib/generation/reference-palette";
+import { boxOf, cropToBox, pickSpecimenScreen } from "@/lib/generation/specimen-build";
 import { extractStyleComponents } from "@/lib/generation/style-component-extraction";
 import type {
   DesignTokens,
@@ -61,34 +60,8 @@ export type PresetBuildResult = {
   notes: string[];
 };
 
-const boxOf = (screen: ReferenceScreenAnalysis): NormalizedBox | null => {
-  const box = screen.boundingBox;
-  return box && [box.x, box.y, box.width, box.height].every((value) => Number.isFinite(value)) ? box : null;
-};
-
-/** The phone with the most components to learn from; the larger one, then the first, on a tie. */
-export function pickSpecimenScreen(analysis: ReferenceAnalysis): ReferenceScreenAnalysis {
-  const area = (screen: ReferenceScreenAnalysis) => {
-    const box = boxOf(screen);
-    return box ? box.width * box.height : 0;
-  };
-  return [...analysis.screenReferences].sort((left, right) =>
-    right.components.length - left.components.length || area(right) - area(left) || left.index - right.index)[0];
-}
-
-/** One phone out of the reference, with a hair of margin so that its rounded corners are not clipped. */
-export async function cropToBox(image: PromptImagePayload, box: NormalizedBox): Promise<PromptImagePayload> {
-  const bytes = Buffer.from(image.data, "base64");
-  const { width = 0, height = 0 } = await sharp(bytes).metadata();
-  const margin = 0.005;
-  const left = Math.max(0, Math.floor((box.x - margin) * width));
-  const top = Math.max(0, Math.floor((box.y - margin) * height));
-  const right = Math.min(width, Math.ceil((box.x + box.width + margin) * width));
-  const bottom = Math.min(height, Math.ceil((box.y + box.height + margin) * height));
-  if (right - left < 16 || bottom - top < 16) throw new Error("The screen's box is too small to crop.");
-  const cropped = await sharp(bytes).extract({ left, top, width: right - left, height: bottom - top }).png().toBuffer();
-  return { data: cropped.toString("base64"), mimeType: "image/png" };
-}
+// The phone is chosen and cropped the same way for an uploaded reference (see specimen-build.ts).
+export { cropToBox, pickSpecimenScreen };
 
 function assertCompleteAnalysis(result: ReferenceAnalysisResult): ReferenceAnalysis {
   const analysis = result.analysis;

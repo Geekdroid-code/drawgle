@@ -33,6 +33,7 @@ import {
   withCuratedPreset,
   withCuratedPresetApproval,
 } from "@/lib/generation/curated-style-presets";
+import { specimenBuildInput } from "@/lib/generation/specimen-build";
 
 import { renderPresetPreview } from "./preview";
 
@@ -89,25 +90,7 @@ async function realDeps(): Promise<PresetBuildDeps> {
       referenceAnalysis: analysis, ignorePreset: true,
     }),
     buildSpecimen: async ({ reference, image, screen, tokens }) => {
-      const built = await buildScreenCode({
-        screenPlan: {
-          name: screen.suggestedRole,
-          type: "root",
-          description: [
-            screen.layoutSummary,
-            screen.visualHierarchy,
-            `Components: ${screen.components.join(", ")}`,
-            `Styling: ${screen.stylingCues.join("; ")}`,
-          ].join("\n"),
-        },
-        prompt: reference.styleIntent,
-        designTokens: tokens,
-        image,
-        referenceMode: "user_recreate",
-        referenceScope: "project",
-        requiresBottomNav: false,
-        specimenMarking: true,
-      });
+      const built = await buildScreenCode(specimenBuildInput({ image, screen, tokens, intent: reference.styleIntent }));
       return built.code;
     },
   };

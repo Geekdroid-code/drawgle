@@ -96,6 +96,21 @@ describe("generateDesignTokens measures and calibrates", () => {
     expect(Object.keys(values.color?.accent_tints ?? {}).length).toBeGreaterThan(0);
   });
 
+  it("measures and calibrates an uploaded style reference the same way, with no catalogue id and no preset", async () => {
+    const tokens = await generateDesignTokens({
+      prompt: "An app for families with multiple pets",
+      image: await referenceImage(),
+      referenceMode: "user_style",
+      referenceAnalysis: analysis,
+    });
+    expect(tokenPromptText()).toContain("MEASURED COLORS (from the reference pixels; authoritative).");
+    const values = tokens.tokens!;
+    expect(values.radii?.app).toBe("20px");
+    expect(values.shadows?.surface).toBe("none");
+    expect(hexDeltaE(values.color!.background!.primary!, "#ECE9D6")).toBeLessThan(2);
+    expect(hexDeltaE(values.color!.surface!.card!, "#F7F5E9")).toBeLessThan(2);
+  });
+
   it("calibrates prompt-only tokens too, without a palette", async () => {
     const tokens = await generateDesignTokens({ prompt: "A recipe app", referenceMode: "internal_style", referenceAnalysis: null });
     expect(tokenPromptText()).not.toContain("MEASURED COLORS");

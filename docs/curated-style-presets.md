@@ -75,5 +75,5 @@ If a preset is wrong, edit the JSON by hand (a component's `use` line, say) or b
 ## Limits
 
 - The hash covers the entry's id, image address and text. An image replaced at the same address is not noticed; build again when you replace one.
-- An uploaded reference has no preset. Step 7 of the plan gives it the same treatment at the project's first generation.
+- An uploaded reference has no preset. It gets the same treatment at run time instead: its colours are measured when its tokens are made, and at the project's first generation its main screen is rebuilt with the reusable components marked (`lib/generation/upload-specimen.ts`, built while the approval card is shown), so its components reach every screen's builder as markup. Nobody reviews that specimen.
 - Presets are used for prompt-to-UI, where a curated reference is chosen for the project. Image to UI is not touched.

@@ -10,7 +10,8 @@ import { compileDesignRequirements } from "@/lib/product-planning/design-require
 import { reconcileTokensWithDesignRequirements } from "@/lib/product-planning/reconcile-design";
 import { compileProductContent } from "@/lib/product-planning/content-contract";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
-import { generateDesignTokens, planUiFlow } from "@/lib/generation/service";
+import { buildScreenCode, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
+import { startUploadSpecimen, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
 import { planVisualAssets } from "@/lib/generation/visual-assets";
 import { analyzeReferenceImageForScope } from "@/lib/generation/scope-contract";
 import { getDesignStylePack } from "@/lib/generation/design-styles";
@@ -94,12 +95,25 @@ export const prepareProductScopeTask = task({
     if (latestBeforePlanError) throw latestBeforePlanError;
     const latestState = readProductPlanning(latestBeforePlan?.product_planning);
     if (latestState?.scope?.generationRunId) return { skipped: true, reason: "build_started" };
+    // An uploaded style reference is learned once, while the person reads the approval card: its main screen is
+    // rebuilt with its components marked, beside planning. It costs one extra build and never fails the preparation.
+    const uploadSpecimen = startUploadSpecimen({
+      applies: { referencePolicy: reference.policy, referenceMode: reference.mode, isNewProject: state.phase === "discovery",
+        screenScoped: false, image, analysis: analysis.analysis, tokens, existing: shared.charter?.referenceDna?.specimen ?? null },
+      input: () => ({ image: image!, analysis: analysis.analysis!, tokens: tokens! }),
+      buildScreen: buildScreenCode,
+      onSettled: ({ specimen, notes, error }) => {
+        if (error) logger.warn("Upload specimen skipped: the build failed", { projectId, error });
+        else logger.info("Upload specimen", { projectId, components: specimen?.components.length ?? 0, notes });
+      },
+    });
     const plan = await planUiFlow({ productPlanning: approved, productExecutionKeys: keys,
       prompt, image, referenceMode: reference.mode, referenceId: reference.referenceId,
       referenceCatalogHash: reference.catalogHash, designStyle, designTokens: tokens,
       scopeContract: productScopeContract(approved, reference.mode, keys),
       referenceAnalysis: analysis.analysis, existingCharter: shared.charter,
       existingNavigationPlan: shared.navigationPlan, planningMode: "project" });
+    plan.charter = withReferenceSpecimen(plan.charter, await uploadSpecimen);
     if (!recreate) {
       const content = compileProductContent(state);
       if (content) plan.screens = await reviewScreenContent(plan.screens, content);

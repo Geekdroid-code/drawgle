@@ -78,6 +78,7 @@ import {
 } from "@/lib/generation/screen-quality";
 import {
   buildNavigationShellCode,
+  buildScreenCode,
   buildScreenStream,
   extractCode,
   fallbackProjectCharter,
@@ -95,6 +96,7 @@ import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { styleComponentsOf } from "@/lib/generation/style-components";
+import { startUploadSpecimen, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
 import {
   bindReservationToScreen,
   captureGenerationCredit,
@@ -2727,6 +2729,24 @@ export const generateUiFlowTask = task({
         scopePreparationKeys, payload.productExecutionKeys, referenceMode) : null;
     const preparedPlan = scopePlan ?? (preparationRootId && preparationKey
       ? await readPreparedPlan(admin, preparationRootId, payload.ownerId, preparationKey) : null);
+    // An uploaded style reference is learned once, at the project's first generation: its main screen is
+    // rebuilt with its components marked, beside planning, and the components go on the reference DNA that
+    // every later batch reuses. It costs one extra build and never blocks or fails the generation. (When the
+    // plan was prepared ahead, the preparation task made it; see trigger/prepare-product-scope.ts.)
+    const uploadSpecimenPromise = startUploadSpecimen({
+      applies: {
+        referencePolicy, referenceMode, isNewProject: payload.isNewProject, screenScoped,
+        image: promptImage, analysis: referenceAnalysis, tokens: designTokens,
+        existing: preparedPlan?.charter?.referenceDna?.specimen ?? projectReferenceDna?.specimen ?? null,
+        plannedAhead: Boolean(preparedPlan),
+      },
+      input: () => ({ image: promptImage!, analysis: referenceAnalysis!, tokens: designTokens! }),
+      buildScreen: buildScreenCode,
+      onSettled: ({ specimen, notes, error }) => {
+        if (error) logger.warn("Upload specimen skipped: the build failed", { generationRunId: payload.generationRunId, error });
+        else logger.info("Upload specimen", { generationRunId: payload.generationRunId, components: specimen?.components.length ?? 0, notes });
+      },
+    });
     let plan = preparedPlan ?? (hasSeedScreens
       ? {
           requiresBottomNav: Boolean(payload.navigationPlan?.enabled),
@@ -2805,6 +2825,7 @@ export const generateUiFlowTask = task({
           },
           llmLog: llmLogFor("blueprint"),
         }));
+    plan.charter = withReferenceSpecimen(plan.charter, await uploadSpecimenPromise);
 
     if (!preparedPlan && shouldPlanScreenBriefsFromSeeds) {
       if (!requestedCharter) {
