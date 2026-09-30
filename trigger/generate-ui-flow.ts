@@ -123,6 +123,7 @@ import {
   detectLocalNavigationMarkup,
   indexNavigationShell,
   normalizeNavigationPlan,
+  removesMostOfTheScreen,
   sanitizeScreenCodeForSharedNavigation,
 } from "@/lib/project-navigation";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
@@ -1667,6 +1668,15 @@ export const buildScreenTask = task({
       latestAttempt.assetSanitizationWarnings = assetSanitization.warnings;
     }
     let code = assetSanitization.code;
+    // Cleaning the build up must never leave the screen empty. One that lost most of its content here is failed, so
+    // that it can be built again, and never saved as a blank "ready" screen.
+    if (removesMostOfTheScreen(extractedCode, code)) {
+      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      return failWithoutSavingGeneratedCode({
+        error: "[screen_generation:emptied_by_cleanup] Cleaning up the built screen removed most of it, so it was not saved.",
+        metadata: { attempts },
+      });
+    }
     const localNavigation = payload.navigationPlan?.enabled
       ? detectLocalNavigationMarkup(code)
       : { hasLocalNavigation: false, reasons: [], candidates: [] };

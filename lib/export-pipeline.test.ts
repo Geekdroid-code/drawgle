@@ -142,6 +142,9 @@ describe("export pipeline", () => {
     expect(html).toContain("Home Tab");
     expect(html).toContain('=== "home"');
     expect(html).not.toContain("secret-home");
+    // icon names Lucide cannot find as written are repaired before it draws them
+    expect(html.indexOf("drawgleRepairLucideNames();")).toBeGreaterThan(html.indexOf("function drawgleRepairLucideNames"));
+    expect(html.indexOf("drawgleRepairLucideNames();")).toBeLessThan(html.indexOf("window.lucide.createIcons();"));
   });
 
   it("builds a target-specific prompt containing the compiled visual source for only the selected screen", () => {

@@ -1,5 +1,7 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
+import { hexDeltaE } from "@/lib/color-lab";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { parseShadowLayers } from "@/lib/shadow-css";
 import { formatDesignStyleContract } from "@/lib/generation/design-styles";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
@@ -672,7 +674,7 @@ Treat these as platform constraints, not stylistic variables: safe_area_top, saf
 Treat these as dynamic design variables that should change when the approved evidence changes: spacing rhythm, section gaps, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
 Use 16px as the production baseline for mobile screen_margin. Deviate only when the user explicitly requests another margin or the approved evidence contains clear measured screen-edge padding; vague words such as airy, spacious, premium, or generous are not evidence for a larger margin. Never enlarge the outer margin merely to create whitespace because it squeezes the usable content rail.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
-Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (raised one tone step from the page), then inset (tiles and fields inside cards: one tone step from the card), then tints (wells and chips) when the evidence has them, then one focal accent or gradient surface. Surfaces separate the way the evidence shows (tone, a thin border or a shadow); with no evidence, choose what suits the product.
+Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (every card or tile that sits on the page, one tone step from it: lighter, or darker as grey tiles on a white page are), then inset (tiles and fields inside cards: one tone step from the card), then tints (wells and chips) when the evidence has them, then one focal accent or gradient surface. Surfaces separate the way the evidence shows (tone, a thin border or a shadow); with no evidence, choose what suits the product.
 Shape follows a hierarchy taken from the evidence: cards use the app radius (up to 24px suits most products; larger only when the evidence or the user clearly shows it), inset surfaces the inner radius, and controls and icon wells the pill radius only when the evidence shows capsules and circles. Keep one border width.
 
  REQUIRED JSON SCHEMA:
@@ -738,7 +740,7 @@ Rules:
 - nav_title is the small title of a top app bar, screen_title heads a root screen, and hero_title is a display headline that only exists when the evidence shows one. Title weights follow the evidence; do not default them to bold.
 - spacing and mobile_layout come from the gaps the evidence shows, read against the phone's width (393px), as one consistent rhythm. element_gap is the space between neighbouring blocks that belong together, and section_gap the space before a new titled section, normally a step larger. Typical premium mobile layouts use 8-12px between the rows of one list, 12-16px between neighbouring blocks and 20-28px before a new section, but the evidence decides: a dense product goes tighter and an editorial one larger. Feelings such as airy or generous are not evidence for larger gaps. screen_margin defaults to 16px and needs measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
-- color.surface.card is the raised surface and color.surface.inset the tile or field inside it: usually a tone step each in the page's hue family, unless the evidence separates surfaces another way. Tints and accents come from the evidence, not from invented hues.
+- color.surface.card is the surface of every card and tile that sits on the page, and color.surface.inset the tile or field inside a card: usually a tone step each in the page's hue family, unless the evidence separates surfaces another way. A card the page's own colour, with no shadow the evidence shows, disappears into the page. Tints and accents come from the evidence, not from invented hues.
 - Use radii.app for outer cards, sheets, panels, inputs, and navigation shells.
 - Use radii.inner for nested cards, inset panels, segmented tabs, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
 - Use radii.pill only for true capsules and circular wells.
@@ -798,7 +800,25 @@ const resolveToken = (
   return typeof current === "string" ? current : fallback;
 };
 
-const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
+/** Below this difference (CIEDE2000), a card is the page's own colour. */
+const SAME_SURFACE_DELTA_E = 1.5;
+/** A surface shadow fainter than this does not set a card apart from a page of the same colour. */
+const VISIBLE_SHADOW_ALPHA = 0.05;
+
+/**
+ * Whether a card drawn with the card token would disappear into the page: the two are one colour and no visible
+ * shadow separates them. An Image to UI project's tokens put a white-on-white page and card beside a grey inset, and
+ * a builder that put every tile on the card rung drew the source's grey tiles white on white.
+ */
+export const cardDisappearsIntoPage = (designTokens?: DesignTokens | null) => {
+  const tokens = normalizeDesignTokens(designTokens)?.tokens;
+  const difference = hexDeltaE(tokens?.color?.surface?.card, tokens?.color?.background?.primary);
+  if (difference === null || difference >= SAME_SURFACE_DELTA_E) return false;
+  return !parseShadowLayers(tokens?.shadows?.surface).some((layer) =>
+    !layer.inset && layer.alpha >= VISIBLE_SHADOW_ALPHA && (layer.blur > 0 || layer.spread > 0 || layer.x !== 0 || layer.y !== 0));
+};
+
+const buildStrictDesignContract = (designTokens?: DesignTokens | null, mode?: GenerationPromptMode) => {
   const appRadius = resolveToken(designTokens, "radii.app", "18px");
   const innerRadius = resolveToken(designTokens, "radii.inner", "12px");
   const pillRadius = resolveToken(designTokens, "radii.pill", "9999px");
@@ -815,17 +835,24 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const bodyFontFamily = resolveToken(designTokens, "typography.body_font_family", "sans-serif");
   const color = normalizeDesignTokens(designTokens)?.tokens?.color;
   const tintCount = Object.keys(color?.accent_tints ?? {}).length;
+  // A card the page's colour would vanish on it, so the first rung on the page is the inset fill, and the card
+  // colour goes to what sits inside it.
+  const onPage = color?.surface?.inset && cardDisappearsIntoPage(designTokens);
   // The rungs a project's tokens define. Old projects have a page and a card, and keep only those.
   const ladder = [
     "page (dg-bg-primary)",
-    "card (dg-surface-card)",
-    color?.surface?.inset ? "inset tile or field inside a card (dg-surface-inset)" : null,
+    ...(onPage
+      ? ["card or tile on the page (dg-surface-inset, because the card colour is the page's)", "field or control inside it (dg-surface-card)"]
+      : ["card (dg-surface-card)", color?.surface?.inset ? "inset tile or field inside a card (dg-surface-inset)" : null]),
     tintCount > 0 ? `tint wells and chips (dg-tint-1 to dg-tint-${tintCount})` : null,
     "one focal accent (dg-action-primary or a token gradient)",
   ].filter(Boolean).join(" → ");
 
   return [
-    `- Surface ladder, back to front: ${ladder}. Separate surfaces the way the tokens do, by stepping one rung and by the surface shadow or border token where one is defined; do not invent other borders or shadows.`,
+    // Image to UI takes each surface's fill from its source image, as it did before there was a ladder.
+    mode === "recreate"
+      ? null
+      : `- Surface ladder, back to front: ${ladder}. Separate surfaces the way the tokens do, by stepping one rung and by the surface shadow or border token where one is defined; do not invent other borders or shadows.`,
     `- Radius roles: card ${appRadius} (cards, sheets, panels, fields, and navigation shells); inner ${innerRadius} (tiles and fields inside a card, segmented tabs, and active navigation items); pill ${pillRadius} (capsule controls); circle ${pillRadius} on a square element (icon wells and avatars).`,
     `- Standard border width: ${standardBorder}`,
     `- Shadows: only where a token defines one. Surface shadow: ${/^\s*none\s*$/i.test(surfaceShadow) ? "none, so cards separate by tone" : surfaceShadow}. Overlay shadow: ${overlayShadow} (sheets and floating panels only).`,
@@ -837,7 +864,7 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Primary text color: ${textHigh}`,
     `- Heading font family: ${headingFontFamily} (titles only)`,
     `- Body font family: ${bodyFontFamily} (metrics, copy, controls, labels, and all remaining text)`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 };
 
 const compactPromptField = (value: unknown, fallback = "none") => {
@@ -1268,7 +1295,7 @@ Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a desig
 Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.
 
 STRICT DESIGN CONTRACT:
-${buildStrictDesignContract(designTokens)}
+${buildStrictDesignContract(designTokens, mode)}
 
 TYPE ROLES:
 ${buildTypographyRoleContract()}

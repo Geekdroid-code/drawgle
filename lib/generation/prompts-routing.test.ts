@@ -7,6 +7,7 @@ import {
   buildPromptScreenInstruction,
   buildRecreateScreenInstruction,
   buildStyleScreenInstruction,
+  cardDisappearsIntoPage,
   plannerBlueprintStepInstruction,
   plannerScreenBriefStepInstruction,
   referenceAnalysisStyleInstruction,
@@ -132,7 +133,8 @@ describe("state-scoped prompt construction", () => {
   it("asks for a surface ladder instead of one card recipe, in every mode", () => {
     for (const mode of modes) {
       const instruction = buildDesignInstruction(mode);
-      expect(instruction).toContain("page, then card (raised one tone step from the page)");
+      // a card is whatever sits on the page, darker as well as lighter: grey tiles on a white page are cards
+      expect(instruction).toContain("page, then card (every card or tile that sits on the page, one tone step from it: lighter, or darker as grey tiles on a white page are)");
       expect(instruction).toContain("then inset (tiles and fields inside cards");
       expect(instruction).toContain("then tints (wells and chips) when the evidence has them");
       // how surfaces separate and what shape controls take come from the evidence, not from one aesthetic
@@ -146,7 +148,8 @@ describe("state-scoped prompt construction", () => {
       expect(instruction).toContain("meta.tints is true only when the evidence shows tinted wells or chips");
       expect(instruction).not.toMatch(/pastel|at most one strong dark control|controls are pills/);
       expect(instruction).toContain('"inset": "HEX one tone step from card"');
-      expect(instruction).toContain("color.surface.card is the raised surface and color.surface.inset the tile or field inside it");
+      expect(instruction).toContain("color.surface.card is the surface of every card and tile that sits on the page, and color.surface.inset the tile or field inside a card");
+      expect(instruction).toContain("A card the page's own colour, with no shadow the evidence shows, disappears into the page.");
       // the old single-recipe instruction is gone
       expect(instruction).not.toContain("prefer a single standard surface radius");
       expect(instruction).not.toContain("a single standard surface shadow");
@@ -539,15 +542,53 @@ describe("builder inputs that carry the reference's component vocabulary", () =>
       expect(contract).toContain("Surface shadow: 0 12px 32px rgba(15,23,42,0.14).");
     });
 
-    it("reads the same in every mode", () => {
+    it("reads the same in the style and prompt modes, and leaves Image to UI's surfaces to its source image", () => {
       for (const instruction of [
-        buildRecreateScreenInstruction({ ...screenInput, designTokens: tokensWithLadder }),
         buildStyleScreenInstruction({ ...screenInput, designTokens: tokensWithLadder }),
         buildPromptScreenInstruction({ ...screenInput, designTokens: tokensWithLadder }),
       ]) {
         expect(instruction).toContain("Surface ladder, back to front");
         expect(instruction).toContain("Radius roles: card 20px");
       }
+      // Image to UI has no ladder, as before there was one: its source image shows which fill each surface takes.
+      // With one, the first live copy of a white app with grey tiles came out white on white.
+      const recreate = buildRecreateScreenInstruction({ ...screenInput, designTokens: tokensWithLadder });
+      expect(recreate).not.toContain("Surface ladder");
+      expect(recreate).toContain("Radius roles: card 20px");
+      expect(recreate).not.toMatch(/\n\n- Radius roles/);
+    });
+
+    // The live Image to UI project's tokens: a white page, white cards with a faint shadow, and the grey in the inset.
+    const whiteOnWhite = normalizeDesignTokens({
+      system_schema: "mobile_universal_core",
+      tokens: {
+        color: {
+          background: { primary: "#FFFFFF", secondary: "#F8F9FA" },
+          surface: { card: "#FFFFFF", inset: "#F5F5F5", bottom_sheet: "#FFFFFF", modal: "#FFFFFF" },
+          text: { high_emphasis: "#000000", medium_emphasis: "#8E8E93", low_emphasis: "#8B8B8F" },
+          action: { primary: "#FFF176", secondary: "#BDE4F4", on_primary_text: "#000000" },
+          border: { divider: "#F0F0F0", focused: "#C5E9F1" },
+        },
+        radii: { app: "32px", inner: "16px", pill: "9999px" },
+        shadows: { surface: "0px 4px 12px rgba(0, 0, 0, 0.03)", overlay: "0px 8px 24px rgba(0, 0, 0, 0.08)" },
+      },
+    });
+
+    it("puts a tile on the page on the inset fill when a card would be the page's colour with nothing to set it apart", () => {
+      expect(cardDisappearsIntoPage(whiteOnWhite)).toBe(true);
+      const style = buildStyleScreenInstruction({ ...screenInput, designTokens: whiteOnWhite });
+      expect(style).toContain("Surface ladder, back to front: page (dg-bg-primary) → card or tile on the page (dg-surface-inset, because the card colour is the page's) → field or control inside it (dg-surface-card) → one focal accent");
+    });
+
+    it("keeps cards on the card rung when they differ from the page, or a visible shadow sets them apart", () => {
+      expect(cardDisappearsIntoPage(tokensWithLadder)).toBe(false);
+      const lifted = normalizeDesignTokens({ ...whiteOnWhite, tokens: { ...whiteOnWhite!.tokens, shadows: { surface: "0px 8px 24px rgba(0, 0, 0, 0.08)" } } });
+      expect(cardDisappearsIntoPage(lifted)).toBe(false);
+      expect(buildStyleScreenInstruction({ ...screenInput, designTokens: lifted })).toContain("page (dg-bg-primary) → card (dg-surface-card) → inset tile or field inside a card (dg-surface-inset)");
+      // a page and card of one colour with no shadow and no inset keeps the two rungs it has
+      const bare = normalizeDesignTokens({ system_schema: "mobile_universal_core", tokens: { color: { background: { primary: "#FFFFFF" }, surface: { card: "#FFFFFF" } }, shadows: { surface: "none" } } });
+      expect(buildStyleScreenInstruction({ ...screenInput, designTokens: bare })).toContain("page (dg-bg-primary) → card (dg-surface-card) → one focal accent");
+      expect(cardDisappearsIntoPage(null)).toBe(false);
     });
   });
 

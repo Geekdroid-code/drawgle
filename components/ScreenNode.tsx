@@ -9,6 +9,7 @@ import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildStandaloneHtmlExport, resolveScreenNavigationCode } from "@/lib/export-pipeline";
 import { buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
+import { LUCIDE_NAME_REPAIR_SCRIPT } from "@/lib/lucide-runtime";
 import { createClient } from "@/lib/supabase/client";
 import { ensureDrawgleIds, stripDrawgleIds, type DrawgleBoundingRect, type DrawgleEditableMetadata } from "@/lib/drawgle-dom";
 import { DRAWGLE_STYLE_PROPERTY_CONFIGS, type DrawgleStyleValueMap } from "@/lib/element-style-inspection";
@@ -1317,11 +1318,14 @@ export function ScreenNode({
             }
           });
 
+          ${LUCIDE_NAME_REPAIR_SCRIPT}
+
           function refreshLucideIconsWithRetry() {
             var attempts = 0;
             function run() {
               attempts += 1;
               if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                drawgleRepairLucideNames();
                 window.lucide.createIcons();
                 return;
               }

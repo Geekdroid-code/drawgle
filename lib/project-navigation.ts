@@ -42,6 +42,20 @@ const slugify = (value: string, fallback: string) => {
   return slug || fallback;
 };
 
+/**
+ * A Lucide icon name as the runtime looks it up: kebab case. Planners also write the component name ("FileText",
+ * "BarChart3"), which lower-cased alone becomes "filetext", an icon that does not exist, so a tab drew nothing.
+ */
+export const lucideIconName = (value: string | null | undefined, fallback = "circle") =>
+  slugify(
+    (value ?? "")
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+      .replace(/([A-Z]+)([A-Z][a-z])/g, "$1-$2")
+      .replace(/([a-zA-Z])(\d)/g, "$1-$2"),
+    fallback,
+  );
+
 const clampNumber = (value: unknown, min: number, max: number, fallback: number) =>
   typeof value === "number" && Number.isFinite(value)
     ? Math.min(max, Math.max(min, Math.round(value)))
@@ -384,7 +398,7 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
     const generated = item.availability !== "planned" && Boolean(item.linkedScreenName);
     const id = escapeAttribute(item.id);
     const label = escapeHtml(item.label);
-    const icon = escapeAttribute(slugify(item.icon, "circle"));
+    const icon = escapeAttribute(lucideIconName(item.icon));
     const linkedScreen = generated && item.linkedScreenName ? ` data-linked-screen-name="${escapeAttribute(item.linkedScreenName)}"` : "";
     const centerAction = centerActionItemId === item.id;
     return [
@@ -578,7 +592,7 @@ export function deriveReferenceNavigationPlan({
     return {
       id,
       label,
-      icon: slugify(item.icon, "circle"),
+      icon: lucideIconName(item.icon),
       role: `${label} primary product destination`,
       availability: linkedScreen ? "generated" as const : "planned" as const,
       linkedScreenName: linkedScreen?.name ?? null,
@@ -723,21 +737,28 @@ export function normalizeNavigationPlan({
       !generatedScreenNames.has(matchedScreen.name.toLowerCase())
       ? matchedScreen
       : null;
+    // A later batch of a product is checked against its own screens, but a tab that already opens a screen built
+    // in an earlier batch still opens it: without this, Home turned "planned" once the other tabs' screens were built.
+    const earlierLink = !validGeneratedScreen && !strictScreenLinks && rawItem.availability === "generated" && rawLinkedName
+      && !generatedScreenNames.has(rawLinkedName.toLowerCase())
+      ? rawLinkedName
+      : null;
+    const linkedScreenName = validGeneratedScreen?.name ?? earlierLink;
 
-    if (!validGeneratedScreen && !isV2 && strictScreenLinks) continue;
+    if (!linkedScreenName && !isV2 && strictScreenLinks) continue;
 
     seenIds.add(id);
     seenLabels.add(labelKey);
     seenRoles.add(roleKey);
-    if (validGeneratedScreen) generatedScreenNames.add(validGeneratedScreen.name.toLowerCase());
+    if (linkedScreenName) generatedScreenNames.add(linkedScreenName.toLowerCase());
 
     normalizedItems.push({
       id,
       label,
-      icon: slugify(rawItem.icon || "circle", "circle"),
+      icon: lucideIconName(rawItem.icon),
       role,
-      availability: validGeneratedScreen ? "generated" : "planned",
-      linkedScreenName: validGeneratedScreen?.name ?? null,
+      availability: linkedScreenName ? "generated" : "planned",
+      linkedScreenName,
     });
   }
 
@@ -950,7 +971,9 @@ export function sanitizeScreenCodeForSharedNavigation(
   if (!options.projectNavigationEnabled && !screenPlan.chromePolicy?.showPrimaryNavigation && !screenPlan.navigationItemId) return code;
 
   let sanitized = code;
-  const commentPattern = /<!--[\s\S]*?(?:floating\s+dock|floating\s+navigation|bottom\s+nav|bottom\s+navigation|navigation\s+(?:dock|pill|bar|surface|shell)|tab\s+bar|dock\s+navigation|shared\s+shell\s+simulation|visual\s+mockup\s+for\s+screen\s+context)[\s\S]*?-->/gi;
+  // One comment at a time: a body that may not run past its own "-->". Unbounded, the pattern ran from a screen's
+  // first comment to a later one that mentioned the bottom nav, and the whole screen was taken for that comment.
+  const commentPattern = /<!--(?:(?!-->)[\s\S])*?(?:floating\s+dock|floating\s+navigation|bottom\s+nav|bottom\s+navigation|navigation\s+(?:dock|pill|bar|surface|shell)|tab\s+bar|dock\s+navigation|shared\s+shell\s+simulation|visual\s+mockup\s+for\s+screen\s+context)(?:(?!-->)[\s\S])*?-->/gi;
   for (const comment of Array.from(sanitized.matchAll(commentPattern)).reverse()) {
     const commentStart = comment.index ?? -1;
     if (commentStart < 0) continue;
@@ -977,8 +1000,18 @@ export function sanitizeScreenCodeForSharedNavigation(
 
   sanitized = removeHighConfidenceFixedBottomNavigationDivs(sanitized).trim();
 
-  return sanitized;
+  // A screen's own tab bar is a small part of it. A removal that would take most of the screen has mistaken the
+  // screen for a bar, so the screen is kept as the builder wrote it.
+  return removesMostOfTheScreen(code, sanitized) ? code.trim() : sanitized;
 }
+
+const elementCount = (code: string) => (code.match(/<[a-z][a-z0-9-]*\b/gi) ?? []).length;
+
+/** Whether cleaning a screen's code left less than half of its elements (out of a screen of more than a few). */
+export const removesMostOfTheScreen = (before: string, after: string) => {
+  const total = elementCount(before);
+  return total >= 12 && elementCount(after) < total * 0.5;
+};
 export function applyNavigationDesignEdit(navigationPlan: NavigationPlan, prompt: string): NavigationPlan {
   if (navigationPlan.version !== 2 || !navigationPlan.enabled) return navigationPlan;
 
@@ -1061,7 +1094,7 @@ export function parseStoredNavigationPlan(value: unknown): NavigationPlan {
     return [{
       id: slugify(typeof item.id === "string" ? item.id : item.label, `destination-${index + 1}`),
       label: item.label.trim().slice(0, 18),
-      icon: slugify(typeof item.icon === "string" ? item.icon : "circle", "circle"),
+      icon: lucideIconName(typeof item.icon === "string" ? item.icon : null),
       role: item.role.trim().slice(0, 160),
       linkedScreenName,
       availability: item.availability === "planned" || !linkedScreenName ? "planned" : "generated",

@@ -3,6 +3,7 @@ import { renderProductSpecification, type ProductSpecification } from "@/lib/exp
 
 import { buildPublicDesignMdDocument } from "@/lib/design-md";
 import { buildDrawgleExportRuntimeCss, buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
+import { LUCIDE_DRAW_ICONS_CALL, LUCIDE_NAME_REPAIR_SCRIPT } from "@/lib/lucide-runtime";
 import {
   extractFixedBottomNodes,
   generateTokenHeaderComment,
@@ -237,7 +238,8 @@ ${cleanScreen}
       ${cleanNavigation ? `<div id="drawgle-export-navigation">${cleanNavigation}</div>` : ""}
     </div>
     <script>
-      if (window.lucide && typeof window.lucide.createIcons === "function") window.lucide.createIcons();
+      ${LUCIDE_NAME_REPAIR_SCRIPT}
+      ${LUCIDE_DRAW_ICONS_CALL}
       document.querySelectorAll("[data-nav-item-id]").forEach(function(item) {
         var active = item.getAttribute("data-nav-item-id") === ${JSON.stringify(cleanActiveNavigationItemId)};
         item.setAttribute("data-active", active ? "true" : "false");
@@ -283,7 +285,8 @@ ${buildDrawgleExportRuntimeCss(snapshot.tokenCss, { includeNavigation: false })}
 ${snapshot.cleanScreenHtml}
     </div>
     <script>
-      if (window.lucide && typeof window.lucide.createIcons === "function") window.lucide.createIcons();
+      ${LUCIDE_NAME_REPAIR_SCRIPT}
+      ${LUCIDE_DRAW_ICONS_CALL}
     <\/script>
   </body>
 </html>`;
