@@ -132,7 +132,10 @@ export function extractStyleComponents(html: string): ExtractedStyleComponents {
     }
     if (seen.has(name)) return;
     seen.add(name);
-    if (RENDERER_OWNED.test(name) || element.type === "tag" && element.tagName === "nav") {
+    // A top bar is often built as a <nav>: only a bottom bar is the renderer's. The live sneaker kit lost its detail
+    // top bar, marked "header-detail" on a <nav>, and its detail screens drew their own.
+    const topBar = /(^|-)(header|top-bar|topbar|app-bar|appbar|title-bar)(-|$)/.test(name);
+    if (RENDERER_OWNED.test(name) || element.type === "tag" && element.tagName === "nav" && !topBar) {
       skipped.push({ name, reason: "the status bar and the shared navigation are drawn by the renderer, not by screens" });
       return;
     }

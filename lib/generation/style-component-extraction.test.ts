@@ -37,6 +37,17 @@ describe("extractStyleComponents", () => {
     expect(components[0].use).toBe("a week selector at the top of a day view");
   });
 
+  it("keeps a top bar built as a <nav>, and still leaves the bottom bar to the renderer", () => {
+    const html = `<div>
+      <nav data-dg-component="header-detail" data-dg-use="the top bar of a detail screen" class="flex items-center border-b-4 border-black p-3"><button>Back</button><h1>Title</h1></nav>
+      <nav data-dg-component="dock" class="fixed bottom-0"><a>Home</a><a>Me</a></nav>
+      <nav data-dg-component="links" class="flex"><a>One</a><a>Two</a></nav>
+    </div>`;
+    const { components, skipped } = extractStyleComponents(html);
+    expect(components.map((component) => component.name)).toEqual(["header-detail"]);
+    expect(skipped.map((item) => item.name)).toEqual(["dock", "links"]);
+  });
+
   it("falls back to a use that names the component when the build did not say", () => {
     const { components } = extractStyleComponents(specimen);
     expect(components[2].use).toBe("Use as the health progress donut");

@@ -12,16 +12,18 @@ import type { ProjectReferenceDna, StyleComponent } from "@/lib/types";
 export const MAX_STYLE_COMPONENTS = 10;
 /**
  * Composed components (a featured card, a search field, a highlighted row) come to about 700 to 1150 characters
- * once trimmed. They are what a reference's vocabulary is made of, so a limit below them left only chips and
- * badges. The block budget below is what bounds what a screen build pays.
+ * once trimmed, and a product's main card with its image slot, badges and actions to 1200 to 1500: the live kits lost
+ * a sneaker app's product card (1424) and a beekeeper's yield chart (1475) at a limit of 1200. They are what a
+ * project's vocabulary is made of, so a limit below them leaves only the small parts. The block budget below is
+ * what bounds what a screen build pays.
  */
-export const MAX_STYLE_COMPONENT_HTML_CHARS = 1200;
+export const MAX_STYLE_COMPONENT_HTML_CHARS = 1600;
 /**
- * About 2.2k input tokens, paid for on every screen build at the screen builder's price. It was 6000 while a component
- * was at most 700 characters; with composed components of 400 to 1100, ten of them are about 7000, and the last ones
- * were left out of every build without anyone saying so.
+ * About 3k input tokens, paid for on every screen build at the screen builder's price (a live build is about 10k in).
+ * Ten composed components of 700 to 1500 characters come to about 10000; below that the last ones, often a
+ * product's main card, were left out of every build without anyone saying so.
  */
-export const MAX_STYLE_COMPONENTS_BLOCK_CHARS = 9000;
+export const MAX_STYLE_COMPONENTS_BLOCK_CHARS = 12000;
 
 export const styleComponentSchema = z.object({
   name: z.string().trim().min(1).max(80),
