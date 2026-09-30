@@ -1304,49 +1304,6 @@ export const buildScreenTask = task({
       };
     };
 
-    const failAfterSavingGeneratedCode = async ({
-      error,
-      code,
-      blockIndex,
-      metadata,
-    }: {
-      error: string;
-      code: string;
-      blockIndex: ReturnType<typeof indexScreenCode>;
-      metadata?: Record<string, unknown>;
-    }) => {
-      const userError = toUserFacingScreenError(error);
-      const failurePatch = buildScreenPersistPatch({
-        code,
-        status: "failed",
-        error: userError,
-        blockIndex,
-        chromePolicy: payload.screenPlan.chromePolicy ?? null,
-        navigationItemId: payload.screenPlan.navigationItemId ?? null,
-      });
-      await admin
-        .from("screens")
-        .update(failurePatch)
-        .eq("id", payload.screenId)
-        .eq("generation_run_id", payload.generationRunId)
-        .eq("design_revision", startingRevision);
-
-      logger.warn("Screen generation output was saved with blocking diagnostics", {
-        screenId: payload.screenId,
-        screenName: payload.screenPlan.name,
-        error: userError,
-        rawError: error,
-        ...metadata,
-      });
-
-      return {
-        screenId: payload.screenId,
-        status: "failed" as const,
-        error: userError,
-        usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
-      };
-    };
-
     const persistScreenRow = async (patch: Record<string, unknown>) => {
       if (patch.status === "ready" && typeof patch.code === "string") {
         try {
@@ -1749,20 +1706,24 @@ export const buildScreenTask = task({
     }
 
     if (!assetPolicy.valid) {
-      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      // A finished screen that shows fewer of its critical images than were planned is still the screen: it is kept
+      // and the shortfall recorded. Failing it hid whole screens behind "Generation failed", once for one avatar in ten.
       const missingAssetDetails = [
         ...assetPolicy.missingCriticalSlotIds.map((requirementId) => `slot:${requirementId}`),
         ...assetPolicy.missingRequiredUrls.map((url) => `url:${url}`),
       ].slice(0, 4);
-      const policyReason = `Generated screen did not satisfy required critical visual assets: ${missingAssetDetails.join(", ")}`;
-      return failAfterSavingGeneratedCode({
-        error: `[screen_generation:invalid_image_url] ${policyReason}`,
-        code,
-        blockIndex,
-        metadata: {
-          attempts,
-          assetPolicy,
-        },
+      const latestAttempt = attempts.at(-1);
+      if (latestAttempt) {
+        latestAttempt.qualityWarnings = Array.from(new Set([
+          ...latestAttempt.qualityWarnings,
+          `Critical visual assets were not all used: ${missingAssetDetails.join(", ")}`,
+        ]));
+      }
+      logger.warn("Screen build kept although critical visual assets were not all used", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        missingCriticalSlotIds: assetPolicy.missingCriticalSlotIds,
+        missingRequiredUrls: assetPolicy.missingRequiredUrls,
       });
     }
 
