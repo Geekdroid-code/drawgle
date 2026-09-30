@@ -90,5 +90,5 @@ If a preset is wrong, build it again. A rebuild starts unapproved. Editing a com
 ## Limits
 
 - The hash covers the entry's id, image address and text. An image replaced at the same address is not noticed; build again when you replace one.
-- An uploaded reference has no preset. It gets the same treatment at run time instead: its colours are measured when its tokens are made, and at the project's first generation its main screen is rebuilt with the reusable components marked (`lib/generation/upload-specimen.ts`, built while the approval card is shown), so its components reach every screen's builder as markup. Nobody reviews that specimen.
+- An uploaded reference has no preset. Its colours are measured when its tokens are made. Its components, like those of every project without an approved preset's, come from the project's component kit (`lib/generation/component-kit.ts`): at the first generation, one build draws the product's own shared components (headers, the card or row for each kind of item, avatar, fields, buttons) in the reference's style, and they reach every screen's builder as markup. Nobody reviews the kit. A project whose curated reference has an approved preset with components is built from the preset's and gets no kit.
 - Presets are used for prompt-to-UI, where a curated reference is chosen for the project. Image to UI is not touched.
