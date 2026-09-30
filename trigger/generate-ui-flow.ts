@@ -99,6 +99,7 @@ import {
   COMPONENT_KIT_BUILD_WAIT_MS,
   componentKitPromptOf,
   existingProjectComponents,
+  kitNavigationTabsOf,
   kitScreensOf,
   projectComponents,
   shouldBuildComponentKit,
@@ -134,6 +135,7 @@ import {
   normalizeNavigationPlan,
   removesMostOfTheScreen,
   sanitizeScreenCodeForSharedNavigation,
+  withKitNavigation,
 } from "@/lib/project-navigation";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
@@ -2743,6 +2745,7 @@ export const generateUiFlowTask = task({
         referenceKey: payload.imagePath ?? referenceId,
         designStyle,
         productContent: payload.productContent ?? compileProductContent(productPlanning),
+        navigationTabs: kitNavigationTabsOf(payload.productPlanning),
       }),
       buildScreen: buildScreenCode,
       // a preparation of this project may already have made it from the same screens, tokens and reference
@@ -2941,6 +2944,9 @@ export const generateUiFlowTask = task({
 	          ? "style_reference"
 	          : "prompt");
 	    plan.charter = { ...plan.charter, projectOrigin };
+	    // The bar the component kit drew, in the app's own style, is the bar every screen shows; the planner's
+	    // design only draws it for a project whose kit has none.
+	    plan.navigationPlan = withKitNavigation(plan.navigationPlan, plan.charter.componentKit?.navigation);
 	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
       if (payload.productExecutionKeys && referenceMode === "user_recreate") {
         plan = { ...plan, ...recreationFrameChrome(plan.screens) };

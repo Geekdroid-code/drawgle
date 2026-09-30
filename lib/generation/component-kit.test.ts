@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { presetTokens } from "@/lib/generation/curated-style-preset-fixtures";
+import { buildStyleScreenInstruction } from "@/lib/generation/prompts";
 import { formatStyleComponents } from "@/lib/generation/style-components";
 import { designerFixture, functionalFixture } from "@/lib/product-planning/test-fixtures";
 import type { BuildScreenInput, ProjectCharter, ProjectReferenceDna, ReferenceSpecimen } from "@/lib/types";
@@ -15,6 +16,7 @@ import {
   componentKitBuildInput,
   componentKitPromptOf,
   existingProjectComponents,
+  kitNavigationTabsOf,
   kitScreensOf,
   projectComponents,
   projectComponentSummaries,
@@ -101,17 +103,76 @@ describe("what the kit build is asked for", () => {
     expect(brief).toContain("A person is shown the same way everywhere");
   });
 
-  it("asks for marked, composed components and leaves the navigation to the renderer", () => {
+  it("asks for marked, composed components, and a bottom bar only when the brief asks for one", () => {
     expect(COMPONENT_KIT_MARKING_INSTRUCTION).toContain('data-dg-component="<kebab-name>"');
     expect(COMPONENT_KIT_MARKING_INSTRUCTION).toContain("Mark ten at most");
     expect(COMPONENT_KIT_MARKING_INSTRUCTION).toContain("a whole card or row with its avatar, badge and buttons inside it is one component");
-    expect(COMPONENT_KIT_MARKING_INSTRUCTION).toContain("Do not draw a status bar or a bottom navigation");
+    expect(COMPONENT_KIT_MARKING_INSTRUCTION).toContain("Do not draw a status bar.");
+    expect(COMPONENT_KIT_MARKING_INSTRUCTION).toContain("never inside a component you marked");
   });
 
   it("is not written for any one kind of product: nothing in it names a product the input did not", () => {
     const brief = componentKitBuildInput(input({ prompt: "A plant watering reminder", screens: [{ name: "Today", purpose: "" }, { name: "Plants", purpose: "" }] })).screenPlan.description;
     expect(brief).not.toMatch(/invoice|freelanc|client/i);
     expect(brief).toContain("Today; Plants.");
+  });
+});
+
+describe("the kit's bottom bar", () => {
+  const tabs = ["Drops", "Calendar", "Profile"];
+  const bar = `<nav data-dg-nav="bar" class="fixed bottom-4 inset-x-4 flex border-4 border-black bg-white">
+    <button data-dg-nav-item="Drops" data-active="true" class="flex-1 bg-black text-white"><i data-lucide="zap"></i><span>Drops</span></button>
+    <button data-dg-nav-item="Calendar" class="flex-1"><i data-lucide="calendar"></i><span>Calendar</span></button>
+    <button data-dg-nav-item="Profile" class="flex-1"><i data-lucide="user"></i><span>Profile</span></button>
+  </nav>`;
+
+  it("is asked for, in the approved tabs' order, only when the project has persistent navigation", () => {
+    const state = designerFixture();
+    expect(kitNavigationTabsOf(state)).toEqual([]);
+    state.scope!.navigation = { persistent: true, rationale: "", destinations: tabs.map((label, index) => ({ label, screenKey: `screen:${index}` })) };
+    expect(kitNavigationTabsOf(state)).toEqual(tabs);
+    state.scope!.navigation = { ...state.scope!.navigation, persistent: false };
+    expect(kitNavigationTabsOf(state)).toEqual([]);
+
+    const withBar = componentKitBuildInput(input({ navigationTabs: tabs }));
+    expect(withBar.screenPlan.description).toContain("the app's bottom navigation bar with these tabs, in this order: Drops, Calendar, Profile");
+    expect(withBar.screenPlan.description).toContain('data-dg-nav="bar"');
+    expect(withBar.screenPlan.description).toContain("not from a stock tab bar");
+    const without = componentKitBuildInput(input());
+    expect(without.screenPlan.description).not.toContain("navigation bar");
+    expect(componentKitBasis(input({ navigationTabs: tabs }))).not.toBe(componentKitBasis(input()));
+  });
+
+  it("is built as a screen that owns its bar, so the builder draws it instead of leaving it to the renderer", () => {
+    const withBar = componentKitBuildInput(input({ navigationTabs: tabs }));
+    expect(withBar).toMatchObject({ requiresBottomNav: true, screenPlan: { chromePolicy: { chrome: "bottom-tabs", showPrimaryNavigation: true } } });
+    const instruction = buildStyleScreenInstruction({ ...withBar, screenPlan: withBar.screenPlan, navigationPlan: null, assetManifest: [] });
+    expect(instruction).toContain("This screen: chrome=bottom-tabs; primaryNav=render in this screen");
+    expect(instruction).not.toContain("NO SHARED NAVIGATION");
+    expect(instruction).not.toContain("Do not draw a tab bar");
+    // without tabs it is told there is none to draw
+    const without = componentKitBuildInput(input());
+    expect(without.requiresBottomNav).toBe(false);
+    expect(buildStyleScreenInstruction({ ...without, screenPlan: without.screenPlan, navigationPlan: null, assetManifest: [] })).toContain("NO SHARED NAVIGATION");
+    expect(COMPONENT_KIT_MARKING_INSTRUCTION).toContain("Draw a bottom navigation bar only when the brief asks for one");
+  });
+
+  it("is read out of the build and kept on the kit, and its absence costs the kit nothing", async () => {
+    const withBar = await buildComponentKit({ ...input({ navigationTabs: tabs }), buildScreen: async () => ({ code: done(`<div>${marked("a-card", "b-card", "c-card", "d-card", "e-card")}${bar}</div>`) }) });
+    expect(withBar.kit?.navigation?.bar).toContain("border-4 border-black bg-white");
+    expect(withBar.kit?.navigation?.bar).toContain("mb-4 mx-4");
+    expect(withBar.kit?.components).toHaveLength(5);
+    const onCharter = withComponentKit(charter(), withBar.kit);
+    expect(onCharter.componentKit?.navigation).toEqual(withBar.kit?.navigation);
+
+    const noBar = await buildComponentKit({ ...input({ navigationTabs: tabs }), buildScreen: async () => ({ code: fullKit }) });
+    expect(noBar.kit?.navigation).toBeUndefined();
+    expect(noBar.kit?.components).toHaveLength(5);
+    expect(noBar.notes).toContain("the kit drew no navigation bar");
+    // a kit that was not asked for a bar does not look for one
+    const notAsked = await buildComponentKit({ ...input(), buildScreen: async () => ({ code: done(`<div>${marked("a-card", "b-card", "c-card", "d-card", "e-card")}${bar}</div>`) }) });
+    expect(notAsked.kit?.navigation).toBeUndefined();
+    expect(notAsked.notes).toEqual([]);
   });
 });
 

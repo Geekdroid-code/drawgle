@@ -52,7 +52,7 @@ const ACTION_FILL = "bg-[var(--dg-color-action-primary)]";
 const ACTION_TEXT = "text-[var(--dg-color-action-on-primary-text)]";
 
 /** The classes of one element with each long form swapped for its short one, and no class twice. */
-const canonicalClasses = (value: string) => {
+export const canonicalClasses = (value: string) => {
   const classes = value.split(/\s+/).filter(Boolean);
   // The token runtime's action class is the fill and its text colour together, so only the pair becomes it.
   const pair = classes.includes(ACTION_FILL) && classes.includes(ACTION_TEXT);

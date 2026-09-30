@@ -1,7 +1,9 @@
 import { createHash } from "node:crypto";
 
 import { resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
+import { extractKitNavigation } from "@/lib/generation/kit-navigation-extraction";
 import { buildCompleteSpecimen } from "@/lib/generation/specimen-build";
+import { usableKitNavigation } from "@/lib/kit-navigation";
 import { extractStyleComponents } from "@/lib/generation/style-component-extraction";
 import { usableStyleComponents } from "@/lib/generation/style-components";
 import type { FunctionalItem } from "@/lib/product-planning/functional-plan";
@@ -45,6 +47,11 @@ export type ComponentKitInput = {
   designStyle?: DesignStylePack | null;
   /** The product's own content, so that the kit's samples are this product's kinds of item. */
   productContent?: string | null;
+  /**
+   * The tabs of the bottom navigation the person approved, in order, when the project has one. The kit then draws
+   * the bar too, in the app's own style, and every screen shows that bar.
+   */
+  navigationTabs?: string[];
 };
 
 export type ComponentKitResult = { kit: ReferenceSpecimen | null; notes: string[] };
@@ -74,6 +81,14 @@ export const kitScreensOf = (manifest: readonly FunctionalItem[] | null | undefi
     .filter((item) => item.kind === "screen")
     .map((item) => ({ name: item.name, purpose: (item.information || item.description || "").replace(/\s+/g, " ").trim() }));
 
+/** The tabs of the persistent bottom navigation the person approved, in order; none for a flow without one. */
+export const kitNavigationTabsOf = (state: ProductPlanning | null | undefined): string[] => {
+  const navigation = state?.scope?.navigation;
+  if (!navigation?.persistent) return [];
+  const tabs = (navigation.destinations ?? []).map((destination) => destination.label.trim()).filter(Boolean);
+  return tabs.length >= 2 ? tabs.slice(0, 5) : [];
+};
+
 /** What the product is, as the kit's build is told: the product's identity and the approved flow's goal. */
 export function componentKitPromptOf(state: ProductPlanning | null | undefined, fallback = ""): string {
   const identity = state ? activeFacts(state, "identity").map((fact) => fact.detail).join(" ") : "";
@@ -91,6 +106,7 @@ export function componentKitBasis(input: ComponentKitInput): string {
     referenceMode: input.referenceMode,
     reference: input.referenceKey ?? input.referenceId ?? null,
     style: input.designStyle?.id ?? null,
+    navigation: input.navigationTabs ?? [],
   })).digest("hex");
 }
 
@@ -106,7 +122,7 @@ const clipped = (text: string, max: number) => {
  * What the kit build is asked to draw. Generic on purpose: the screens and the product say what it needs. The product
  * itself reaches the build as its prompt.
  */
-export function componentKitBrief({ screens }: Pick<ComponentKitInput, "screens">): string {
+export function componentKitBrief({ screens, navigationTabs = [] }: Pick<ComponentKitInput, "screens" | "navigationTabs">): string {
   return [
     "This is not a screen of the app. It is the product's component kit: one page that shows, once each, the components its screens are built from, so that every screen uses the same header, the same card or row for the same kind of item, and the same controls.",
     `The product's screens: ${screens.slice(0, 16).map((screen) => `${screen.name}${screen.purpose ? ` (${clipped(screen.purpose, 180)})` : ""}`).join("; ")}.`,
@@ -115,8 +131,19 @@ export function componentKitBrief({ screens }: Pick<ComponentKitInput, "screens"
     "- for each kind of item the screens list or show (for example an order, a person or a message), the one card or row that shows it on every screen, with its avatar, status badge and trailing detail where the item has them;",
     "- a summary tile for a key figure, a section header with its action, a text field, filter chips or a segmented control, and the primary and secondary buttons.",
     "A person is shown the same way everywhere, so draw one avatar, a frame that holds their photo, and use it in every row and card that shows a person.",
-  ].join("\n");
+    navigationTabs.length >= 2 ? kitNavigationBrief(navigationTabs) : null,
+  ].filter(Boolean).join("\n");
 }
+
+/**
+ * The bottom bar, as the kit's build is asked for it: the approved tabs, drawn the way this product's own bar would
+ * be, and marked so that it can be read out (lib/generation/kit-navigation-extraction.ts).
+ */
+export const kitNavigationBrief = (tabs: readonly string[]) => [
+  `- last, at the bottom of the page, the app's bottom navigation bar with these tabs, in this order: ${tabs.join(", ")}. The first tab is the current one.`,
+  "Design the bar as this product's own: its shape, material, icons, how the current tab stands out, and whether labels show come from the style reference and the project's look, not from a stock tab bar. It sits at the phone's bottom edge, at most about 88px tall.",
+  'Mark the bar with data-dg-nav="bar", each tab with data-dg-nav-item="<its name>", and the current tab with data-active="true". Give each tab a Lucide icon (<i data-lucide="icon-name"></i>) and draw every tab with the same markup, except for what makes the current one stand out.',
+].join("\n");
 
 /** The one instruction added to the kit's build, in place of a screen's usual job. */
 export const COMPONENT_KIT_MARKING_INSTRUCTION = [
@@ -126,12 +153,20 @@ export const COMPONENT_KIT_MARKING_INSTRUCTION = [
   "Name a component by what it is, never by its sample content. Mark ten at most, and never the same look twice.",
   "Mark composed units: a whole card or row with its avatar, badge and buttons inside it is one component. Mark an avatar, badge or button on its own only when it appears outside every unit you marked.",
   "Keep each marked element's markup under about 900 characters, styled with the token classes and variables only, never raw hex colours.",
-  "Do not draw a status bar or a bottom navigation: the renderer adds the navigation.",
+  "Do not draw a status bar. Draw a bottom navigation bar only when the brief asks for one, marked as it says, and never inside a component you marked.",
 ].join(" ");
 
 export function componentKitBuildInput(input: ComponentKitInput): BuildScreenInput {
+  // A kit with a bar is built as a screen that owns its bottom navigation, so that the builder draws the bar instead
+  // of being told that the renderer adds one.
+  const withBar = (input.navigationTabs?.length ?? 0) >= 2;
   return {
-    screenPlan: { name: COMPONENT_KIT_SCREEN_NAME, type: "root", description: componentKitBrief(input) },
+    screenPlan: {
+      name: COMPONENT_KIT_SCREEN_NAME,
+      type: "root",
+      description: componentKitBrief(input),
+      ...(withBar ? { chromePolicy: { chrome: "bottom-tabs" as const, showPrimaryNavigation: true, showsBackButton: false } } : {}),
+    },
     prompt: input.prompt,
     designTokens: input.tokens,
     image: input.image ?? null,
@@ -140,7 +175,7 @@ export function componentKitBuildInput(input: ComponentKitInput): BuildScreenInp
     referenceScope: "project",
     designStyle: input.designStyle ?? null,
     productContent: input.productContent ?? null,
-    requiresBottomNav: false,
+    requiresBottomNav: withBar,
     specimenMarking: "kit",
   };
 }
@@ -193,7 +228,13 @@ export async function buildComponentKit({
   const usable = usableStyleComponents(components);
   if (usable.length === 0) return { kit: null, notes: [...notes, "the kit build marked no usable component"] };
   if (usable.length < FAIR_COMPONENT_COUNT) notes.push(`only ${usable.length} component${usable.length === 1 ? " was" : "s were"} marked`);
-  return { kit: { source: "kit", components: usable, basis: componentKitBasis(input) }, notes };
+  // The bar, when one was asked for. A kit whose bar cannot be read is still a kit: its project keeps the built-in bars.
+  const bar = (input.navigationTabs?.length ?? 0) >= 2 ? extractKitNavigation(built.code) : null;
+  if (bar && !bar.navigation && bar.note) notes.push(bar.note);
+  return {
+    kit: { source: "kit", components: usable, basis: componentKitBasis(input), ...(bar?.navigation ? { navigation: bar.navigation } : {}) },
+    notes,
+  };
 }
 
 export type ComponentKitSettled = { kit: ReferenceSpecimen | null; notes: string[]; error?: unknown; reused?: boolean };
@@ -270,8 +311,17 @@ export async function withinComponentKitWait(
 export function withComponentKit(charter: ProjectCharter, kit: ReferenceSpecimen | null | undefined): ProjectCharter {
   if (!kit || charter.componentKit) return charter;
   const components = usableStyleComponents(kit.components);
+  const navigation = usableKitNavigation(kit.navigation);
   return components.length > 0
-    ? { ...charter, componentKit: { source: kit.source, components, ...(kit.basis ? { basis: kit.basis } : {}) } }
+    ? {
+        ...charter,
+        componentKit: {
+          source: kit.source,
+          components,
+          ...(kit.basis ? { basis: kit.basis } : {}),
+          ...(navigation ? { navigation } : {}),
+        },
+      }
     : charter;
 }
 
