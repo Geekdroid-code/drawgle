@@ -12,7 +12,7 @@ A curated reference (one of the catalogue's images) never changes, yet every pro
 | `approved` | Set by you, after looking at the preview. Only an approved preset is used. |
 | `analysis` | A complete analysis: every phone in the image, each with its bounding box, and the card radius and elevation classes the tokens are calibrated from. |
 | `measured` | The palette measured from the pixels, per phone box: the page, the raised card, the inset, the accents and the ink. |
-| `tokens` | Calibrated design tokens: the surface ladder, a card radius of 24px or less, the shadows, the type. |
+| `tokens` | Calibrated design tokens: the surface ladder, a card radius up to 24px (up to 32px for a reference that is clearly extra-rounded, since you look at it before approving), the shadows, the type. |
 | `navigation` | How the reference's own bar is built: anatomy, labels, active and inactive treatment, width, material, items. |
 | `components` | At most 10 reusable components, each `name`, `use` and `html` (1200 characters or less; a screen build is given about 9000 characters of them, which is what ten composed components come to). The limit was 700 until the first mindfulness build showed its featured card, search field and highlighted row at 1147, 719 and 790 characters once trimmed: with 700, only chips and badges fit. |
 
@@ -23,7 +23,7 @@ A malformed, unapproved or stale entry means there is no preset, and the run-tim
 For a project whose reference is a curated one with an approved preset that matches the catalogue entry as it is now:
 
 - **No analysis call.** `analyzeReferenceImageForScope` returns the preset's analysis, with its own navigation evidence.
-- **No token call**, when the user named no colours or fonts. The project's tokens are the preset's. When they did name some, the token model is asked once, with the preset's analysis and measured palette as its evidence, and only the roles they named are taken from its answer: the preset keeps the radii, the shadows, the spacing and the type.
+- **No token call** when the user has no design requirements of their own: the project's tokens are the preset's. When they have some, the token model is asked once, with the preset's analysis and measured palette as its evidence, and says beside its answer what the requirements ask for: colours, fonts, a corner style or a depth. Only that is taken from its answer (the colours as one coherent set built on the reference's measured colours), and everything else stays as it was reviewed. Requirements that ask nothing of the design ("works offline", "private jet charters") leave the preset whole.
 - **No creative direction**, for any style reference.
 - **The reference's own navigation** builds the project's shared navigation (`applyReferenceNavigationStyle`).
 - **The builder gets the components** for every screen, from the project's reference DNA (`referenceDna.specimen`), so later batches have them too.
@@ -62,7 +62,7 @@ Open `scripts/curated/out/<id>.png`. [An example](design-eval/after-step-1/revie
 Check that:
 
 - the analysis found every phone, and the palette and the card radius read right;
-- the bar under the specimen is the reference's (for the mindfulness reference: icon-only, attached to the bottom edge with rounded top corners, the active item in a gradient circle). The analysis decides attached or floating by the bar's edges: attached when its bottom and side edges reach the screen's edges, floating only when page background shows below and beside it. A phone mockup's rounded corners are not a gap, and a bar drawn as a floating capsule under a reference that has an attached one is a misreading to fix in the prompt, not in the JSON; It is built from the preset's `navigation`, with sample destinations, exactly as every project's shared navigation will be; only the destinations are the product's;
+- the bar under the specimen is the reference's (for the mindfulness reference: icon-only, attached to the bottom edge with rounded top corners, the active item in a gradient circle). The close-ups decide attached or floating by the bar's edges: attached when its bottom and side edges reach the screen's edges, floating only when page background shows below and beside it. A phone mockup's rounded corners are not a gap, and a bar drawn as a floating capsule under a reference that has an attached one is a misreading to fix in the prompt, not in the JSON; It is built from the preset's `navigation`, with sample destinations, exactly as every project's shared navigation will be; only the destinations are the product's;
 - the specimen looks like the reference's phone, and each component looks right on its own and carries no content of the reference's (no names, numbers or copy that belong to one product);
 - there are enough components to build most screens from: a handful or more;
 - the `close-up:` lines say what each phone answered and what the analysis was corrected to (the typeface class, and whether the bar is attached). Zoom into the reference's own bottom bar and check it: the bar's answers are two facts the eye can check (does its surface reach the phone frame on the left and on the right, and is it wider than the cards above it), and where the phones split the first read stands, which is the case to look at;

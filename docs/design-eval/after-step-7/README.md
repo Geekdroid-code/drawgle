@@ -1,5 +1,7 @@
 # After Step 7: uploaded style references get the same treatment
 
+> **Updated 2026-09-30, after the review.** Components are up to 1,200 characters. The specimen is built by the configured screen builder (OpenRouter by default, not Flash), so its cost is that model's price. A caller waits at most 60 seconds for it after its own planning (`UPLOAD_SPECIMEN_WAIT_MS`), and a later revision of the approval card reuses the specimen an earlier preparation built from the same upload. The text below records the step as it was built.
+
 A curated reference has a preset: its colours measured, its tokens calibrated, its components as markup. An uploaded style reference now gets the same, at the project's first generation, without a person reviewing it. The reference's own components reach every screen's builder as markup to copy, instead of a description of them.
 
 Nothing here could be run against a real upload: the specimen is a model build. Everything around it (when it runs, what it is given, what is read out of it, where it is stored, what happens when it fails) is tested with a stand-in for the builder.

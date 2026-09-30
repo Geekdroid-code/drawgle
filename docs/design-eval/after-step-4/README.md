@@ -1,5 +1,7 @@
 # After Step 4: the builder composes with the reference's components
 
+> **Updated 2026-09-30, after the review.** The block now holds up to 10 components of up to 1,200 characters in 9,000 characters (about 2.2k input tokens per screen). The ladder no longer says "pastel" or "at most one strong dark control", and separates surfaces the way the tokens do. Tints appear only for a design that uses them. The text below records the step as it was built.
+
 Step 4 changes what the screen builder is told, so its effect on a render shows once a project is regenerated with a live model. The inputs can be checked offline, though. Below is the builder prompt for the pet project's **Pet Library** screen, assembled from the saved harness bundle (`buildStyleScreenInstruction` with the stored tokens and navigation plan), under the stored tokens and under the tokens generation now produces (the Step 2 what-if).
 
 ## The strict design contract describes the ladder

@@ -509,3 +509,12 @@ Net: cheaper per curated project than today, unless a stronger build model is ch
   - The cloud container needed a browser path shim; locally you should not.
 - Commit in small steps, one step of section 4 per commit, each with its tests. Work on `claude/drawgle-app-flow-planning-s19wmc` or a branch from it. Open a PR only when the founder asks.
 - After each step, run the harness on the pet project and at least two other eval cases. Put the contact sheets in the commit message or the PR, so the founder can judge.
+
+## 9. Decisions after the review (2026-09-30)
+
+A review of the branch against this plan changed four of its rules. The reason is the same for each: a default should guide a product that gives no evidence, never force one look on every product, and the user's own words always win.
+
+- **Card radius (Step 2.4).** 24px stays the default, and nothing guessed goes above it: neither a model's own radius nor a class read at run time from a reference no person has looked at, because models overestimate corners (the first analysis called this reference's cards "24pt+"). The user's own words, and a curated reference the founder reviews in its preset, may go up to 32px; the analysis has a fifth class, `extra-rounded` (26-32pt), to say so. Image to UI and a chosen design style are not capped, and the token prompt calls 24px a default, not a limit.
+- **Shadows when nothing shows them (Step 2.4).** Flat and hairline references still get no card shadow. When nothing shows how cards separate (no reference, or no classification), the design's own shadow stays, capped at the soft level (blur 16px, alpha 0.08), instead of being removed. A strong shadow needs a reference that shows one, or the user's words.
+- **Tints (Step 2.5).** Accent tints are made only for a design that uses them: the evidence shows tinted wells or chips, or the direction calls for them (the token model says so in `meta.tints`). The builder is offered the tint classes only when the project has tints.
+- **What the user asked for (Step 2.4, "user-stated colours win").** The token model reports it beside its tokens (`meta.userAsked`: the colour roles, fonts, corner style and depth the user's own words ask for). English word lists read "private jet", "white-label" and "gold tier" as colours; they remain only as a stricter fallback. With an approved preset, requirements that ask nothing of the design leave it whole, and those that do change only what they ask for.
