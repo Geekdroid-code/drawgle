@@ -16,16 +16,19 @@ export function formatReferenceComponentMapping({
   presetComponents = [],
 }: {
   adaptations?: string | null;
-  /** Names of the reference's reusable components, from an approved curated style preset. */
+  /** The project's components (its kit, or an approved preset's), each as "name (when to use it)". */
   presetComponents?: readonly string[];
 }): string | null {
   const mapping = adaptations?.trim() ? stripDesignValues(adaptations.trim()) : "";
   const names = presetComponents.map((name) => name.trim()).filter(Boolean);
   if (!mapping && names.length === 0) return null;
   return [
-    "REFERENCE COMPONENT MAPPING (the reference's components, mapped onto this product by the designer who read it).",
-    "Where a screen's job fits one, name that component in KEY COMPONENTS. Never reproduce the reference's sections, their order or its content.",
+    mapping ? "REFERENCE COMPONENT MAPPING (the reference's components, mapped onto this product by the designer who read it)." : null,
+    mapping ? "Where a screen's job fits one, name that component in KEY COMPONENTS. Never reproduce the reference's sections, their order or its content." : null,
     mapping ? `Mapping: ${mapping}` : null,
-    names.length > 0 ? `Reference components available: ${names.join(", ")}.` : null,
+    // The builder is given each of these as markup, so a brief that names one gets exactly that component.
+    names.length > 0
+      ? `PROJECT COMPONENTS (every screen of this product is built from these): ${names.join(", ")}. In KEY COMPONENTS, name the one each piece of content uses, and use the same component for the same kind of content on every screen.`
+      : null,
   ].filter(Boolean).join("\n");
 }

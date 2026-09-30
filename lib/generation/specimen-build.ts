@@ -14,9 +14,8 @@ import type {
 
 /**
  * A specimen is one screen of a reference rebuilt by the recreate builder with its reusable components
- * marked, so that the components can be read back out as markup. A curated preset makes one offline, once;
- * an uploaded reference gets one at the project's first generation. The two share how a phone is chosen
- * and cropped and how the build is asked for.
+ * marked, so that the components can be read back out as markup. A curated preset makes one offline, once.
+ * A project's component kit (component-kit.ts) is built and checked the same way.
  */
 
 export const boxOf = (screen: ReferenceScreenAnalysis): NormalizedBox | null => {
@@ -97,8 +96,8 @@ export class SpecimenIncompleteError extends Error {
 /**
  * Builds a specimen and insists that it is whole. A model that stops in the middle of a tag leaves markup whose
  * last component is a stump, and the components are read out of that markup, so an unfinished build is never
- * used. It is asked once more, and after that the error says so: a preset leaves the phone out, and an upload
- * goes on without a specimen.
+ * used. It is asked once more, and after that the error says so: a preset leaves the phone out, and a project
+ * goes on without a kit.
  */
 export async function buildCompleteSpecimen<Built extends { code: string }>(
   build: (input: BuildScreenInput) => Promise<Built>,

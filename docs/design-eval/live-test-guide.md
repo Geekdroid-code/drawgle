@@ -20,7 +20,7 @@ Each one is a different kind of person with a different way of asking. Type thei
 | 3 | **Meera**, owns a coffee shop, thinks in her customers' numbers | `A loyalty app for my coffee shop. Customers collect points (like 1,250 pts), see past orders such as Order #1042, and there is a weekly leaderboard.` | Numbers stay intact in the screens ("1,250 pts", "Order #1042"). The approval card offers a bottom bar, since there are areas people move between. |
 | 4 | **Kabir**, writes the way he talks, in Hinglish | `ek dog walking app banao jahan owners apne kutte ke liye walker book kar sakein. dark theme aur neon green accent chahiye` | A request in another language still gets its colours. Dogs and people appear as photos, not initials. |
 | 5 | **Sara**, a designer, brings an app she loves | Upload a screenshot of an app you like (App Store, Dribbble) as the style, and type `A habit tracker in this style` | The design follows her image, and building from her image does not delay the first screen by more than about a minute. |
-| 6 | **Dev** wants a copy of a screen he saw | Upload one app screenshot, choose to recreate it (Image to UI), and type `Recreate this screen` | The mode that already worked well is still as faithful. |
+| 6 | **Dev** wants a copy of a screen he saw | Upload one app screenshot, choose to recreate it (Image to UI), and type `Recreate this screen` | The mode that already worked well is still as faithful. Try a white app with light grey tiles: the tiles stay grey, never white on white. |
 | 7 | **Priya**, runs operations at a bank, thinks in steps | `A 4-step account opening flow for a bank: phone number, OTP, ID upload, success.` | The approval card says there is no bottom navigation, and no screen draws a tab bar of its own. |
 | 8 | **Tom** runs a streetwear brand and knows exactly the look | `A sneaker drop app. Neo-brutalist: square corners, thick black borders and hard black offset shadows.` | A bold look the user asks for is not softened away: square corners and hard shadows. |
 | 9 | **Ananya** makes learning apps for children | `A reading app for kids aged 6 to 9, with very rounded, bubbly cards and friendly colours.` | Rounder corners than the usual 24px are allowed when the user asks for them. |
@@ -31,14 +31,16 @@ Each one is a different kind of person with a different way of asking. Type thei
 Give each project a score from 1 to 5: would you show it to a customer?
 
 - **Approval card.** The screens fit the product. The navigation line is right: a bottom bar for apps with areas people move between, none for a step-by-step flow.
-- **Overall look.** Premium, and one product across all its screens. It follows the chosen style, or the uploaded image.
+- **No blank screen.** Every screen has its content. A screen that fails says so; none is saved empty.
+- **One product.** The same kind of item (an invoice, a client, an order) is the same card or row on every screen that shows it. Every main screen has the same header, and every detail screen the same top bar. The screens differ in what they show and how they arrange it, not in how they draw the same thing.
+- **Overall look.** Premium. It follows the chosen style, or the uploaded image.
 - **Corners and shadows.** Cards are not all big 32px blobs. Shadows are light unless the user asked for bold ones.
 - **Colours and fonts.** The ones the user asked for. Headings are not an old-fashioned serif (Times-like) unless asked. A title next to a back arrow is small and on one line.
 - **Spacing.** Related things sit close together, and there is more room only before a new section. Nothing floats in empty space.
 - **Text.** Real content, and no broken fragments such as "1,s" or "Maya s".
-- **Photos.** People and animals are photos, not initials.
-- **Bottom bar.** The same on every main screen, reaching the bottom edge when it is an attached bar. No extra tab bar inside a screen.
-- **Speed.** Note the time from approving to the first screen, and to the last.
+- **Photos.** People and animals are photos, not initials, and a person is shown the same way on every screen that shows them.
+- **Bottom bar.** The same on every main screen, reaching the bottom edge when it is an attached bar. Every icon draws, and the tab of the screen you are on is highlighted, the first screen's too. No extra tab bar inside a screen.
+- **Speed.** Note the time from approving to the first screen, and to the last. The first screen now waits for the project's component kit, which is built first: expect it up to about a minute later than before.
 
 Projects you made before the merge are also worth a look: they should render as before, except that an attached bottom bar now reaches the bottom edge.
 
@@ -48,4 +50,4 @@ For each project: its number, its score, one or two screenshots, and anything th
 
 ## If it has to be undone
 
-Revert the merge commit on `main` rather than resetting it: ask Claude to revert the merge of `claude/premium-design-quality`, or run `git revert -m 1 <merge commit>` on `main` and push. Both deploys run again with the old code. Nothing in the database needs undoing: this release adds no migrations, and the old code ignores the few new fields it stores.
+Revert the merge commit on `main` rather than resetting it: ask Claude to revert the release's merge (`claude/premium-design-quality`, then `claude/consistent-screens` for the component kit and the live-test fixes), or run `git revert -m 1 <merge commit>` on `main` and push. Both deploys run again with the old code. Nothing in the database needs undoing: this release adds no migrations, and the old code ignores the few new fields it stores.

@@ -3,10 +3,10 @@ import { z } from "zod";
 import type { ProjectReferenceDna, StyleComponent } from "@/lib/types";
 
 /**
- * The reference's premium feel is a component vocabulary on a surface ladder.
+ * A project's look is a component vocabulary on a surface ladder, used the same way on every screen.
  * Prose about it did not carry over to the builder; markup it can copy does.
- * The components come from an approved curated preset or from a specimen built
- * out of an uploaded reference, and reach the builder as one bounded block.
+ * The components come from the project's component kit (component-kit.ts) or from an approved
+ * curated preset, and reach every screen's builder as one bounded block.
  */
 
 export const MAX_STYLE_COMPONENTS = 10;
@@ -32,10 +32,10 @@ export const styleComponentSchema = z.object({
 export const styleComponentsSchema = z.array(styleComponentSchema).max(MAX_STYLE_COMPONENTS);
 
 const STYLE_COMPONENTS_HEADER = [
-  "STYLE COMPONENTS (this project's reference vocabulary. Each line is: name — when to use it — html).",
-  "Build this screen's content from these components wherever they fit its job. Copy their structure, classes and surface roles.",
+  "STYLE COMPONENTS (the components every screen of this project is built from. Each line is: name — when to use it — html).",
+  "Build this screen from these components wherever they fit its job: the same kind of content uses the same component on every screen, so copy its structure, classes and surface roles and change only the content.",
   "A component you need that is not listed must use the same surface ladder, radius roles, type roles and spacing.",
-  "Never reproduce the reference's sections, their order or its content: replace every sample text with this screen's own content.",
+  "Replace every sample text with this screen's own content, and never reproduce a reference's sections or their order.",
 ].join("\n");
 
 const oneLine = (value: string) => value.replace(/\s+/g, " ").trim();
@@ -85,17 +85,16 @@ export function formatStyleComponents(components: unknown): string | null {
   return lines.length > 0 ? [STYLE_COMPONENTS_HEADER, ...lines].join("\n") : null;
 }
 
-/** The components a project's reference DNA carries, when it carries any. */
+/**
+ * The components a project's reference DNA carries, when it carries any. A project's full set, its component kit
+ * first, is `projectComponents` in component-kit.ts.
+ */
 export const styleComponentsOf = (dna: ProjectReferenceDna | null | undefined): StyleComponent[] =>
   usableStyleComponents(dna?.specimen?.components);
 
-/** The same components as a brief planner reads them: each name with when to use it, and no markup. */
-export const styleComponentSummaries = (dna: ProjectReferenceDna | null | undefined): string[] =>
-  styleComponentsOf(dna).map((component) => `${component.name} (${component.use.slice(0, 100)})`);
-
 /**
- * The one line added to the recreate build that makes a preset's or an upload's specimen. The components
- * are read back out of the markup by the markers (see style-component-extraction.ts).
+ * The one line added to the recreate build that makes a curated preset's specimen. The components are read back
+ * out of the markup by the markers (see style-component-extraction.ts).
  */
 export const SPECIMEN_MARKING_INSTRUCTION = [
   "SPECIMEN: this build becomes the source of the project's reusable components.",

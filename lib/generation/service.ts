@@ -26,7 +26,14 @@ import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/genera
 import { mergePresetTokens, presetSpecimen, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
 import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
 import { omitCraftBars } from "@/lib/generation/semantic-inspiration";
-import { SPECIMEN_MARKING_INSTRUCTION, styleComponentSummaries, usableStyleComponents } from "@/lib/generation/style-components";
+import { SPECIMEN_MARKING_INSTRUCTION, usableStyleComponents } from "@/lib/generation/style-components";
+import {
+  COMPONENT_KIT_MARKING_INSTRUCTION,
+  COMPONENT_KIT_WAIT_MS,
+  projectComponentSummaries,
+  withComponentKit,
+  withinComponentKitWait,
+} from "@/lib/generation/component-kit";
 import { asksAnything, readTokenLabels, withoutTokenLabels, type UserAsked } from "@/lib/generation/token-labels";
 import { userNamedColorRoles, userNamesTypography } from "@/lib/generation/user-color-roles";
 import { applyEdits } from "@/lib/diff-engine";
@@ -118,6 +125,7 @@ import type {
   ReferenceAnalysis,
   ReferenceAnalysisResult,
   ReferenceMode,
+  ReferenceSpecimen,
   ScreenCountContract,
   ScreenCountEnforcement,
   ScreenFamilyContract,
@@ -3000,10 +3008,10 @@ export async function planScreenBriefsForBuild({
     },
   ];
 
-  // The reference's own components, by name, so that a later batch's briefs can say which one a screen uses.
-  const componentMapping = plannerMode === "style"
-    ? formatReferenceComponentMapping({ presetComponents: styleComponentSummaries(charter.referenceDna) })
-    : null;
+  // The project's components, by name, so that a later batch's briefs name the same ones for the same content.
+  const componentMapping = plannerMode === "recreate"
+    ? null
+    : formatReferenceComponentMapping({ presetComponents: projectComponentSummaries(charter) });
   if (componentMapping) parts.push({ text: componentMapping });
 
   if (requestImage) parts.push({ text: "Request-local image: adapt its relevant layout and content to the approved tokens and navigation. This is not a new project design system." }, { inlineData: requestImage });
@@ -3157,6 +3165,7 @@ export async function planUiFlow({
   existingCharter,
   existingNavigationPlan,
   planningMode = "project",
+  componentKit,
   llmLog,
   onProgress,
 }: {
@@ -3177,6 +3186,11 @@ export async function planUiFlow({
   existingCharter?: ProjectCharter | null;
   existingNavigationPlan?: NavigationPlan | null;
   planningMode?: PlanningMode;
+  /**
+   * The project's component kit, being built beside this planning (lib/generation/component-kit.ts). The briefs
+   * wait for it, briefly, so that they name the components every screen will be built from.
+   */
+  componentKit?: Promise<ReferenceSpecimen | null> | ReferenceSpecimen | null;
   llmLog?: LlmLogFn;
   onProgress?: (event: UiFlowPlanningProgress) => void | Promise<void>;
 }): Promise<PlannedUiFlow> {
@@ -3702,16 +3716,21 @@ export async function planUiFlow({
   let rawPlan: unknown = rawBlueprint;
   let parsed = PlanSchema.safeParse(rawPlan);
 
+  // The project's component kit is built beside the blueprint; the briefs wait for it, briefly, so that the same
+  // kind of content is given the same component on every screen. A kit that is late is left out, not waited for.
+  const kit = existingCharter?.componentKit ?? await withinComponentKitWait(componentKit, COMPONENT_KIT_WAIT_MS,
+    () => llmLog?.("[component-kit] not ready in time; the briefs are written without it", {}));
+
   if (parsedBlueprint.success) {
     // The discovery designer already mapped the reference's components onto this product. The brief
     // planner gets that mapping as its own labelled evidence, not as one field of a JSON dump, with the
     // names of the components the builder will be given, so that a brief can say which one a screen uses.
-    const componentMapping = plannerMode === "style"
-      ? formatReferenceComponentMapping({
-          adaptations: productPlanning?.experience?.adaptations,
-          presetComponents: styleComponentSummaries(referenceDna),
-        })
-      : null;
+    const componentMapping = plannerMode === "recreate"
+      ? null
+      : formatReferenceComponentMapping({
+          adaptations: plannerMode === "style" ? productPlanning?.experience?.adaptations : null,
+          presetComponents: projectComponentSummaries({ componentKit: kit, referenceDna } as ProjectCharter),
+        });
     const screenParts: Array<Record<string, unknown>> = [
       ...parts.filter((part) => typeof part.text !== "string" || !part.text.startsWith("Approved Token ")),
       {
@@ -3894,7 +3913,7 @@ export async function planUiFlow({
           && savedArchitectureStillApproved,
       });
 
-  const charter = groundCharterInProduct(withReferenceDna(enrichProjectCharter({
+  const charter = withComponentKit(groundCharterInProduct(withReferenceDna(enrichProjectCharter({
     base: {
       ...parsed.data.charter,
       creativeDirection: parsed.data.charter.creativeDirection ?? resolvedCreativeDirection,
@@ -3916,7 +3935,7 @@ export async function planUiFlow({
       intentContract: intentContractJson(intentContract),
       screenFamilyContract: screenFamilyContract as unknown as JsonValue,
     },
-  })), productPlanning);
+  })), productPlanning), kit);
 
   if (productPlanning?.scope) {
     const allowedNames = new Set(productPlanning.scope.manifest?.length
@@ -4322,7 +4341,9 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     ].join("\n"),
   });
 
-  if (input.specimenMarking) parts.push({ text: SPECIMEN_MARKING_INSTRUCTION });
+  if (input.specimenMarking) {
+    parts.push({ text: input.specimenMarking === "kit" ? COMPONENT_KIT_MARKING_INSTRUCTION : SPECIMEN_MARKING_INSTRUCTION });
+  }
 
   if (resolvedReferenceMode === "user_recreate" && input.sourceDetail) {
     parts.push({ text: "Verified detail crop of this output's target frame. Use it for fine detail; the original composite above remains authoritative for context and anything outside this crop." }, toInlineImage(input.sourceDetail)!);
@@ -4336,7 +4357,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
   });
   if (resolvedReferenceMode !== "user_recreate" && input.productContent) parts.push({ text: input.productContent });
   // With the reference's components as markup, the composition library's craft bars only restate what that markup shows.
-  const hasStyleComponents = promptMode === "style" && usableStyleComponents(input.styleComponents).length > 0;
+  const hasStyleComponents = promptMode !== "recreate" && usableStyleComponents(input.styleComponents).length > 0;
   const memory = input.projectContext?.trim();
   const compactProjectContext = resolvedReferenceMode === "user_recreate"
     ? null

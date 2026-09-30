@@ -82,11 +82,12 @@ describe("actual builder input contracts", () => {
       expect(memoryPart()).toContain("Craft bar: Only one region should carry peak scale or contrast.");
     });
 
-    it("are ignored by a prompt-only build and by Image to UI", async () => {
+    it("reach a prompt-only build too, as its component kit, and are ignored by Image to UI", async () => {
+      // a project with no reference has a component kit, and every one of its screens is built from it
       await buildScreenCode({ screenPlan, prompt: "Habit tracker", referenceMode: "internal_style", requiresBottomNav: false,
         projectContext: memory, styleComponents: [component] });
-      expect(built().configOverride.systemInstruction).not.toContain("STYLE COMPONENTS");
-      expect(memoryPart()).toContain("Craft bar:");
+      expect(built().configOverride.systemInstruction).toContain("- calendar-strip — A week selector at the top of a day view");
+      expect(memoryPart()).not.toContain("Craft bar:");
 
       await buildScreenCode({ screenPlan, prompt: "Recreate this", image: { data: "source-image", mimeType: "image/png" },
         referenceMode: "user_recreate", requiresBottomNav: false, styleComponents: [component] });

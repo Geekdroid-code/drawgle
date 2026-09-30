@@ -4,14 +4,24 @@ import { readProductPlanning } from "@/lib/product-planning/model";
 import { nextProductBatch } from "@/lib/product-planning/execution";
 import { productReferenceExecution } from "@/lib/product-planning/reference-execution";
 import { scopedGenerationPrompt, productScopeContract } from "@/lib/product-planning/generation-context";
-import { readPreparedUploadSpecimen, scopePreparationKey, scopePreparationPlanningState, saveScopePreparation } from "@/lib/product-planning/scope-preparation";
+import { readPreparedComponentKit, scopePreparationKey, scopePreparationPlanningState, saveScopePreparation } from "@/lib/product-planning/scope-preparation";
 import { loadPlanningReference } from "@/lib/product-planning/references";
 import { compileDesignRequirements } from "@/lib/product-planning/design-requirements";
 import { reconcileTokensWithDesignRequirements } from "@/lib/product-planning/reconcile-design";
 import { compileProductContent } from "@/lib/product-planning/content-contract";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
 import { buildScreenCode, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
-import { startUploadSpecimen, withinUploadSpecimenWait, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
+import {
+  COMPONENT_KIT_BUILD_WAIT_MS,
+  componentKitPromptOf,
+  existingProjectComponents,
+  kitScreensOf,
+  startComponentKit,
+  withComponentKit,
+  withinComponentKitWait,
+} from "@/lib/generation/component-kit";
+import { normalizeReferenceImage, shouldAttachReferenceImage } from "@/lib/generation/reference-image";
+import { getGenerationEngineVersion } from "@/lib/env/server";
 import { planVisualAssets } from "@/lib/generation/visual-assets";
 import { analyzeReferenceImageForScope } from "@/lib/generation/scope-contract";
 import { getDesignStylePack } from "@/lib/generation/design-styles";
@@ -95,20 +105,27 @@ export const prepareProductScopeTask = task({
     if (latestBeforePlanError) throw latestBeforePlanError;
     const latestState = readProductPlanning(latestBeforePlan?.product_planning);
     if (latestState?.scope?.generationRunId) return { skipped: true, reason: "build_started" };
-    // An uploaded style reference is learned once, while the person reads the approval card: its main screen is
-    // rebuilt with its components marked, beside planning. It costs one extra build and never fails the preparation,
-    // and a later revision of the card reuses the build an earlier one made from the same upload.
-    const uploadSpecimen = startUploadSpecimen({
-      applies: { referencePolicy: reference.policy, referenceMode: reference.mode, isNewProject: state.phase === "discovery",
-        screenScoped: false, image, analysis: analysis.analysis, tokens, existing: shared.charter?.referenceDna?.specimen ?? null },
-      input: () => ({ image: image!, analysis: analysis.analysis!, tokens: tokens!, imagePath: reference.imagePath }),
+    // The project's component kit is designed once, while the person reads the approval card, beside planning: one
+    // page of the components every screen is built from, so that the same content looks the same on every screen.
+    // It costs one extra build and never fails the preparation, and a later revision of the card reuses it when
+    // nothing it is made from has changed.
+    const kitScreens = kitScreensOf(state.scope.manifest);
+    const componentKit = startComponentKit({
+      applies: { referenceMode: reference.mode, isNewProject: state.phase === "discovery", screenScoped: false, tokens,
+        existing: existingProjectComponents({ charter: shared.charter, referenceMode: reference.mode, referenceId: reference.referenceId }),
+        screenCount: kitScreens.length },
+      input: async () => ({ prompt: componentKitPromptOf(approved, prompt), screens: kitScreens, tokens: tokens!,
+        // the reference as every screen's build is given it
+        image: image && shouldAttachReferenceImage({ projectReference: true, engineVersion: getGenerationEngineVersion(),
+          image, referenceMode: reference.mode }) ? (await normalizeReferenceImage(image, "style")).image : null,
+        referenceMode: reference.mode, referenceId: reference.referenceId,
+        referenceKey: reference.imagePath ?? reference.referenceId, designStyle,
+        productContent: recreate ? null : compileProductContent(state) }),
       buildScreen: buildScreenCode,
-      reuse: reference.imagePath
-        ? () => readPreparedUploadSpecimen(admin, projectId, ownerId, reference.imagePath!)
-        : undefined,
-      onSettled: ({ specimen, notes, error }) => {
-        if (error) logger.warn("Upload specimen skipped: the build failed", { projectId, error });
-        else logger.info("Upload specimen", { projectId, components: specimen?.components.length ?? 0, notes });
+      reuse: (basis) => readPreparedComponentKit(admin, projectId, ownerId, basis),
+      onSettled: ({ kit, notes, error, reused }) => {
+        if (error) logger.warn("Component kit skipped: the build failed", { projectId, error });
+        else logger.info("Component kit", { projectId, components: kit?.components.map((component) => component.name) ?? [], reused: Boolean(reused), notes });
       },
     });
     const plan = await planUiFlow({ productPlanning: approved, productExecutionKeys: keys,
@@ -116,9 +133,10 @@ export const prepareProductScopeTask = task({
       referenceCatalogHash: reference.catalogHash, designStyle, designTokens: tokens,
       scopeContract: productScopeContract(approved, reference.mode, keys),
       referenceAnalysis: analysis.analysis, existingCharter: shared.charter,
-      existingNavigationPlan: shared.navigationPlan, planningMode: "project" });
-    plan.charter = withReferenceSpecimen(plan.charter, await withinUploadSpecimenWait(uploadSpecimen, undefined,
-      () => logger.warn("Upload specimen not ready in time; the plan is saved without it", { projectId })));
+      existingNavigationPlan: shared.navigationPlan, planningMode: "project", componentKit });
+    // A kit that missed the briefs still reaches every screen's build, as markup.
+    plan.charter = withComponentKit(plan.charter, await withinComponentKitWait(componentKit, COMPONENT_KIT_BUILD_WAIT_MS,
+      () => logger.warn("Component kit not ready in time; the plan is saved without it", { projectId })));
     if (!recreate) {
       const content = compileProductContent(state);
       if (content) plan.screens = await reviewScreenContent(plan.screens, content);

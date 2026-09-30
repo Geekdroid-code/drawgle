@@ -1,5 +1,7 @@
 import { createNavigationArchitecture, resolveScreenChromePolicy } from "@/lib/navigation";
+import { hexDeltaE } from "@/lib/color-lab";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { parseShadowLayers } from "@/lib/shadow-css";
 import { formatDesignStyleContract } from "@/lib/generation/design-styles";
 import type { GenerationPromptMode } from "@/lib/generation/prompt-routing";
 import { formatReferenceTransferContract } from "@/lib/generation/reference-transfer";
@@ -359,14 +361,14 @@ Rules:
 - Human design language vs. tokens: Describe design intent and construction in human design language. Do not output Drawgle utility names, CSS variables, Tailwind classes, token identifiers (such as dg-type-*, dg-surface-*, dg-text-*, dg-radius-*, dg-shadow-*, dg-action-*, dg-gradient-*, var(--dg-*)), raw color values, or implementation instructions. The builder receives the approved design tokens separately and is responsible for mapping your visual decisions onto them.
 - Layout geometry vs. token implementation: Layout geometry is the planner responsibility; design-system implementation and token selection belong to the builder. Do NOT make the planner vague. Approximate measurements, proportions, angles, offsets, and ratios are encouraged when they describe an intentional composition (for example: lower sheet occupies ~40% of viewport, 2-column grid, 3:2 hero ratio, asymmetric offset, sticky action region, two-column 60/40 split, compact 3-row information cluster).
 - Reference provenance: reference_transfer is a decision record, not decorative metadata. Evaluate every supplied semantic primitive against the target screen capability. Preserve or reinterpret the principle only when its purpose serves the target; reject it otherwise. Preserve why it worked (hierarchy, rhythm, disclosure, depth, comparison), never its coordinates or object topology. reject overrides any conflicting phrase in Description or existing project memory.
-- Cross-screen differentiation: family resemblance comes from tokens, type, material, icon, spacing, and interaction tone. Each route must have a task-native information architecture and dominant composition; never turn a previous screen's cards, connector, hero, chart, or decorative scaffold into a universal shell.
+- Cross-screen consistency and differentiation: the same kind of content uses the same component on every screen. An item shown as a row in one list is the same row in every list, a person has one avatar everywhere, main screens share one header and detail screens one top bar; when PROJECT COMPONENTS are listed, name the one each piece of content uses in KEY COMPONENTS. What differs is what each screen shows and how it composes those components for its own task: each route has a task-native information architecture and dominant composition, and never turns one screen's hero, chart, connector, or decorative scaffold into a universal shell.
 - layout_contract is not prose decoration. It is the compact architecture the builder must obey before writing HTML: no generic stacked blocks, no empty chart/card shells, no oversized CTA unless action priority demands it, no primitive chip grids with large macro gaps and cramped internal padding.
 - Component specificity: name concrete structures/states when relevant: headers, hero regions, surfaces, containers, lists, rows, sheets, charts, progress rings, segmented controls, tabs, chips, icon buttons, badges, avatar stacks, maps, media areas, text groups, and CTA placement.
 ${mode === "style"
   ? ""
-  : "- Material specificity: call out typography hierarchy, imagery, chart geometry, background planes, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues without repeating token class names.\n"}- Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the approved product shell or evidence clearly reuses it.
+  : "- Material specificity: call out typography hierarchy, imagery, chart geometry, background planes, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues without repeating token class names.\n"}- Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not copy one screen's composition onto another; shared components (headers, item rows and cards, avatars, badges, fields, buttons) are reused, not redesigned.
 - Viewport fit: include a 390px fit note and how the screen avoids overflow and text collision. On shared-navigation screens, the renderer supplies the bottom content clearance; the plan must not assign a numeric value or spacer.
-- Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products. Sample people or animals (profile avatars, team members, contacts) are planned like any other photo: role avatar, assetType photo, desiredAspectRatio 1:1. Set userIdentity true only for the signed-in user's own face or their brand's logo, which only they can supply.
+- Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products. Sample people or animals (profile avatars, team members, contacts) are planned like any other photo: role avatar, assetType photo, desiredAspectRatio 1:1. A person or item keeps one look on every screen: when one screen shows them with a photo, every screen that shows them asks for it with the same reuseKey; when the product shows them without photos, no screen asks for one. Set userIdentity true only for the signed-in user's own face or their brand's logo, which only they can supply.
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
 - State proposals: return an empty state_variants array unless this execution supplies explicitly approved state variants. Selection highlights and border changes are inline interactions, never separate paid outputs. Do not invent companion states. When approved, state_variants are local states of the same route shell, not destinations. Suggest at most three meaningful states opened by visible controls: modal/dialog/sheet/popover, active tab with a distinct content body, filtered/search results, selected detail panel, or a concrete form flow. Never use onboarding, auth, profile/settings routes, checkout, navigation destinations, theme/dark mode, hover/focus styling, or generic loading/empty states as local paid states. Set explicitly_requested and default_selected true only when the user prompt explicitly requires that visible state, except for the additional recreate-mode evidence rule above. Every edit_instruction must preserve the parent shell, navigation, tokens, typography, spacing, and overall layout.
 ${plannerScreenModeRule(mode)}
@@ -672,7 +674,7 @@ Treat these as platform constraints, not stylistic variables: safe_area_top, saf
 Treat these as dynamic design variables that should change when the approved evidence changes: spacing rhythm, section gaps, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
 Use 16px as the production baseline for mobile screen_margin. Deviate only when the user explicitly requests another margin or the approved evidence contains clear measured screen-edge padding; vague words such as airy, spacious, premium, or generous are not evidence for a larger margin. Never enlarge the outer margin merely to create whitespace because it squeezes the usable content rail.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
-Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (raised one tone step from the page), then inset (tiles and fields inside cards: one tone step from the card), then tints (wells and chips) when the evidence has them, then one focal accent or gradient surface. Surfaces separate the way the evidence shows (tone, a thin border or a shadow); with no evidence, choose what suits the product.
+Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (every card or tile that sits on the page, one tone step from it: lighter, or darker as grey tiles on a white page are), then inset (tiles and fields inside cards: one tone step from the card), then tints (wells and chips) when the evidence has them, then one focal accent or gradient surface. Surfaces separate the way the evidence shows (tone, a thin border or a shadow); with no evidence, choose what suits the product.
 Shape follows a hierarchy taken from the evidence: cards use the app radius (up to 24px suits most products; larger only when the evidence or the user clearly shows it), inset surfaces the inner radius, and controls and icon wells the pill radius only when the evidence shows capsules and circles. Keep one border width.
 
  REQUIRED JSON SCHEMA:
@@ -738,7 +740,7 @@ Rules:
 - nav_title is the small title of a top app bar, screen_title heads a root screen, and hero_title is a display headline that only exists when the evidence shows one. Title weights follow the evidence; do not default them to bold.
 - spacing and mobile_layout come from the gaps the evidence shows, read against the phone's width (393px), as one consistent rhythm. element_gap is the space between neighbouring blocks that belong together, and section_gap the space before a new titled section, normally a step larger. Typical premium mobile layouts use 8-12px between the rows of one list, 12-16px between neighbouring blocks and 20-28px before a new section, but the evidence decides: a dense product goes tighter and an editorial one larger. Feelings such as airy or generous are not evidence for larger gaps. screen_margin defaults to 16px and needs measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
-- color.surface.card is the raised surface and color.surface.inset the tile or field inside it: usually a tone step each in the page's hue family, unless the evidence separates surfaces another way. Tints and accents come from the evidence, not from invented hues.
+- color.surface.card is the surface of every card and tile that sits on the page, and color.surface.inset the tile or field inside a card: usually a tone step each in the page's hue family, unless the evidence separates surfaces another way. A card the page's own colour, with no shadow the evidence shows, disappears into the page. Tints and accents come from the evidence, not from invented hues.
 - Use radii.app for outer cards, sheets, panels, inputs, and navigation shells.
 - Use radii.inner for nested cards, inset panels, segmented tabs, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
 - Use radii.pill only for true capsules and circular wells.
@@ -798,7 +800,25 @@ const resolveToken = (
   return typeof current === "string" ? current : fallback;
 };
 
-const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
+/** Below this difference (CIEDE2000), a card is the page's own colour. */
+const SAME_SURFACE_DELTA_E = 1.5;
+/** A surface shadow fainter than this does not set a card apart from a page of the same colour. */
+const VISIBLE_SHADOW_ALPHA = 0.05;
+
+/**
+ * Whether a card drawn with the card token would disappear into the page: the two are one colour and no visible
+ * shadow separates them. An Image to UI project's tokens put a white-on-white page and card beside a grey inset, and
+ * a builder that put every tile on the card rung drew the source's grey tiles white on white.
+ */
+export const cardDisappearsIntoPage = (designTokens?: DesignTokens | null) => {
+  const tokens = normalizeDesignTokens(designTokens)?.tokens;
+  const difference = hexDeltaE(tokens?.color?.surface?.card, tokens?.color?.background?.primary);
+  if (difference === null || difference >= SAME_SURFACE_DELTA_E) return false;
+  return !parseShadowLayers(tokens?.shadows?.surface).some((layer) =>
+    !layer.inset && layer.alpha >= VISIBLE_SHADOW_ALPHA && (layer.blur > 0 || layer.spread > 0 || layer.x !== 0 || layer.y !== 0));
+};
+
+const buildStrictDesignContract = (designTokens?: DesignTokens | null, mode?: GenerationPromptMode) => {
   const appRadius = resolveToken(designTokens, "radii.app", "18px");
   const innerRadius = resolveToken(designTokens, "radii.inner", "12px");
   const pillRadius = resolveToken(designTokens, "radii.pill", "9999px");
@@ -815,17 +835,24 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
   const bodyFontFamily = resolveToken(designTokens, "typography.body_font_family", "sans-serif");
   const color = normalizeDesignTokens(designTokens)?.tokens?.color;
   const tintCount = Object.keys(color?.accent_tints ?? {}).length;
+  // A card the page's colour would vanish on it, so the first rung on the page is the inset fill, and the card
+  // colour goes to what sits inside it.
+  const onPage = color?.surface?.inset && cardDisappearsIntoPage(designTokens);
   // The rungs a project's tokens define. Old projects have a page and a card, and keep only those.
   const ladder = [
     "page (dg-bg-primary)",
-    "card (dg-surface-card)",
-    color?.surface?.inset ? "inset tile or field inside a card (dg-surface-inset)" : null,
+    ...(onPage
+      ? ["card or tile on the page (dg-surface-inset, because the card colour is the page's)", "field or control inside it (dg-surface-card)"]
+      : ["card (dg-surface-card)", color?.surface?.inset ? "inset tile or field inside a card (dg-surface-inset)" : null]),
     tintCount > 0 ? `tint wells and chips (dg-tint-1 to dg-tint-${tintCount})` : null,
     "one focal accent (dg-action-primary or a token gradient)",
   ].filter(Boolean).join(" → ");
 
   return [
-    `- Surface ladder, back to front: ${ladder}. Separate surfaces the way the tokens do, by stepping one rung and by the surface shadow or border token where one is defined; do not invent other borders or shadows.`,
+    // Image to UI takes each surface's fill from its source image, as it did before there was a ladder.
+    mode === "recreate"
+      ? null
+      : `- Surface ladder, back to front: ${ladder}. Separate surfaces the way the tokens do, by stepping one rung and by the surface shadow or border token where one is defined; do not invent other borders or shadows.`,
     `- Radius roles: card ${appRadius} (cards, sheets, panels, fields, and navigation shells); inner ${innerRadius} (tiles and fields inside a card, segmented tabs, and active navigation items); pill ${pillRadius} (capsule controls); circle ${pillRadius} on a square element (icon wells and avatars).`,
     `- Standard border width: ${standardBorder}`,
     `- Shadows: only where a token defines one. Surface shadow: ${/^\s*none\s*$/i.test(surfaceShadow) ? "none, so cards separate by tone" : surfaceShadow}. Overlay shadow: ${overlayShadow} (sheets and floating panels only).`,
@@ -837,7 +864,7 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     `- Primary text color: ${textHigh}`,
     `- Heading font family: ${headingFontFamily} (titles only)`,
     `- Body font family: ${bodyFontFamily} (metrics, copy, controls, labels, and all remaining text)`,
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 };
 
 const compactPromptField = (value: unknown, fallback = "none") => {
@@ -1169,8 +1196,8 @@ const buildScreenInstruction = ({
     screenPlan,
     navigationArchitecture: resolvedNavigationArchitecture,
   });
-  // The reference's components as markup to copy. Style mode only: Image to UI reproduces its source.
-  const styleComponentsBlock = mode === "style" ? formatStyleComponents(styleComponents) : null;
+  // The project's components as markup to copy: its kit, or an approved preset's. Image to UI reproduces its source.
+  const styleComponentsBlock = mode !== "recreate" ? formatStyleComponents(styleComponents) : null;
 
   const navigationInstruction = (() => {
     if (mode === "recreate" && !navigationPlan?.enabled) return "Reproduce the target frame's visible chrome, navigation, overlays and back/dismiss affordances exactly from the supplied pixels. Ignore generic chrome categories when they contradict that frame. Do not invent a top bar, bottom sheet or navigation shell. Navigation visible in the reference belongs inside this output.";
@@ -1268,7 +1295,7 @@ Do NOT default to generic Tailwind palette values (e.g., bg-gray-900) if a desig
 Do NOT invent additional radius tiers, border widths, or shadow strengths. Use one geometry/elevation language across the entire screen.
 
 STRICT DESIGN CONTRACT:
-${buildStrictDesignContract(designTokens)}
+${buildStrictDesignContract(designTokens, mode)}
 
 TYPE ROLES:
 ${buildTypographyRoleContract()}

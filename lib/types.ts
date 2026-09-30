@@ -468,14 +468,17 @@ export interface StyleComponent {
 }
 
 /**
- * The reference's component vocabulary as markup the builder can copy, from an approved
- * curated preset or from a specimen built out of an uploaded reference.
+ * Components as markup the builder can copy: an approved curated preset's (the reference's vocabulary), or a
+ * project's component kit (lib/generation/component-kit.ts), which every screen of the project is built from.
  */
 export interface ReferenceSpecimen {
-  source: "preset" | "upload";
+  source: "preset" | "upload" | "kit";
   components: StyleComponent[];
-  /** Where the upload a specimen was built from is stored, so that a later preparation of it reuses the specimen. */
-  imagePath?: string | null;
+  /**
+   * For a kit: a hash of what it was made from (the screens, the tokens and the reference), so that a later
+   * preparation or build with the same basis reuses it instead of building it again.
+   */
+  basis?: string;
 }
 
 export interface ProjectReferenceDna {
@@ -592,6 +595,8 @@ export interface ProjectCharter {
   referenceScreens?: ProjectCharterReferenceScreen[];
   designSystemSignals?: ProjectCharterDesignSystemSignals | null;
   referenceDna?: ProjectReferenceDna | null;
+  /** The components every screen of the project is built from, made once at its first generation. */
+  componentKit?: ReferenceSpecimen | null;
   projectOrigin?: "image_to_ui" | "style_reference" | "prompt";
   planningDiagnostics?: ProjectCharterPlanningDiagnostics | null;
   charterSource?: "planner" | "partial_planner" | "reference_fallback";
@@ -1251,8 +1256,11 @@ export interface BuildScreenInput {
   screenFamilyContract?: ScreenFamilyContract | null;
   /** The style reference's components, as markup to copy. Style mode only. */
   styleComponents?: StyleComponent[] | null;
-  /** Ask the build to mark its reusable components, so that a specimen can be read back out of it. */
-  specimenMarking?: boolean;
+  /**
+   * Ask the build to mark its reusable components, so that they can be read back out of it: a preset's specimen
+   * (true), or a project's component kit ("kit").
+   */
+  specimenMarking?: boolean | "kit";
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;

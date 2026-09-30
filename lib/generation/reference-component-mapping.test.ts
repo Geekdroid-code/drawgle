@@ -15,19 +15,21 @@ describe("formatReferenceComponentMapping", () => {
     expect(text).toMatch(/Never reproduce the reference's sections/);
   });
 
-  it("lists a curated preset's component names when it has them", () => {
+  it("lists the project's component names (its kit, or a preset's) when it has them", () => {
     const text = formatReferenceComponentMapping({
       adaptations: null,
       presetComponents: ["Calendar strip", " Donut card ", ""],
     });
-    expect(text).toContain("Reference components available: Calendar strip, Donut card.");
+    expect(text).toContain("PROJECT COMPONENTS (every screen of this product is built from these): Calendar strip, Donut card.");
+    expect(text).toContain("use the same component for the same kind of content on every screen");
     expect(text).not.toContain("Mapping:");
+    expect(text).not.toContain("REFERENCE COMPONENT MAPPING");
   });
 
-  it("carries both when the designer mapped a curated reference", () => {
+  it("carries both when the designer mapped a reference", () => {
     const text = formatReferenceComponentMapping({ adaptations: "Calendar strip → week selector", presetComponents: ["Calendar strip"] });
     expect(text).toContain("Mapping: Calendar strip → week selector");
-    expect(text).toContain("Reference components available: Calendar strip.");
+    expect(text).toContain("PROJECT COMPONENTS (every screen of this product is built from these): Calendar strip.");
   });
 
   it("removes design values from the mapping, so the mapping cannot become an order", () => {
