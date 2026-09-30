@@ -26,7 +26,7 @@ import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
 import { recreationFrameChrome } from "@/lib/product-planning/recreation-frames";
 import { preparedPlanKey, readPreparedPlan, savePreparedPlan } from "@/lib/product-planning/prepared-plans";
-import { assetsForScopePlan, projectScopePlanForKeys, readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
+import { assetsForScopePlan, projectScopePlanForKeys, readPreparedUploadSpecimen, readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
 import { earlyDesignMode, projectDesignPreparationKey,
   readProjectDesignPreparation } from "@/lib/product-planning/project-design-preparation";
 import { generateProjectDesign } from "@/lib/product-planning/generate-project-design";
@@ -96,7 +96,7 @@ import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { styleComponentsOf } from "@/lib/generation/style-components";
-import { startUploadSpecimen, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
+import { startUploadSpecimen, withinUploadSpecimenWait, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
 import {
   bindReservationToScreen,
   captureGenerationCredit,
@@ -2740,8 +2740,12 @@ export const generateUiFlowTask = task({
         existing: preparedPlan?.charter?.referenceDna?.specimen ?? projectReferenceDna?.specimen ?? null,
         plannedAhead: Boolean(preparedPlan),
       },
-      input: () => ({ image: promptImage!, analysis: referenceAnalysis!, tokens: designTokens! }),
+      input: () => ({ image: promptImage!, analysis: referenceAnalysis!, tokens: designTokens!, imagePath: payload.imagePath ?? null }),
       buildScreen: buildScreenCode,
+      // a preparation of this project may already have built it from the same upload
+      reuse: payload.imagePath
+        ? () => readPreparedUploadSpecimen(admin, payload.projectId, payload.ownerId, payload.imagePath!)
+        : undefined,
       onSettled: ({ specimen, notes, error }) => {
         if (error) logger.warn("Upload specimen skipped: the build failed", { generationRunId: payload.generationRunId, error });
         else logger.info("Upload specimen", { generationRunId: payload.generationRunId, components: specimen?.components.length ?? 0, notes });
@@ -2825,7 +2829,9 @@ export const generateUiFlowTask = task({
           },
           llmLog: llmLogFor("blueprint"),
         }));
-    plan.charter = withReferenceSpecimen(plan.charter, await uploadSpecimenPromise);
+    // The screens do not wait long for it: past the limit they are built without it.
+    plan.charter = withReferenceSpecimen(plan.charter, await withinUploadSpecimenWait(uploadSpecimenPromise, undefined,
+      () => logger.warn("Upload specimen not ready in time; building without it", { generationRunId: payload.generationRunId })));
 
     if (!preparedPlan && shouldPlanScreenBriefsFromSeeds) {
       if (!requestedCharter) {

@@ -162,6 +162,13 @@ describe("screen evaluation", () => {
     expect(result.tone.cardVsExpected).toBe(0);
   });
 
+  it("takes a card at the project's own radius above 24px for what was asked, and flags one above it", () => {
+    const rounded = { ...baselineLike(), elements: [element({ label: "div.dg-surface-card", bg: rgba("#FFFFFF"), radius: 28 })] };
+    expect(evaluateScreen(rounded, context({ cardRadiusPx: 28 })).flags).not.toContain("radius");
+    expect(evaluateScreen(rounded, context()).flags).toContain("radius");
+    expect(evaluateScreen(rounded, context({ cardRadiusPx: 20 })).flags).toContain("radius");
+  });
+
   it("does not treat pills, circles or the navigation as radius offenders", () => {
     const result = evaluateScreen(
       facts([

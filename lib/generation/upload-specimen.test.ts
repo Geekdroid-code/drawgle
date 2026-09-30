@@ -10,6 +10,8 @@ import {
   buildUploadSpecimen,
   shouldBuildUploadSpecimen,
   startUploadSpecimen,
+  UPLOAD_SPECIMEN_WAIT_MS,
+  withinUploadSpecimenWait,
   withReferenceSpecimen,
 } from "./upload-specimen";
 
@@ -202,6 +204,57 @@ describe("starting the specimen beside planning", () => {
     expect(settled).toHaveBeenCalledWith({ specimen: null, notes: [], error: failure });
   });
 
+  it("records which upload it was built from", async () => {
+    const ready = { ...(await input()), imagePath: "owner/project/upload.png" };
+    const specimen = await startUploadSpecimen({
+      applies: applies(), input: () => ready,
+      buildScreen: async () => ({ code: done(marked("summary-card", "list-row", "chip-row", "stat-tile")) }),
+    });
+    expect(specimen?.imagePath).toBe("owner/project/upload.png");
+  });
+
+  it("reuses a specimen an earlier preparation built from the same upload, instead of paying for the build again", async () => {
+    const earlier = { source: "upload" as const, imagePath: "owner/project/upload.png", components: [{ name: "summary-card", use: "a summary", html: '<div class="dg-surface-card"></div>' }] };
+    const buildScreen = vi.fn();
+    const settled = vi.fn();
+    const specimen = await startUploadSpecimen({
+      applies: applies(), input: () => { throw new Error("not read"); }, buildScreen, reuse: async () => earlier, onSettled: settled,
+    });
+    expect(specimen).toBe(earlier);
+    expect(buildScreen).not.toHaveBeenCalled();
+    expect(settled).toHaveBeenCalledWith(expect.objectContaining({ specimen: earlier, reused: true }));
+  });
+
+  it("builds when there is nothing to reuse, or the lookup fails", async () => {
+    const ready = await input();
+    const build = async () => ({ code: done(marked("summary-card", "list-row", "chip-row", "stat-tile")) });
+    for (const reuse of [async () => null, async () => { throw new Error("database unavailable"); }, async () => ({ source: "upload" as const, components: [] })]) {
+      const buildScreen = vi.fn(build);
+      const specimen = await startUploadSpecimen({ applies: applies(), input: () => ready, buildScreen, reuse });
+      expect(buildScreen).toHaveBeenCalledTimes(1);
+      expect(specimen?.components).toHaveLength(4);
+    }
+  });
+
+  it("is not waited for past the limit: the screens are built without it", async () => {
+    vi.useFakeTimers();
+    try {
+      const specimen = { source: "upload" as const, components: [] };
+      const timedOut = vi.fn();
+      const slow = withinUploadSpecimenWait(new Promise<typeof specimen>(() => undefined), 60_000, timedOut);
+      await vi.advanceTimersByTimeAsync(60_000);
+      await expect(slow).resolves.toBeNull();
+      expect(timedOut).toHaveBeenCalledTimes(1);
+      // one that is ready in time is used, and nothing is left waiting
+      const quick = withinUploadSpecimenWait(Promise.resolve(specimen), 60_000, timedOut);
+      await expect(quick).resolves.toBe(specimen);
+      expect(vi.getTimerCount()).toBe(0);
+      expect(UPLOAD_SPECIMEN_WAIT_MS).toBe(60_000);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("runs beside whatever the caller does meanwhile", async () => {
     const events: string[] = [];
     const ready = await input();
@@ -228,9 +281,11 @@ describe("putting the specimen on the project's reference DNA", () => {
   });
   const specimen = { source: "upload" as const, components: [{ name: "summary-card", use: "a summary at the top", html: '<div class="dg-surface-card"></div>' }] };
 
-  it("adds it to the DNA the project's charter carries", () => {
+  it("adds it to the DNA the project's charter carries, with the upload it came from", () => {
     const next = withReferenceSpecimen(charter(dna()), specimen);
     expect(next.referenceDna?.specimen).toEqual(specimen);
+    const traced = withReferenceSpecimen(charter(dna()), { ...specimen, imagePath: "owner/project/upload.png" });
+    expect(traced.referenceDna?.specimen?.imagePath).toBe("owner/project/upload.png");
     expect(next.referenceDna?.analysis).toEqual(dna().analysis);
     expect(next.appType).toBe("Pets");
   });

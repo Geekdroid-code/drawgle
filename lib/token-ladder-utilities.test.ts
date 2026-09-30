@@ -99,7 +99,17 @@ describe("surface ladder utilities", () => {
   it("lists the new utilities and tokens for the builder", () => {
     for (const text of [buildTokenUsageGuide(withLadder), buildTokenPromptContext(withLadder, "compact_visual")]) {
       expect(text).toContain("dg-surface-inset");
-      expect(text).toContain("dg-tint-1, dg-tint-2, dg-tint-3, dg-tint-4");
+      // the three tints this project has, and no fourth
+      expect(text).toContain("dg-surface-inset, dg-tint-1, dg-tint-2, dg-tint-3, dg-surface-bottom-sheet");
+    }
+    // a project without tints is not offered them
+    const withoutTints: DesignTokens = {
+      ...withLadder,
+      tokens: { ...withLadder.tokens, color: { ...withLadder.tokens!.color, accent_tints: undefined, accent_tints_text: undefined } },
+    };
+    for (const text of [buildTokenUsageGuide(withoutTints), buildTokenPromptContext(withoutTints, "compact_visual")]) {
+      expect(text).toContain("dg-surface-inset, dg-surface-bottom-sheet");
+      expect(text).not.toContain("dg-tint-");
     }
     const compact = buildTokenPromptContext(withLadder, "compact_visual");
     expect(compact).toContain("color.surface.inset: var(--dg-color-surface-inset) = #EDEAD7");

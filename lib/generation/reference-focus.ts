@@ -48,10 +48,10 @@ export const TYPEFACE_QUESTION = [
 ].join("\n");
 
 export const NAVIGATION_QUESTION = [
-  "This is the bottom part of a mobile app screen, inside a phone frame (the thin white outline around the screen). Describe its persistent bottom navigation bar. If there is none, return { \"present\": false }.",
+  "This is the bottom part of a mobile app screen, up to the edge of the screen (a device frame, or the edge of the screenshot). Describe its persistent bottom navigation bar. If there is none, return { \"present\": false }.",
   "Return strictly valid JSON only:",
   '{ "present": true, "touchesFrameLeft": true, "touchesFrameRight": true, "widerThanCardsAbove": true, "topCorners": "rounded | square", "itemCount": 4, "icons": ["<what the first icon shows>", "<what the second shows>"], "labels": "always | active-only | hidden", "activeTreatment": "icon-fill | tint | underline | compact-chip", "inactiveTreatment": "plain | well", "activeFill": "solid | gradient", "material": "solid | translucent | glass", "geometry": "one short sentence" }',
-  "- touchesFrameLeft and touchesFrameRight: at the height of the icons, does the bar's own surface run all the way to the phone frame on that side, with no page background between the frame and the bar? The frame's rounded bottom corners curve the bar's ends inward, which does not count as a gap.",
+  "- touchesFrameLeft and touchesFrameRight: at the height of the icons, does the bar's own surface run all the way to the screen's edge on that side, with no page background between the edge and the bar? Rounded screen corners that curve the bar's ends inward do not count as a gap.",
   "- widerThanCardsAbove: is the bar wider than the content cards above it, which sit inside the screen's side margins? null when no card is visible above the bar.",
   "- Count every icon of the bar, even when it has no labels. icons lists them in order, by what they show.",
   "- activeTreatment is icon-fill when the active icon sits inside a filled circle or capsule and the other icons are plain.",
@@ -172,7 +172,7 @@ const typographySentence = (heading: TypefaceClass, reads: TypefaceRead[]) => {
     same === true
       ? ", and the smaller text is set in the same typeface in other weights"
       : bodyClass ? `, with ${CLASS_LABEL[bodyClass]} text for the smaller sizes` : "",
-    weights === "a light word beside a bold word" ? ". A light word may sit beside a bold one in a heading: that is one typeface in two weights" : "",
+    weights === "mixed weights within a heading" ? ". A heading may mix weights: that is one typeface in two weights" : "",
     ".",
   ].join("").replace("..", ".");
 };
@@ -215,7 +215,8 @@ const refineNavigation = (
   if (attachment === "attached") {
     next.anatomy = "fixed-tab-rail";
     next.width = "full";
-    next.corners = consensus(matching.map((read) => read.topCorners)) ?? existing?.corners ?? "rounded";
+    // Corners nobody could read stay unknown, and an attached bar is then drawn with square corners.
+    next.corners = consensus(matching.map((read) => read.topCorners)) ?? existing?.corners ?? null;
     next.geometry = matching.find((read) => read.geometry)?.geometry ?? "A bar attached to the bottom edge of the screen, full width.";
     next.safeAreaRelationship = "Attached to the bottom edge of the screen.";
   } else if (attachment === "floating") {

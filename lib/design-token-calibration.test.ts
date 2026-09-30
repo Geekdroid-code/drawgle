@@ -79,6 +79,18 @@ describe("calibrateGeneratedTokens geometry", () => {
     expect(calibrate({}, generated({ radii: { app: "32px", pill: "999px" } })).radii?.pill).toBe("999px");
   });
 
+  it("goes above 24px only on a clear signal: the user's own words, or a reference a person reviews", () => {
+    // an unreviewed reference read as extra-rounded is a guess, and a guess stays within the default
+    expect(calibrate({ radiusClass: "extra-rounded" }).radii?.app).toBe("24px");
+    // a reviewed reference's class is followed (32px is inside extra-rounded's 26-32)
+    expect(calibrate({ radiusClass: "extra-rounded", reviewedRadius: true }).radii?.app).toBe("32px");
+    // the user's words win over the reference's class, both ways
+    expect(calibrate({ radiusClass: "very-rounded", userRadiusClass: "extra-rounded" }, generated({ radii: { app: "20px", inner: "14px" } })).radii?.app).toBe("28px");
+    expect(calibrate({ radiusClass: "extra-rounded", reviewedRadius: true, userRadiusClass: "soft" }).radii?.app).toBe("10px");
+    // and nothing goes above 32px
+    expect(calibrate({ userRadiusClass: "extra-rounded" }, generated({ radii: { app: "48px", inner: "20px" } })).radii?.app).toBe("28px");
+  });
+
   it("keeps a radius inside the reference's class and moves one that is outside it", () => {
     // 22px is inside very-rounded (18-24pt): kept
     expect(calibrate({ radiusClass: "very-rounded" }, generated({ radii: { app: "22px", inner: "14px" } })).radii?.app).toBe("22px");
@@ -92,12 +104,29 @@ describe("calibrateGeneratedTokens geometry", () => {
 });
 
 describe("calibrateGeneratedTokens elevation", () => {
-  it("removes the card shadow for flat, hairline and unknown elevation", () => {
-    for (const surfaceElevation of ["flat-tone", "hairline", null, undefined] as const) {
+  it("removes the card shadow for flat and hairline references", () => {
+    for (const surfaceElevation of ["flat-tone", "hairline"] as const) {
       const tokens = calibrate({ surfaceElevation });
       expect(tokens.shadows?.surface).toBe("none");
       expect(tokens.shadows?.none).toBe("none");
     }
+  });
+
+  it("keeps the design's own depth when nothing shows how cards separate, never heavier than a soft shadow", () => {
+    // with no reference, the direction chooses flat, a border or a soft shadow: guided, not forced flat
+    for (const surfaceElevation of [null, undefined] as const) {
+      expect(calibrate({ surfaceElevation }).shadows?.surface).toBe("0px 4px 16px 0px rgba(45, 41, 38, 0.04)");
+    }
+    // the heavy blurred default is softened, and a design that chose no shadow keeps none
+    expect(calibrate({}, generated({ shadows: { surface: "0 12px 40px rgba(15,23,42,0.3)" } })).shadows?.surface).toBe("0px 12px 16px 0px rgba(15, 23, 42, 0.08)");
+    expect(calibrate({}, generated({ shadows: { surface: "none" } })).shadows?.surface).toBe("none");
+  });
+
+  it("lets the user's own words decide the depth over the reference's", () => {
+    expect(hasCastShadow(calibrate({ surfaceElevation: "flat-tone", userSurfaceElevation: "soft-shadow" }).shadows?.surface)).toBe(true);
+    const offset = "4px 4px 0 0 rgba(0,0,0,1)";
+    expect(calibrate({ surfaceElevation: "flat-tone", userSurfaceElevation: "strong-shadow" }, generated({ shadows: { surface: offset } })).shadows?.surface).toBe(offset);
+    expect(calibrate({ surfaceElevation: "soft-shadow", userSurfaceElevation: "flat-tone" }).shadows?.surface).toBe("none");
   });
 
   it("keeps the model's shadow when the reference shows a strong one", () => {
@@ -125,7 +154,8 @@ describe("calibrateGeneratedTokens elevation", () => {
   it("makes the navigation follow the card shadow it copied", () => {
     const input = generated();
     expect(input.tokens?.navigation?.shadow).toBe(input.tokens?.shadows?.surface);
-    expect(calibrate().navigation?.shadow).toBe("none");
+    expect(calibrate({ surfaceElevation: "flat-tone" }).navigation?.shadow).toBe("none");
+    expect(calibrate().navigation?.shadow).toBe("0px 4px 16px 0px rgba(45, 41, 38, 0.04)");
     expect(calibrate({ surfaceElevation: "strong-shadow" }).navigation?.shadow).toBe(input.tokens?.shadows?.surface);
     // a navigation shadow the model chose itself stays, softened to the overlay cap
     const own = generated({ navigation: { shadow: "0 8px 24px rgba(0,0,0,0.4)" } });
@@ -242,8 +272,14 @@ describe("calibrateGeneratedTokens colours", () => {
 });
 
 describe("calibrateGeneratedTokens accent tints", () => {
+  it("makes no tints for a design that does not use them", () => {
+    expect(calibrate({ palette: mindfulness }).color).not.toHaveProperty("accent_tints");
+    expect(calibrate({ palette: mindfulness, tints: false }).color).not.toHaveProperty("accent_tints");
+    expect(calibrate({ tints: false }).color).not.toHaveProperty("accent_tints_text");
+  });
+
   it("mixes each accent most of the way toward the page, with text that passes the contrast floor", () => {
-    const color = calibrate({ palette: mindfulness }).color!;
+    const color = calibrate({ palette: mindfulness, tints: true }).color!;
     const tints = color.accent_tints!;
     expect(Object.keys(tints).length).toBeGreaterThanOrEqual(3);
     expect(Object.keys(tints).length).toBeLessThanOrEqual(4);
@@ -259,7 +295,7 @@ describe("calibrateGeneratedTokens accent tints", () => {
   });
 
   it("uses the action colours when the user named the accent, and none of the reference's", () => {
-    const color = calibrate({ palette: mindfulness, userColorRoles: ["action"] }).color!;
+    const color = calibrate({ palette: mindfulness, userColorRoles: ["action"], tints: true }).color!;
     const values = Object.values(color.accent_tints!);
     expect(values.length).toBeGreaterThanOrEqual(1);
     expect(values).not.toContain("#F6DDB9");
@@ -276,7 +312,7 @@ describe("calibrateGeneratedTokens accent tints", () => {
     };
     const input = generated();
     input.tokens!.color!.text!.high_emphasis = "#F2F2F2";
-    const color = calibrate({ palette: dark }, input).color!;
+    const color = calibrate({ palette: dark, tints: true }, input).color!;
     for (const [key, tint] of Object.entries(color.accent_tints!)) {
       expect(contrastRatio(color.accent_tints_text![key], tint)!).toBeGreaterThanOrEqual(4.5);
     }

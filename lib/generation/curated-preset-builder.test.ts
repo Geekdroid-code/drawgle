@@ -260,7 +260,7 @@ describe("what the build refuses", () => {
   });
 
   it("tokens that are not a calibrated set", async () => {
-    const { error } = await refusal({ generateTokens: async () => ({ ...presetTokens(), tokens: { ...presetTokens().tokens, radii: { app: "32px", inner: "20px", pill: "9999px" } } }) });
+    const { error } = await refusal({ generateTokens: async () => ({ ...presetTokens(), tokens: { ...presetTokens().tokens, radii: { app: "40px", inner: "20px", pill: "9999px" } } }) });
     expect(error.stage).toBe("preset");
     expect(error.message).toContain("tokens");
   });

@@ -17,10 +17,16 @@ import {
 import { hasDesignValues } from "@/lib/generation/design-value-scrub";
 
 describe("radius and elevation classes", () => {
-  it("maps each radius class to a card radius that respects the 24px rule", () => {
-    expect(RADIUS_CLASS_PX).toEqual({ square: 4, soft: 10, rounded: 16, "very-rounded": 20 });
-    for (const radiusClass of RADIUS_CLASSES) expect(RADIUS_CLASS_PX[radiusClass]).toBeLessThanOrEqual(24);
-    expect(RADIUS_CLASSES.map((radiusClass) => RADIUS_CLASS_PX[radiusClass])).toEqual([4, 10, 16, 20]);
+  it("maps each radius class to a card radius: only extra-rounded goes above the 24px default", () => {
+    expect(RADIUS_CLASS_PX).toEqual({ square: 4, soft: 10, rounded: 16, "very-rounded": 20, "extra-rounded": 28 });
+    for (const radiusClass of RADIUS_CLASSES.filter((name) => name !== "extra-rounded")) {
+      expect(RADIUS_CLASS_PX[radiusClass]).toBeLessThanOrEqual(24);
+    }
+    expect(RADIUS_CLASSES.map((radiusClass) => RADIUS_CLASS_PX[radiusClass])).toEqual([4, 10, 16, 20, 28]);
+    // the label a model used for "more than very rounded" now means that, instead of folding into very-rounded
+    expect(normalizeRadiusClass("extra rounded")).toBe("extra-rounded");
+    expect(radiusClassForPx(28)).toBe("extra-rounded");
+    expect(radiusClassForPx(25)).toBe("very-rounded");
   });
 
   it("normalises the labels a model actually returns", () => {

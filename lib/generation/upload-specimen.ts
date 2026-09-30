@@ -28,7 +28,36 @@ export type UploadSpecimenInput = {
   analysis: ReferenceAnalysis;
   /** The project's calibrated tokens: the specimen is drawn with them, as every screen will be. */
   tokens: DesignTokens;
+  /** Where the upload is stored: recorded on the specimen, so that a later preparation of it reuses the specimen. */
+  imagePath?: string | null;
 };
+
+/**
+ * How long a caller waits for the specimen once its own planning is done. The build runs beside planning, so it is
+ * usually done by then; one that is not is left behind, and the screens are built without it rather than kept
+ * waiting. A first guess, to be set from how long a live build takes.
+ */
+export const UPLOAD_SPECIMEN_WAIT_MS = 60_000;
+
+/** The specimen, or null when it is not ready within `ms`. The build itself is not stopped. */
+export async function withinUploadSpecimenWait(
+  specimen: Promise<ReferenceSpecimen | null>,
+  ms = UPLOAD_SPECIMEN_WAIT_MS,
+  onTimeout?: () => void,
+): Promise<ReferenceSpecimen | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((resolve) => {
+    timer = setTimeout(() => {
+      onTimeout?.();
+      resolve(null);
+    }, ms);
+  });
+  try {
+    return await Promise.race([specimen, late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export type UploadSpecimenResult = { specimen: ReferenceSpecimen | null; notes: string[] };
 
@@ -85,6 +114,7 @@ export async function buildUploadSpecimen({
   image,
   analysis,
   tokens,
+  imagePath,
   buildScreen,
 }: UploadSpecimenInput & { buildScreen: UploadSpecimenBuilder }): Promise<UploadSpecimenResult> {
   const notes: string[] = [];
@@ -113,7 +143,7 @@ export async function buildUploadSpecimen({
     return { specimen: null, notes: [...notes, `the build of "${screen.suggestedRole}" marked no usable component`] };
   }
   if (usable.length < FAIR_COMPONENT_COUNT) notes.push(`only ${usable.length} component${usable.length === 1 ? " was" : "s were"} marked`);
-  return { specimen: { source: "upload", components: usable }, notes };
+  return { specimen: { source: "upload", components: usable, ...(imagePath ? { imagePath } : {}) }, notes };
 }
 
 /**
@@ -125,15 +155,21 @@ export function startUploadSpecimen({
   applies,
   input,
   buildScreen,
+  reuse,
   onSettled,
 }: {
   applies: Parameters<typeof shouldBuildUploadSpecimen>[0];
   input: () => UploadSpecimenInput;
   buildScreen: UploadSpecimenBuilder;
-  onSettled?: (event: { specimen: ReferenceSpecimen | null; notes: string[]; error?: unknown }) => void;
+  /**
+   * A specimen already built from the same upload, by an earlier preparation of this project. Each revision of the
+   * approval card prepares the plan again, and would otherwise pay for the same build again.
+   */
+  reuse?: () => Promise<ReferenceSpecimen | null>;
+  onSettled?: (event: { specimen: ReferenceSpecimen | null; notes: string[]; error?: unknown; reused?: boolean }) => void;
 }): Promise<ReferenceSpecimen | null> {
   if (!shouldBuildUploadSpecimen(applies)) return Promise.resolve(null);
-  return buildUploadSpecimen({ ...input(), buildScreen }).then(
+  const build = () => buildUploadSpecimen({ ...input(), buildScreen }).then(
     (result) => {
       onSettled?.(result);
       return result.specimen;
@@ -143,6 +179,13 @@ export function startUploadSpecimen({
       return null;
     },
   );
+  if (!reuse) return build();
+  return reuse().catch(() => null).then((earlier) => {
+    const components = usableStyleComponents(earlier?.components);
+    if (!earlier || components.length === 0) return build();
+    onSettled?.({ specimen: earlier, notes: ["reused the specimen an earlier preparation built from this upload"], reused: true });
+    return earlier;
+  });
 }
 
 /** The charter with the specimen on its reference DNA. A DNA that already has one, or none, is left as it is. */
@@ -151,6 +194,9 @@ export function withReferenceSpecimen(charter: ProjectCharter, specimen: Referen
   if (!specimen || !dna || dna.specimen) return charter;
   const components = usableStyleComponents(specimen.components);
   return components.length > 0
-    ? { ...charter, referenceDna: { ...dna, specimen: { source: specimen.source, components } } }
+    ? {
+        ...charter,
+        referenceDna: { ...dna, specimen: { source: specimen.source, components, ...(specimen.imagePath ? { imagePath: specimen.imagePath } : {}) } },
+      }
     : charter;
 }

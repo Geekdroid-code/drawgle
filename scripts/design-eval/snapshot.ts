@@ -45,7 +45,7 @@ Options:
   --expect-card <hex>       Reference card colour for the tone match (default: measured from the reference image)
   --retoken                 What-if: render the existing screens under tokens calibrated the way generation now
                             calibrates them (radius cap, flat elevation, measured page and card). Nothing is saved.
-  --radius-class <class>    square | soft | rounded | very-rounded, for --retoken (default: from the reference DNA)
+  --radius-class <class>    square | soft | rounded | very-rounded | extra-rounded, for --retoken (default: from the reference DNA)
   --reference <file>        Use this image as the reference instead of the stored one
   --offline                 Do not reach the network while rendering (no Tailwind: for tests only)`;
 
@@ -137,7 +137,7 @@ async function snapshotOne({
   console.log(`\n${caseId ? `${caseId} · ` : ""}${bundle.project.name} (${bundle.project.id})`);
   console.log(`  ${bundle.screens.length} screens, reference: ${bundle.reference.id ?? bundle.reference.source}, shared navigation: ${bundle.navigation?.plan.enabled ? "on" : "off"}`);
   const radiusClass = values["radius-class"] ? normalizeRadiusClass(values["radius-class"]) : null;
-  if (values["radius-class"] && !radiusClass) throw new Error("--radius-class must be square, soft, rounded or very-rounded.");
+  if (values["radius-class"] && !radiusClass) throw new Error("--radius-class must be square, soft, rounded, very-rounded or extra-rounded.");
   const prepared = await prepareSnapshot({ bundle, image, overrides: overrides(), retoken: values.retoken, radiusClass });
   prepared.notes.forEach((note) => console.log(`  ${note}`));
   const title = [

@@ -26,7 +26,8 @@ import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/genera
 import { mergePresetTokens, presetSpecimen, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
 import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
 import { omitCraftBars } from "@/lib/generation/semantic-inspiration";
-import { SPECIMEN_MARKING_INSTRUCTION, usableStyleComponents } from "@/lib/generation/style-components";
+import { SPECIMEN_MARKING_INSTRUCTION, styleComponentSummaries, usableStyleComponents } from "@/lib/generation/style-components";
+import { asksAnything, readTokenLabels, withoutTokenLabels, type UserAsked } from "@/lib/generation/token-labels";
 import { userNamedColorRoles, userNamesTypography } from "@/lib/generation/user-color-roles";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
@@ -2999,6 +3000,12 @@ export async function planScreenBriefsForBuild({
     },
   ];
 
+  // The reference's own components, by name, so that a later batch's briefs can say which one a screen uses.
+  const componentMapping = plannerMode === "style"
+    ? formatReferenceComponentMapping({ presetComponents: styleComponentSummaries(charter.referenceDna) })
+    : null;
+  if (componentMapping) parts.push({ text: componentMapping });
+
   if (requestImage) parts.push({ text: "Request-local image: adapt its relevant layout and content to the approved tokens and navigation. This is not a new project design system." }, { inlineData: requestImage });
 
   const screenPolicy = geminiPolicyForTask("project_planning", {
@@ -3697,9 +3704,13 @@ export async function planUiFlow({
 
   if (parsedBlueprint.success) {
     // The discovery designer already mapped the reference's components onto this product. The brief
-    // planner gets that mapping as its own labelled evidence, not as one field of a JSON dump.
+    // planner gets that mapping as its own labelled evidence, not as one field of a JSON dump, with the
+    // names of the components the builder will be given, so that a brief can say which one a screen uses.
     const componentMapping = plannerMode === "style"
-      ? formatReferenceComponentMapping({ adaptations: productPlanning?.experience?.adaptations })
+      ? formatReferenceComponentMapping({
+          adaptations: productPlanning?.experience?.adaptations,
+          presetComponents: styleComponentSummaries(referenceDna),
+        })
       : null;
     const screenParts: Array<Record<string, unknown>> = [
       ...parts.filter((part) => typeof part.text !== "string" || !part.text.startsWith("Approved Token ")),
@@ -4090,14 +4101,13 @@ export async function generateDesignTokens({
 }) {
   try {
     const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
-    // An approved curated preset holds tokens that were calibrated and checked once. With no colours or
-    // fonts of the user's own to apply, they are the project's tokens and no model is asked. With some,
-    // the model works as usual and only the roles the user named are taken from its answer.
+    // An approved curated preset holds tokens that were calibrated and checked once. With no requirements of the
+    // user's own, they are the project's tokens and no model is asked. With some, the model reads them and says
+    // beside its tokens what they ask for (token-labels.ts); only that is changed in the preset.
     const preset = !ignorePreset && !designStyle && resolvedReferenceMode === "curated_style"
       ? resolveCuratedStylePreset(referenceId)
       : null;
-    const presetNamesFonts = userNamesTypography(designRequirements);
-    if (preset && userNamedColorRoles(designRequirements).size === 0 && !presetNamesFonts) {
+    if (preset && !designRequirements?.trim()) {
       llmLog?.("[design-tokens] approved curated preset used; no model call", { referenceId });
       return normalizeDesignTokens(preset.tokens);
     }
@@ -4219,12 +4229,23 @@ export async function generateDesignTokens({
     }
 
     const rawTokens = parseJsonResponse<unknown>(response.text || "{}");
-    const parsed = DesignTokensSchema.safeParse(rawTokens);
+    // What the user's own words ask for and whether the design uses tints, as the model read them. They describe
+    // the request, not the design, so they are taken off the tokens before those are kept.
+    const labels = readTokenLabels(rawTokens);
+    const tokenCandidate = withoutTokenLabels(rawTokens);
+    const parsed = DesignTokensSchema.safeParse(tokenCandidate);
     const screenMargin = resolveGeneratedScreenMargin({
       prompt,
       referenceMode: resolvedReferenceMode,
       referenceAnalysis,
     });
+    // When the model did not say, a careful reading of the requirements' words stands in for it.
+    const asked: UserAsked = labels.userAsked ?? {
+      colorRoles: [...userNamedColorRoles(designRequirements)],
+      fonts: userNamesTypography(designRequirements),
+      corners: null,
+      depth: null,
+    };
 
     // Image-to-UI reproduces its source and an explicit design style is the user's own choice,
     // so only tokens derived from a style reference or from the prompt are calibrated.
@@ -4234,9 +4255,15 @@ export async function generateDesignTokens({
           palette: measuredPalette,
           radiusClass: referenceAnalysis?.radiusClass ?? null,
           surfaceElevation: referenceAnalysis?.surfaceElevation ?? null,
-          userColorRoles: userNamedColorRoles(designRequirements),
+          userRadiusClass: asked.corners,
+          userSurfaceElevation: asked.depth,
+          // a preset's reference, and one being built into a preset, is looked at by a person before it is used
+          reviewedRadius: ignorePreset || Boolean(preset),
+          // tints only for a design that uses them; for a preset's reference, its reviewed tokens say whether it does
+          tints: preset ? Object.keys(preset.tokens.tokens?.color?.accent_tints ?? {}).length > 0 : labels.tints === true,
+          userColorRoles: asked.colorRoles,
           // fonts the user named are theirs; otherwise the letters that were read decide the class
-          typeface: presetNamesFonts ? null : referenceAnalysis?.typefaceClass ?? null,
+          typeface: asked.fonts ? null : referenceAnalysis?.typefaceClass ?? null,
         };
 
     const generated = parsed.success
@@ -4244,9 +4271,21 @@ export async function generateDesignTokens({
           system_schema?: string;
           meta?: DesignTokenMetadata;
           tokens?: DesignTokenValues;
-        }, screenMargin, calibration, { keepDeviceFaces: presetNamesFonts })
-      : buildApprovedDesignTokens(rawTokens, screenMargin, calibration, { keepDeviceFaces: presetNamesFonts });
-    return preset ? mergePresetTokens({ preset, generated, fonts: presetNamesFonts }) : generated;
+        }, screenMargin, calibration, { keepDeviceFaces: asked.fonts })
+      : buildApprovedDesignTokens(tokenCandidate, screenMargin, calibration, { keepDeviceFaces: asked.fonts });
+    if (!preset) return generated;
+    if (!asksAnything(asked)) {
+      llmLog?.("[design-tokens] the user's requirements ask nothing of the approved preset's design; it is used as it is", { referenceId });
+      return normalizeDesignTokens(preset.tokens);
+    }
+    return mergePresetTokens({
+      preset,
+      generated,
+      fonts: asked.fonts,
+      colors: asked.colorRoles.length > 0,
+      corners: Boolean(asked.corners),
+      depth: Boolean(asked.depth),
+    });
   } catch (error) {
     console.error("Failed to generate design tokens", error);
     throw error instanceof Error

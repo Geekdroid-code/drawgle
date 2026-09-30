@@ -513,8 +513,13 @@ export const ensureLegibleGeneratedTokens = (designTokens: DesignTokens): Design
 // Calibration of generated tokens
 // ---------------------------------------------------------------------------
 
-/** The founder's rule: up to 24px works best for a card radius when a default is needed. */
-export const MAX_APP_RADIUS_PX = 24;
+/**
+ * The founder's rule: up to 24px works best for a card radius when a default is needed. A radius nobody asked
+ * for (a model's own, or one read from a reference no person has looked at) stays within it.
+ */
+export const DEFAULT_MAX_APP_RADIUS_PX = 24;
+/** The most a card radius can be: an extra-rounded style the user asked for, or a reviewed reference shows. */
+export const MAX_APP_RADIUS_PX = 32;
 const MIN_INNER_RADIUS_PX = 6;
 const MAX_INNER_RADIUS_PX = 16;
 const RADIUS_CLASS_RANGE_PX: Record<RadiusClass, [number, number]> = {
@@ -522,6 +527,7 @@ const RADIUS_CLASS_RANGE_PX: Record<RadiusClass, [number, number]> = {
   soft: [6, 10],
   rounded: [12, 16],
   "very-rounded": [18, 24],
+  "extra-rounded": [26, 32],
 };
 const SOFT_SHADOW_MAX_BLUR_PX = 16;
 const OVERLAY_SHADOW_MAX_ALPHA = 0.16;
@@ -536,9 +542,19 @@ const TINT_TEXT_MIN_CONTRAST = 4.5;
 export type CalibrationEvidence = {
   /** Colours measured from the reference pixels (lib/generation/reference-palette.ts). */
   palette?: MeasuredPalette | null;
-  /** What the reference analysis classified. Unknown elevation means no cast shadow. */
+  /** What the reference analysis classified. Unknown elevation leaves the design's own depth, kept soft. */
   radiusClass?: RadiusClass | null;
   surfaceElevation?: SurfaceElevation | null;
+  /** The corners and the depth the user's own words ask for. They win over the reference's. */
+  userRadiusClass?: RadiusClass | null;
+  userSurfaceElevation?: SurfaceElevation | null;
+  /**
+   * The reference's radius class is looked at by a person before it is used (a curated preset), so it may go
+   * above the default. A class read at run time from an unreviewed reference may not: models overestimate corners.
+   */
+  reviewedRadius?: boolean;
+  /** Whether the design uses tinted wells and chips: the evidence shows them, or the direction calls for them. */
+  tints?: boolean;
   /** Roles the user named colours for. The palette never overwrites those. */
   userColorRoles?: ReadonlySet<ColorRole> | readonly ColorRole[] | null;
   /**
@@ -614,28 +630,36 @@ export const calibrateGeneratedTokens = (
   const named = new Set(evidence.userColorRoles ?? []);
   const palette = evidence.palette ?? null;
 
-  // Radius: at most 24px, and inside the reference's class when one was classified.
+  // Radius: inside the class the user asked for, else the reference's. Up to 24px unless a clear signal says more:
+  // the user's own words, or a reference class a person reviews before it is used.
   const radii = isRecord(tokens.radii) ? { ...tokens.radii } : {};
   let app = parsePixelValue(radii.app) ?? Number.parseFloat(DEFAULT_APP_RADIUS);
-  if (evidence.radiusClass) {
-    const [low, high] = RADIUS_CLASS_RANGE_PX[evidence.radiusClass];
-    if (app < low || app > high) app = RADIUS_CLASS_PX[evidence.radiusClass];
+  const radiusClass = evidence.userRadiusClass ?? evidence.radiusClass ?? null;
+  if (radiusClass) {
+    const [low, high] = RADIUS_CLASS_RANGE_PX[radiusClass];
+    if (app < low || app > high) app = RADIUS_CLASS_PX[radiusClass];
   }
-  app = Math.min(app, MAX_APP_RADIUS_PX);
+  const clearSignal = Boolean(evidence.userRadiusClass) || (Boolean(evidence.reviewedRadius) && Boolean(evidence.radiusClass));
+  app = Math.min(app, clearSignal ? MAX_APP_RADIUS_PX : DEFAULT_MAX_APP_RADIUS_PX);
   let inner = parsePixelValue(radii.inner) ?? Math.max(0, app - 6);
   if (app >= 10) inner = clampNumber(inner, MIN_INNER_RADIUS_PX, Math.min(MAX_INNER_RADIUS_PX, app - 4));
   else inner = Math.min(inner, Math.max(0, app - 1));
   tokens.radii = { ...radii, app: formatPixelValue(app), inner: formatPixelValue(inner) };
 
-  // Elevation: flat unless the reference shows a cast shadow.
+  // Elevation: what the user asked for, else what the reference shows. With neither, the design's own depth stays,
+  // never heavier than a soft shadow: a strong one needs the evidence or the user to ask for it.
   const shadows = isRecord(tokens.shadows) ? { ...tokens.shadows } : {};
   const previousSurfaceShadow = pickFirstString(shadows.surface);
   const textRgb = rgbOf(tokens.color?.text?.high_emphasis, [17, 24, 39]);
+  const softCap = { maxBlur: SOFT_SHADOW_MAX_BLUR_PX, maxAlpha: SOFT_SHADOW_MAX_ALPHA };
+  const elevation = evidence.userSurfaceElevation ?? evidence.surfaceElevation ?? null;
   let surfaceShadow = "none";
-  if (evidence.surfaceElevation === "strong-shadow") {
+  if (elevation === "strong-shadow") {
     surfaceShadow = previousSurfaceShadow ?? "none";
-  } else if (evidence.surfaceElevation === "soft-shadow") {
-    surfaceShadow = capShadow(previousSurfaceShadow, { maxBlur: SOFT_SHADOW_MAX_BLUR_PX, maxAlpha: SOFT_SHADOW_MAX_ALPHA }) ?? softShadow(textRgb);
+  } else if (elevation === "soft-shadow") {
+    surfaceShadow = capShadow(previousSurfaceShadow, softCap) ?? softShadow(textRgb);
+  } else if (!elevation) {
+    surfaceShadow = capShadow(previousSurfaceShadow, softCap) ?? "none";
   }
   shadows.surface = surfaceShadow;
   shadows.overlay = capShadow(pickFirstString(shadows.overlay), { maxBlur: Number.POSITIVE_INFINITY, maxAlpha: OVERLAY_SHADOW_MAX_ALPHA })
@@ -691,9 +715,10 @@ export const calibrateGeneratedTokens = (
       color.action = { ...color.action, on_primary_text: bestContentOn(color.action.primary) };
     }
 
-    // Accent tints: pastel wells and chips, each an accent mixed most of the way to the page.
+    // Accent tints: wells and chips, each an accent mixed most of the way to the page. Only for a design that uses
+    // them: told to every builder as a standard layer, they turn up in products that never asked for them.
     const tintPage = color.background?.primary;
-    if (tintPage) {
+    if (tintPage && evidence.tints) {
       const sources: string[] = [];
       const addSource = (hex: string | undefined) => {
         const lab = hexToLab(hex);

@@ -114,6 +114,7 @@ export function checkContextFor(bundle: ProjectBundle, screen: ScreenData, overr
     flowHasNavigation: flowHasNavigation(bundle.project.productPlanning),
     isRoot: !screen.stateKey && (chrome === "bottom-tabs" || chrome === "top-bar"),
     showsSharedNavigation: hasSharedNavigation({ screen, projectNavigation: bundle.navigation }),
+    cardRadiusPx: Number.parseFloat(String(bundle.project.designTokens?.tokens?.radii?.app ?? "")) || null,
   };
 }
 

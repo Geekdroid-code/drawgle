@@ -65,10 +65,10 @@ describe("radius and elevation in the reference analysis", () => {
 describe("reference analysis prompts", () => {
   it("asks both analyses to classify radius and elevation with the same scale", () => {
     for (const instruction of [referenceAnalysisRecreateInstruction, referenceAnalysisStyleInstruction]) {
-      expect(instruction).toContain('"radiusClass": "square | soft | rounded | very-rounded"');
+      expect(instruction).toContain('"radiusClass": "square | soft | rounded | very-rounded | extra-rounded"');
       expect(instruction).toContain('"surfaceElevation": "flat-tone | hairline | soft-shadow | strong-shadow"');
       expect(instruction).toContain("judged against a 390pt-wide screen");
-      expect(instruction).toContain("square is 0-4pt, soft is 6-10pt, rounded is 12-16pt, very-rounded is 18-24pt");
+      expect(instruction).toContain("square is 0-4pt, soft is 6-10pt, rounded is 12-16pt, very-rounded is 18-24pt, extra-rounded is 26-32pt");
     }
   });
 

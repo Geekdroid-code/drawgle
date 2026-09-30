@@ -39,6 +39,22 @@ describe("user-named colour roles", () => {
     expect(userNamedColorRoles(text)).toEqual(new Set());
   });
 
+  it("does not take a colour word in a product's own words for a colour", () => {
+    // each of these was read as a colour request, which kept the measured reference colours off the project
+    for (const detail of [
+      "Book private jet charters in two taps",
+      "The app must be white-label for partner brands",
+      "Guided trips to coral reefs and snow resorts",
+      "Silver and gold membership tiers with different perks",
+      "Recipes featuring salmon, olive oil and honey",
+    ]) {
+      expect(userNamedColorRoles(requirements({ label: "Product", detail })), detail).toEqual(new Set());
+    }
+    // a colour word said about colour, or beside a role, still counts
+    expect(userNamedColorRoles(requirements({ label: "Look", detail: "Use forest green as the main accent" }))).toEqual(new Set(["action"]));
+    expect(userNamedColorRoles(requirements({ label: "Look", detail: "A dark mode with charcoal tones" }))).toEqual(new Set(["background", "text"]));
+  });
+
   it("falls back to reading plain text as one requirement", () => {
     expect(userNamedColorRoles("The app should use a sage green primary colour")).toEqual(new Set(["action"]));
   });

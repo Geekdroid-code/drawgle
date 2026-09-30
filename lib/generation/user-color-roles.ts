@@ -1,4 +1,5 @@
 import { hexToLab, labChroma, parseHex } from "@/lib/color-lab";
+import { HEX_COLOUR_SOURCE } from "@/lib/generation/design-value-scrub";
 
 /**
  * Which token colour roles the user's explicit design requirements name.
@@ -6,11 +7,17 @@ import { hexToLab, labChroma, parseHex } from "@/lib/color-lab";
  * A measured palette fills the roles the user left open. It must never overwrite
  * a colour the user asked for ("Soft Sage", "Warm Cream"), so the calibration
  * skips the roles that this reports.
+ *
+ * The token model's own reading of the request is the first answer (lib/generation/token-labels.ts): it reads any
+ * language and tells a product word from a colour. This is the fallback for when it did not say, and it is careful:
+ * a colour word with no role and no talk of colour is taken for a product word ("private jet", "gold tier").
  */
 
 export type ColorRole = "background" | "surface" | "action" | "text";
 
-const HEX = /#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})\b/gi;
+const HEX = new RegExp(HEX_COLOUR_SOURCE, "gi");
+/** Words that make a fact about colour, so that a colour word in it is a colour. */
+const COLOUR_TALK = /\b(?:colou?rs?|palettes?|hues?|shades?|tints?|tones?|(?:dark|light)\s+(?:mode|theme|ui))\b/i;
 
 const LIGHT_NEUTRAL = /\b(?:cream|ivory|beige|sand|off[- ]?white|white|paper|linen|oat(?:meal)?|bone|snow|parchment|eggshell|alabaster|pearl|milk|vanilla|porcelain|chalk)\b/i;
 const DARK = /\b(?:black|charcoal|obsidian|onyx|midnight|jet|ebony|graphite|dark)\b/i;
@@ -69,6 +76,9 @@ export function userNamedColorRoles(designRequirements: string | null | undefine
       explicit.forEach((role) => named.add(role));
       continue;
     }
+    // A colour word with no role and no talk of colour is more often a product's own word: "private jet",
+    // "white-label", "gold tier", "coral reef". Only a fact about colour, or a hex code, names one.
+    if (hexes.length === 0 && !COLOUR_TALK.test(text)) continue;
     // A colour named without a role: infer the role from the colour itself.
     if (light) named.add("background");
     if (hue) named.add("action");

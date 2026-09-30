@@ -69,8 +69,23 @@ beforeEach(() => {
       : { text: JSON.stringify(modelTokens) });
 });
 
+/** The token model answers with these labels beside its tokens (lib/generation/token-labels.ts). */
+const answerWith = (meta: Record<string, unknown>) =>
+  generate.mockImplementation(async (request: { config?: { systemInstruction?: string } }) =>
+    String(request.config?.systemInstruction ?? "").includes("elite mobile product Art Director")
+      ? { text: "{}" }
+      : { text: JSON.stringify({ ...modelTokens, meta: { ...modelTokens.meta, ...meta } }) });
+
+const userRequirements = (detail: string) => [
+  "EXPLICIT USER DESIGN REQUIREMENTS",
+  "Preserve these evidenced choices.",
+  JSON.stringify([{ id: "f1", label: "Product", detail, evidence: "the user said so" }]),
+].join("\n");
+
 describe("generateDesignTokens measures and calibrates", () => {
   it("tells the token model the measured colours and calibrates a style reference's tokens", async () => {
+    // the model says the reference uses tinted wells and chips
+    answerWith({ tints: true });
     const tokens = await generateDesignTokens({
       prompt: "An app for families with multiple pets",
       image: await referenceImage(),
@@ -96,8 +111,50 @@ describe("generateDesignTokens measures and calibrates", () => {
     expect(hexDeltaE(values.color!.surface!.card!, "#F7F5E9")).toBeLessThan(2);
     expect(values.color?.surface?.inset).toBeTruthy();
     expect(hexDeltaE(values.color!.action!.primary!, "#FFC068")).toBeLessThan(3);
-    // pastel tints exist for the wells and chips
+    // tints exist for the wells and chips, and the model's labels are not kept as tokens
     expect(Object.keys(values.color?.accent_tints ?? {}).length).toBeGreaterThan(0);
+    expect(tokens.meta).not.toHaveProperty("tints");
+    expect(tokens.meta).not.toHaveProperty("userAsked");
+  });
+
+  it("makes no tints when the model does not say the design uses them", async () => {
+    const tokens = await generateDesignTokens({
+      prompt: "A banking app", image: await referenceImage(), referenceMode: "curated_style", referenceAnalysis: analysis,
+    });
+    expect(tokens.tokens?.color).not.toHaveProperty("accent_tints");
+  });
+
+  it("reads what the user asked for from the model's answer: a product's word is not a colour", async () => {
+    answerWith({ userAsked: { colorRoles: [], fonts: false, corners: null, depth: null } });
+    const jet = await generateDesignTokens({
+      prompt: "A charter app", image: await referenceImage(), referenceMode: "curated_style", referenceAnalysis: analysis,
+      designRequirements: userRequirements("Book private jet charters in two taps"),
+    });
+    // the measured page, not the model's own: "jet" named no colour
+    expect(hexDeltaE(jet.tokens!.color!.background!.primary!, "#ECE9D6")).toBeLessThan(2);
+
+    answerWith({ userAsked: { colorRoles: ["background"], fonts: false, corners: null, depth: null } });
+    const black = await generateDesignTokens({
+      prompt: "A charter app", image: await referenceImage(), referenceMode: "curated_style", referenceAnalysis: analysis,
+      designRequirements: userRequirements("A jet black app"),
+    });
+    // the user's page stays: the measured one does not replace it
+    expect(black.tokens?.color?.background?.primary).toBe("#F9F6F0");
+    expect(black.meta).not.toHaveProperty("userAsked");
+  });
+
+  it("keeps an unreviewed reference's corners within 24px, and goes above only when the user asks", async () => {
+    const extraRounded = { ...analysis, radiusClass: "extra-rounded" } as ReferenceAnalysis;
+    const upload = await generateDesignTokens({ prompt: "A playful app", image: await referenceImage(), referenceMode: "user_style", referenceAnalysis: extraRounded });
+    expect(upload.tokens?.radii?.app).toBe("24px");
+
+    answerWith({ userAsked: { colorRoles: [], fonts: false, corners: "extra-rounded", depth: null } });
+    const asked = await generateDesignTokens({
+      prompt: "A playful app", image: await referenceImage(), referenceMode: "user_style", referenceAnalysis: analysis,
+      designRequirements: userRequirements("Bubbly, very rounded cards"),
+    });
+    // the model's 32px is inside the extra-rounded class the user asked for
+    expect(asked.tokens?.radii?.app).toBe("32px");
   });
 
   it("measures and calibrates an uploaded style reference the same way, with no catalogue id and no preset", async () => {
@@ -128,11 +185,12 @@ describe("generateDesignTokens measures and calibrates", () => {
     expect(config?.responseMimeType).toBe("application/json");
   });
 
-  it("calibrates prompt-only tokens too, without a palette", async () => {
+  it("guides prompt-only tokens too: a guessed radius stays within 24px, and the design's own depth is kept soft", async () => {
     const tokens = await generateDesignTokens({ prompt: "A recipe app", referenceMode: "internal_style", referenceAnalysis: null });
     expect(tokenPromptText()).not.toContain("MEASURED COLORS");
     expect(tokens.tokens?.radii?.app).toBe("24px");
-    expect(tokens.tokens?.shadows?.surface).toBe("none");
+    // nothing shows how cards separate, so the model's own shadow stays, softened, instead of being forced flat
+    expect(tokens.tokens?.shadows?.surface).toBe("0px 4px 16px 0px rgba(45, 41, 38, 0.04)");
     // no palette: the model's colours stand
     expect(tokens.tokens?.color?.background?.primary).toBe("#F9F6F0");
     expect(tokens.tokens?.color?.surface?.card).toBe("#FFFFFF");

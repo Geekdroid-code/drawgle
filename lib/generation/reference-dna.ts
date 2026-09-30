@@ -203,7 +203,9 @@ export function createProjectReferenceDna({
     createdAt,
     analysis,
     screenFamilyContract,
-    ...(specimen && components.length > 0 ? { specimen: { source: specimen.source, components } } : {}),
+    ...(specimen && components.length > 0
+      ? { specimen: { source: specimen.source, components, ...(specimen.imagePath ? { imagePath: specimen.imagePath } : {}) } }
+      : {}),
   };
 }
 

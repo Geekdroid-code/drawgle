@@ -11,15 +11,15 @@ import type { ProjectReferenceDna, StyleComponent } from "@/lib/types";
 
 export const MAX_STYLE_COMPONENTS = 10;
 /**
- * The mindfulness reference's featured media card, its search field and its highlighted row are 1147, 719 and
- * 790 characters once trimmed. They are what its vocabulary is made of, so a limit below them left only chips
- * and badges. The block budget below is what bounds what a screen build pays.
+ * Composed components (a featured card, a search field, a highlighted row) come to about 700 to 1150 characters
+ * once trimmed. They are what a reference's vocabulary is made of, so a limit below them left only chips and
+ * badges. The block budget below is what bounds what a screen build pays.
  */
 export const MAX_STYLE_COMPONENT_HTML_CHARS = 1200;
 /**
- * About 2.2k tokens, paid for on every screen build (about $0.001 on Flash). It was 6000 while a component was at most
- * 700 characters; with composed components of 400 to 1100, ten of them are about 7000, and the last ones were left
- * out of every build without anyone saying so.
+ * About 2.2k input tokens, paid for on every screen build at the screen builder's price. It was 6000 while a component
+ * was at most 700 characters; with composed components of 400 to 1100, ten of them are about 7000, and the last ones
+ * were left out of every build without anyone saying so.
  */
 export const MAX_STYLE_COMPONENTS_BLOCK_CHARS = 9000;
 
@@ -88,6 +88,10 @@ export function formatStyleComponents(components: unknown): string | null {
 /** The components a project's reference DNA carries, when it carries any. */
 export const styleComponentsOf = (dna: ProjectReferenceDna | null | undefined): StyleComponent[] =>
   usableStyleComponents(dna?.specimen?.components);
+
+/** The same components as a brief planner reads them: each name with when to use it, and no markup. */
+export const styleComponentSummaries = (dna: ProjectReferenceDna | null | undefined): string[] =>
+  styleComponentsOf(dna).map((component) => `${component.name} (${component.use.slice(0, 100)})`);
 
 /**
  * The one line added to the recreate build that makes a preset's or an upload's specimen. The components

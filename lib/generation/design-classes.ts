@@ -9,11 +9,14 @@ import type { DesignTokens, RadiusClass, SurfaceElevation } from "@/lib/types";
  * classifies what it sees, and code maps the class to the number.
  */
 
-export const RADIUS_CLASSES = ["square", "soft", "rounded", "very-rounded"] as const satisfies readonly RadiusClass[];
+export const RADIUS_CLASSES = ["square", "soft", "rounded", "very-rounded", "extra-rounded"] as const satisfies readonly RadiusClass[];
 export const SURFACE_ELEVATIONS = ["flat-tone", "hairline", "soft-shadow", "strong-shadow"] as const satisfies readonly SurfaceElevation[];
 
-/** The card radius (px) each class stands for. The founder's rule caps it at 24px. */
-export const RADIUS_CLASS_PX: Record<RadiusClass, number> = { square: 4, soft: 10, rounded: 16, "very-rounded": 20 };
+/**
+ * The card radius (px) each class stands for. Up to 24px is the default that suits most products;
+ * extra-rounded goes above it, and is used only on a clear signal (see calibrateGeneratedTokens).
+ */
+export const RADIUS_CLASS_PX: Record<RadiusClass, number> = { square: 4, soft: 10, rounded: 16, "very-rounded": 20, "extra-rounded": 28 };
 
 const slug = (value: unknown) =>
   typeof value === "string" ? value.trim().toLowerCase().replace(/[\s_]+/g, "-") : "";
@@ -33,10 +36,11 @@ const RADIUS_SYNONYMS: Record<string, RadiusClass> = {
   medium: "rounded",
   moderate: "rounded",
   "very-rounded": "very-rounded",
-  "extra-rounded": "very-rounded",
   "highly-rounded": "very-rounded",
   large: "very-rounded",
-  "extra-large": "very-rounded",
+  "extra-rounded": "extra-rounded",
+  "extra-large": "extra-rounded",
+  "super-rounded": "extra-rounded",
 };
 
 const ELEVATION_SYNONYMS: Record<string, SurfaceElevation> = {
@@ -75,6 +79,7 @@ export const RADIUS_CLASS_DESCRIPTION: Record<RadiusClass, string> = {
   soft: "softly rounded corners",
   rounded: "clearly rounded cards",
   "very-rounded": "generously rounded cards (cards are never pill-shaped)",
+  "extra-rounded": "very generously rounded cards (still cards, never pill-shaped)",
 };
 
 export const SURFACE_ELEVATION_DESCRIPTION: Record<SurfaceElevation, string> = {
@@ -98,7 +103,7 @@ export const describeSurfaceClasses = ({
 
 /** The class a card radius in px falls into, using the same ranges the analysis is judged against. */
 export const radiusClassForPx = (px: number): RadiusClass =>
-  px <= 5 ? "square" : px <= 11 ? "soft" : px <= 17 ? "rounded" : "very-rounded";
+  px <= 5 ? "square" : px <= 11 ? "soft" : px <= 17 ? "rounded" : px <= 25 ? "very-rounded" : "extra-rounded";
 
 /** The most opaque a "soft" surface shadow layer may be. Token calibration caps a soft reference's shadow here. */
 export const SOFT_SHADOW_MAX_ALPHA = 0.08;

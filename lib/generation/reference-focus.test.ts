@@ -36,7 +36,7 @@ const misreadAnalysis = (): ReferenceAnalysis => ({
   },
 });
 
-const sansRead = { headingClass: "sans", kind: "geometric", bodyClass: "sans", sameTypefaceForBody: true, weights: "a light word beside a bold word" };
+const sansRead = { headingClass: "sans", kind: "geometric", bodyClass: "sans", sameTypefaceForBody: true, weights: "mixed weights within a heading" };
 const attachedRead = {
   present: true, attachment: "attached", topCorners: "rounded", itemCount: 5, icons: ["house", "lightning", "trophy", "music", "user"],
   labels: "hidden", activeTreatment: "icon-fill", inactiveTreatment: "plain", activeFill: "gradient", material: "glass",
@@ -63,7 +63,7 @@ const asker = (typefaces: unknown[], navigations: unknown[]) => {
 
 describe("reading the answers", () => {
   it("takes a typeface answer as the model wrote it, and none that names no class", () => {
-    expect(parseTypefaceRead(sansRead)).toEqual({ headingClass: "sans", kind: "geometric", bodyClass: "sans", sameTypeface: true, weights: "a light word beside a bold word" });
+    expect(parseTypefaceRead(sansRead)).toEqual({ headingClass: "sans", kind: "geometric", bodyClass: "sans", sameTypeface: true, weights: "mixed weights within a heading" });
     expect(parseTypefaceRead({ headingClass: "Sans-Serif" })?.headingClass).toBe("sans");
     expect(parseTypefaceRead({ headingClass: "elegant" })).toBeNull();
     expect(parseTypefaceRead("sans")).toBeNull();
@@ -124,7 +124,9 @@ describe("refining an analysis from the close-ups", () => {
     const { analysis: refined, notes } = await refineAnalysisFromCrops({ image: await referenceImage(), analysis, ask });
 
     expect(refined.typefaceClass).toBe("sans");
-    expect(refined.designSystemSignals.typography).toBe("Geometric sans-serif headings, and the smaller text is set in the same typeface in other weights. A light word may sit beside a bold one in a heading: that is one typeface in two weights.");
+    // the weights answer is one of the words the question offers, so the sentence is written from it
+    expect(TYPEFACE_QUESTION).toContain("mixed weights within a heading");
+    expect(refined.designSystemSignals.typography).toBe("Geometric sans-serif headings, and the smaller text is set in the same typeface in other weights. A heading may mix weights: that is one typeface in two weights.");
     expect(refined.designSystemSignals.typography).not.toMatch(/serif for headlines/);
 
     expect(refined.primaryNavigation).toMatchObject({
@@ -192,6 +194,18 @@ describe("refining an analysis from the close-ups", () => {
       "bottom bar: no close-up gave an answer, so the first read stands",
     ]);
     expect(silent.notes.join(" ")).not.toContain("sk-secret");
+  });
+
+  it("leaves an attached bar's corners unknown when no phone could read them, rather than assuming them rounded", async () => {
+    const { topCorners: _unread, ...cornersUnread } = attachedRead;
+    const { analysis: refined, notes } = await refineAnalysisFromCrops({ image: await referenceImage(), analysis: misreadAnalysis(), ask: asker([sansRead], [cornersUnread]) });
+    expect(refined.primaryNavigation).toMatchObject({ anatomy: "fixed-tab-rail", width: "full", corners: null });
+    expect(notes).toContain("bottom bar: attached with square top corners, 5 icons (3 of 3 phones); the first read said floating-dock");
+  });
+
+  it("describes the bar as inside the edge of the screen, not as one kind of device frame", () => {
+    expect(NAVIGATION_QUESTION).not.toMatch(/white outline|phone frame/);
+    expect(NAVIGATION_QUESTION).toContain("the edge of the screen");
   });
 
   it("keeps a floating bar floating, and makes it inset with no top corners", async () => {

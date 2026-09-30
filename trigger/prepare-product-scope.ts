@@ -4,14 +4,14 @@ import { readProductPlanning } from "@/lib/product-planning/model";
 import { nextProductBatch } from "@/lib/product-planning/execution";
 import { productReferenceExecution } from "@/lib/product-planning/reference-execution";
 import { scopedGenerationPrompt, productScopeContract } from "@/lib/product-planning/generation-context";
-import { scopePreparationKey, scopePreparationPlanningState, saveScopePreparation } from "@/lib/product-planning/scope-preparation";
+import { readPreparedUploadSpecimen, scopePreparationKey, scopePreparationPlanningState, saveScopePreparation } from "@/lib/product-planning/scope-preparation";
 import { loadPlanningReference } from "@/lib/product-planning/references";
 import { compileDesignRequirements } from "@/lib/product-planning/design-requirements";
 import { reconcileTokensWithDesignRequirements } from "@/lib/product-planning/reconcile-design";
 import { compileProductContent } from "@/lib/product-planning/content-contract";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
 import { buildScreenCode, generateDesignTokens, planUiFlow } from "@/lib/generation/service";
-import { startUploadSpecimen, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
+import { startUploadSpecimen, withinUploadSpecimenWait, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
 import { planVisualAssets } from "@/lib/generation/visual-assets";
 import { analyzeReferenceImageForScope } from "@/lib/generation/scope-contract";
 import { getDesignStylePack } from "@/lib/generation/design-styles";
@@ -96,12 +96,16 @@ export const prepareProductScopeTask = task({
     const latestState = readProductPlanning(latestBeforePlan?.product_planning);
     if (latestState?.scope?.generationRunId) return { skipped: true, reason: "build_started" };
     // An uploaded style reference is learned once, while the person reads the approval card: its main screen is
-    // rebuilt with its components marked, beside planning. It costs one extra build and never fails the preparation.
+    // rebuilt with its components marked, beside planning. It costs one extra build and never fails the preparation,
+    // and a later revision of the card reuses the build an earlier one made from the same upload.
     const uploadSpecimen = startUploadSpecimen({
       applies: { referencePolicy: reference.policy, referenceMode: reference.mode, isNewProject: state.phase === "discovery",
         screenScoped: false, image, analysis: analysis.analysis, tokens, existing: shared.charter?.referenceDna?.specimen ?? null },
-      input: () => ({ image: image!, analysis: analysis.analysis!, tokens: tokens! }),
+      input: () => ({ image: image!, analysis: analysis.analysis!, tokens: tokens!, imagePath: reference.imagePath }),
       buildScreen: buildScreenCode,
+      reuse: reference.imagePath
+        ? () => readPreparedUploadSpecimen(admin, projectId, ownerId, reference.imagePath!)
+        : undefined,
       onSettled: ({ specimen, notes, error }) => {
         if (error) logger.warn("Upload specimen skipped: the build failed", { projectId, error });
         else logger.info("Upload specimen", { projectId, components: specimen?.components.length ?? 0, notes });
@@ -113,7 +117,8 @@ export const prepareProductScopeTask = task({
       scopeContract: productScopeContract(approved, reference.mode, keys),
       referenceAnalysis: analysis.analysis, existingCharter: shared.charter,
       existingNavigationPlan: shared.navigationPlan, planningMode: "project" });
-    plan.charter = withReferenceSpecimen(plan.charter, await uploadSpecimen);
+    plan.charter = withReferenceSpecimen(plan.charter, await withinUploadSpecimenWait(uploadSpecimen, undefined,
+      () => logger.warn("Upload specimen not ready in time; the plan is saved without it", { projectId })));
     if (!recreate) {
       const content = compileProductContent(state);
       if (content) plan.screens = await reviewScreenContent(plan.screens, content);

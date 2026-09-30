@@ -55,4 +55,10 @@ describe("what the prompts say to every product", () => {
   it.each(Object.entries(texts))("%s names no product and no reference of its own", (_name, text) => {
     expect(text.match(ONE_PRODUCT)?.[0] ?? null).toBeNull();
   });
+
+  it("shows the reference analysis more than one way that surfaces separate, so its example is not one reference's look", () => {
+    // it once read "cards a tone lighter than the page with no shadow, and tiles a step darker inside the cards"
+    const example = referenceAnalysisStyleInstruction.match(/Describe character and relationships instead, for example ([^\n]*)/)?.[1] ?? "";
+    for (const way of ["tone", "shadow", "border"]) expect(example, way).toContain(way);
+  });
 });

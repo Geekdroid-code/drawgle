@@ -45,7 +45,7 @@ describe("the curated style preset schema", () => {
   rejects("with a box that is empty", (preset) => { preset.analysis.screenReferences[0].boundingBox.width = 0; });
   rejects("without the classes its tokens are calibrated from", (preset) => { delete preset.analysis.radiusClass; });
   rejects("with an elevation class that is not one", (preset) => { preset.analysis.surfaceElevation = "glass"; });
-  rejects("with a card radius over the 24px rule", (preset) => { preset.tokens.tokens.radii.app = "32px"; });
+  rejects("with a card radius over 32px, the most a reviewed extra-rounded reference may have", (preset) => { preset.tokens.tokens.radii.app = "40px"; });
   rejects("whose tokens have no card", (preset) => { delete preset.tokens.tokens.color.surface.card; });
   rejects("whose tokens have no heading font", (preset) => { delete preset.tokens.tokens.typography.heading_font_family; });
   rejects("that was not measured", (preset) => { preset.measured.background.hex = "cream"; });

@@ -269,6 +269,11 @@ export type CheckContext = {
   isRoot: boolean;
   /** Whether the screen's chrome policy asks for the shared navigation. */
   showsSharedNavigation: boolean;
+  /**
+   * The project's own card radius (radii.app), in px. A project whose user asked for rounder cards, or whose reviewed
+   * reference has them, has one above 24px, and a card at that radius is what was asked for, not an offender.
+   */
+  cardRadiusPx?: number | null;
 };
 
 export type ScreenCheckFlag =
@@ -347,9 +352,10 @@ const round = (value: number | null, digits = 1) => (value === null ? null : Mat
 export const evaluateScreen = (facts: ProbeFacts, context: CheckContext): ScreenCheckResult => {
   const flags: ScreenCheckFlag[] = [];
 
+  const radiusLimit = Math.max(MAX_CARD_RADIUS_PX, context.cardRadiusPx ?? 0);
   const radiusOffenders = facts.elements.filter((element) =>
     !element.inNav
-    && element.radius > MAX_CARD_RADIUS_PX + 0.01
+    && element.radius > radiusLimit + 0.01
     && !element.pill
     && (element.bg !== null || element.border > 0 || element.clips || element.image));
   if (radiusOffenders.length) flags.push("radius");

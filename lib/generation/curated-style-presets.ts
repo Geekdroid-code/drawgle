@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
+import { hasApprovedDesignTokens, MAX_APP_RADIUS_PX, normalizeDesignTokens } from "@/lib/design-tokens";
 import {
   CURATED_STYLE_REFERENCES,
   type CuratedStyleReference,
@@ -108,7 +108,10 @@ export const presetAnalysisSchema = z.object({
 
 const pixels = (value: unknown) => Number.parseFloat(String(value ?? ""));
 
-/** Calibrated tokens: a page, a card and an accent, one heading font, and a card radius within the 24px rule. */
+/**
+ * Calibrated tokens: a page, a card and an accent, one heading font, and a card radius a person can approve. Up to
+ * 24px is the default; a reference that is clearly extra-rounded may go to 32px, since the founder looks at it first.
+ */
 const tokensSchema = z.custom<DesignTokens>((value) => {
   if (!isRecord(value) || !hasApprovedDesignTokens(value as DesignTokens)) return false;
   const tokens = (value as DesignTokens).tokens;
@@ -119,7 +122,7 @@ const tokensSchema = z.custom<DesignTokens>((value) => {
     && tokens.color.action?.primary
     && tokens.typography?.heading_font_family
     && Number.isFinite(radius)
-    && radius <= 24,
+    && radius <= MAX_APP_RADIUS_PX,
   );
 }, "the tokens must be a complete calibrated set");
 
@@ -232,44 +235,57 @@ export const presetReferenceAnalysis = (preset: CuratedStylePreset): ReferenceAn
 export const presetSpecimen = (preset: CuratedStylePreset): ReferenceSpecimen | null =>
   preset.components.length > 0 ? { source: "preset", components: preset.components } : null;
 
-/**
- * The token keys a user's colours cannot change. Geometry, spacing, sizing and shadows are the
- * preset's: they were reviewed once and are the reference's shape, whatever colours the product wears.
- */
-const PRESET_GEOMETRY_KEYS = ["radii", "border_widths", "shadows", "spacing", "mobile_layout", "sizing", "opacities", "z_index"] as const;
+/** The token groups that carry colour. They change together, so that the ladder, gradients and bar stay coherent. */
+const PRESET_COLOUR_KEYS = ["color", "gradients", "navigation"] as const;
 
 /**
- * A user who named colours or fonts gets the preset with those roles changed and nothing else.
- * `generated` is a token set made for this project with the preset's analysis and measured palette, so it
- * already holds the user's colours in a coherent ladder; its geometry is discarded for the preset's.
+ * A user whose words ask something of the design gets the preset with that changed and nothing else: their colours,
+ * their fonts, their corner style or their depth. Everything they did not ask about stays as it was reviewed.
+ * `generated` is a token set made for this project with the preset's analysis and measured palette, so the colours
+ * it holds are the user's in a coherent ladder on the reference's own measured colours.
  */
 export function mergePresetTokens({
   preset,
   generated,
   fonts,
+  colors = true,
+  corners = false,
+  depth = false,
 }: {
   preset: CuratedStylePreset;
   generated: DesignTokens;
   /** The user named fonts: the heading and body families come from `generated`. */
   fonts: boolean;
+  /** The user named colours: the colour groups come from `generated`. */
+  colors?: boolean;
+  /** The user asked for a corner style: the radii come from `generated`. */
+  corners?: boolean;
+  /** The user asked for a depth: the shadows come from `generated`, and the bar's shadow with them. */
+  depth?: boolean;
 }): DesignTokens {
-  const base = preset.tokens.tokens ?? {};
-  const next = generated.tokens ?? {};
-  const merged: Record<string, unknown> = { ...next };
-  for (const key of PRESET_GEOMETRY_KEYS) {
-    const value = (base as Record<string, unknown>)[key];
-    if (value !== undefined) merged[key] = value;
+  const base = (preset.tokens.tokens ?? {}) as Record<string, unknown>;
+  const next = (generated.tokens ?? {}) as Record<string, unknown>;
+  const merged: Record<string, unknown> = { ...base };
+  if (colors) for (const key of PRESET_COLOUR_KEYS) if (next[key] !== undefined) merged[key] = next[key];
+  if (corners && next.radii !== undefined) merged.radii = next.radii;
+  if (depth && next.shadows !== undefined) {
+    merged.shadows = next.shadows;
+    const nextNavigation = next.navigation as Record<string, unknown> | undefined;
+    if (!colors && isRecord(merged.navigation) && nextNavigation?.shadow !== undefined) {
+      merged.navigation = { ...merged.navigation, shadow: nextNavigation.shadow };
+    }
   }
+  const baseTypography = (base.typography ?? next.typography) as Record<string, unknown> | undefined;
+  const nextTypography = next.typography as Record<string, unknown> | undefined;
   merged.typography = fonts
     ? {
-        ...base.typography,
-        heading_font_family: next.typography?.heading_font_family ?? base.typography?.heading_font_family,
-        body_font_family: next.typography?.body_font_family ?? base.typography?.body_font_family,
+        ...baseTypography,
+        heading_font_family: nextTypography?.heading_font_family ?? baseTypography?.heading_font_family,
+        body_font_family: nextTypography?.body_font_family ?? baseTypography?.body_font_family,
       }
-    : base.typography ?? next.typography;
+    : baseTypography;
   return normalizeDesignTokens({
     ...preset.tokens,
-    ...generated,
     tokens: merged as DesignTokens["tokens"],
     meta: fonts ? generated.meta ?? preset.tokens.meta : preset.tokens.meta ?? generated.meta,
   });

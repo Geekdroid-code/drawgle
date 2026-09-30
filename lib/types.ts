@@ -474,6 +474,8 @@ export interface StyleComponent {
 export interface ReferenceSpecimen {
   source: "preset" | "upload";
   components: StyleComponent[];
+  /** Where the upload a specimen was built from is stored, so that a later preparation of it reuses the specimen. */
+  imagePath?: string | null;
 }
 
 export interface ProjectReferenceDna {
@@ -867,10 +869,10 @@ export interface ReferenceNavigationEvidence {
   corners?: "square" | "rounded" | null;
 }
 /**
- * Corner radius of the main cards, judged against a 390pt screen: square 0-4pt,
- * soft 6-10pt, rounded 12-16pt, very-rounded 18-24pt. A model classifies; code owns the px.
+ * Corner radius of the main cards, judged against a 390pt screen: square 0-4pt, soft 6-10pt, rounded 12-16pt,
+ * very-rounded 18-24pt, extra-rounded 26-32pt. A model classifies; code owns the px.
  */
-export type RadiusClass = "square" | "soft" | "rounded" | "very-rounded";
+export type RadiusClass = "square" | "soft" | "rounded" | "very-rounded" | "extra-rounded";
 
 /** How the main cards separate from the page. */
 export type SurfaceElevation = "flat-tone" | "hairline" | "soft-shadow" | "strong-shadow";

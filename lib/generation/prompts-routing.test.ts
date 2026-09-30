@@ -117,7 +117,7 @@ describe("state-scoped prompt construction", () => {
       "Use radii.inner for nested cards",
       "Use radii.pill only for true capsules",
       "Use border_widths.standard as the default border weight",
-      'shadows.surface is "none" unless the evidence shows cast shadows',
+      "shadows.surface follows how cards separate",
       "Use gradients as first-class material tokens",
       "Keep token relationships coherent",
       "Keep touch targets mobile-safe",
@@ -136,8 +136,14 @@ describe("state-scoped prompt construction", () => {
       expect(instruction).toContain("then inset (tiles and fields inside cards");
       expect(instruction).toContain("then tints (wells and chips) when the evidence has them");
       // how surfaces separate and what shape controls take come from the evidence, not from one aesthetic
-      expect(instruction).toContain("Surfaces separate the way the evidence shows (tone, a thin border or a shadow); tone first is the default when there is none.");
-      expect(instruction).toContain("cards use the app radius (at most 24px), inset surfaces the inner radius, and controls and icon wells the pill radius only when the evidence shows capsules and circles");
+      // guided, not forced: with no evidence the product's own direction chooses, and 24px is a default, not a wall
+      expect(instruction).toContain("Surfaces separate the way the evidence shows (tone, a thin border or a shadow); with no evidence, choose what suits the product.");
+      expect(instruction).toContain("cards use the app radius (up to 24px suits most products; larger only when the evidence or the user clearly shows it), inset surfaces the inner radius, and controls and icon wells the pill radius only when the evidence shows capsules and circles");
+      expect(instruction).not.toMatch(/never exceeds 24px|tone first is the default/);
+      // the model says what the user's own words ask for, and whether the design uses tints
+      expect(instruction).toContain('"userAsked": { "colorRoles": [], "fonts": false, "corners": null, "depth": null }');
+      expect(instruction).toContain("meta.userAsked records only what the user's own words");
+      expect(instruction).toContain("meta.tints is true only when the evidence shows tinted wells or chips");
       expect(instruction).not.toMatch(/pastel|at most one strong dark control|controls are pills/);
       expect(instruction).toContain('"inset": "HEX one tone step from card"');
       expect(instruction).toContain("color.surface.card is the raised surface and color.surface.inset the tile or field inside it");

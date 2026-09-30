@@ -432,7 +432,7 @@ export const buildCreativeDirectionInstruction = (mode: GenerationPromptMode) =>
  * the class to a number (design-classes.ts), and no later prose layer carries one.
  */
 const surfaceClassificationRules = `CLASSIFICATION (one label each, judged against a 390pt-wide screen):
-- radiusClass is the corner radius of the main content cards, not of pills or circles: square is 0-4pt, soft is 6-10pt, rounded is 12-16pt, very-rounded is 18-24pt.
+- radiusClass is the corner radius of the main content cards, not of pills or circles: square is 0-4pt, soft is 6-10pt, rounded is 12-16pt, very-rounded is 18-24pt, extra-rounded is 26-32pt.
 - surfaceElevation is how the main cards separate from the page: flat-tone is a lighter or darker fill and nothing else (no shadow, no line); hairline is a thin border or a 1px edge; soft-shadow is a diffuse, low-contrast cast shadow; strong-shadow is a clearly visible or offset cast shadow.`;
 
 export const referenceAnalysisInstruction = `You are a specialist in reverse-engineering mobile UI screenshots into implementation-ready visual analysis.
@@ -446,7 +446,7 @@ Return strictly valid JSON in this format after inspecting the image with an exp
 {
   "overallVisualStyle": "1-2 sentence summary naming the actual aesthetic family (flat / layered / glassy / brutalist / illustrated / etc.) and the dominant material or structural treatment",
   "screenCountEstimate": 3,
-  "radiusClass": "square | soft | rounded | very-rounded",
+  "radiusClass": "square | soft | rounded | very-rounded | extra-rounded",
   "surfaceElevation": "flat-tone | hairline | soft-shadow | strong-shadow",
   "screenReferences": [
     {
@@ -571,7 +571,7 @@ Return strictly valid JSON in this format:
 {
   "overallVisualStyle": "High-level reusable style language: material quality, color rhythm, typography character, surface craft, navigation feel, and polish",
   "screenCountEstimate": 1,
-  "radiusClass": "square | soft | rounded | very-rounded",
+  "radiusClass": "square | soft | rounded | very-rounded | extra-rounded",
   "surfaceElevation": "flat-tone | hairline | soft-shadow | strong-shadow",
   "screenReferences": [
     {
@@ -640,7 +640,7 @@ Return strictly valid JSON in this format:
 ${surfaceClassificationRules}
 
 Rules:
-- Classify, do not measure. Radius and elevation are reported only through radiusClass and surfaceElevation. Never write px or pt sizes, hex colour codes, opacity percentages or blur values into any field: colours are measured from the pixels in code. Describe character and relationships instead, for example "cards a tone lighter than the page with no shadow, and tiles a step darker inside the cards".
+- Classify, do not measure. Radius and elevation are reported only through radiusClass and surfaceElevation. Never write px or pt sizes, hex colour codes, opacity percentages or blur values into any field: colours are measured from the pixels in code. Describe character and relationships instead, for example "cards a tone lighter than the page", "white cards lifted by a soft shadow on a grey page" or "dark panels edged by a thin border".
 - Extract 2-6 semanticCompositionPrimitives that explain why the reference composition feels intentional. Each must name its functional purpose, suitability and anti-suitability, adaptation logic, and observable quality details. Do not encode exact section order, coordinates, literal component counts, or source-domain objects in a primitive.
 - Batch selection: return detailed briefs only for roadmap.initial_batch_keys, in that exact order, with the matching roadmap_stable_key. Never replace a selected roadmap item with an unselected one.
 - Return exactly one screenReferences entry for every visible phone screen or app frame counted by screenCountEstimate. boundingBox uses normalized 0-1 image coordinates.
@@ -672,14 +672,16 @@ Treat these as platform constraints, not stylistic variables: safe_area_top, saf
 Treat these as dynamic design variables that should change when the approved evidence changes: spacing rhythm, section gaps, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
 Use 16px as the production baseline for mobile screen_margin. Deviate only when the user explicitly requests another margin or the approved evidence contains clear measured screen-edge padding; vague words such as airy, spacious, premium, or generous are not evidence for a larger margin. Never enlarge the outer margin merely to create whitespace because it squeezes the usable content rail.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
-Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (raised one tone step from the page), then inset (tiles and fields inside cards: one tone step from the card), then tints (wells and chips) when the evidence has them, then one focal accent or gradient surface. Surfaces separate the way the evidence shows (tone, a thin border or a shadow); tone first is the default when there is none.
-Shape follows a hierarchy taken from the evidence: cards use the app radius (at most 24px), inset surfaces the inner radius, and controls and icon wells the pill radius only when the evidence shows capsules and circles. Keep one border width.
+Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (raised one tone step from the page), then inset (tiles and fields inside cards: one tone step from the card), then tints (wells and chips) when the evidence has them, then one focal accent or gradient surface. Surfaces separate the way the evidence shows (tone, a thin border or a shadow); with no evidence, choose what suits the product.
+Shape follows a hierarchy taken from the evidence: cards use the app radius (up to 24px suits most products; larger only when the evidence or the user clearly shows it), inset surfaces the inner radius, and controls and icon wells the pill radius only when the evidence shows capsules and circles. Keep one border width.
 
  REQUIRED JSON SCHEMA:
 {
   "system_schema": "mobile_universal_core",
   "meta": {
-    "recommendedFonts": ["Font Name", "Fallback Font Name"]
+    "recommendedFonts": ["Font Name", "Fallback Font Name"],
+    "tints": false,
+    "userAsked": { "colorRoles": [], "fonts": false, "corners": null, "depth": null }
   },
   "tokens": {
     "color": {
@@ -730,16 +732,18 @@ Shape follows a hierarchy taken from the evidence: cards use the app radius (at 
 
 Rules:
 - recommendedFonts should be a short list of fonts that fit the direction, beginning with the selected heading and body families.
+- meta.tints is true only when the evidence shows tinted wells or chips (a pale wash of an accent colour), or the direction calls for them.
+- meta.userAsked records only what the user's own words (their prompt and their design constraints) explicitly ask for, never a choice of yours or something the reference shows: colorRoles lists the roles (background, surface, action, text) they name a colour for, fonts is true when they name a font or typeface, corners is the corner style they ask for (square | soft | rounded | very-rounded | extra-rounded) and depth how they want cards to separate (flat-tone | hairline | soft-shadow | strong-shadow). Leave each empty, false or null when they ask for nothing about it.
 - heading_font_family and body_font_family are mandatory CSS font stacks whose first entry is a real Google Fonts family (never a bare keyword such as serif or sans-serif, and never a face only some devices have, such as SF Pro), then a generic fallback. Use the same family for both when the evidence shows one typeface, with the hierarchy from size and weight; use two only when two clearly different typefaces are visible.
 - nav_title is the small title of a top app bar, screen_title heads a root screen, and hero_title is a display headline that only exists when the evidence shows one. Title weights follow the evidence; do not default them to bold.
 - spacing and mobile_layout come from the gaps the evidence shows, read against the phone's width (393px), as one consistent rhythm. element_gap is the space between neighbouring blocks that belong together, and section_gap the space before a new titled section, normally a step larger. Typical premium mobile layouts use 8-12px between the rows of one list, 12-16px between neighbouring blocks and 20-28px before a new section, but the evidence decides: a dense product goes tighter and an editorial one larger. Feelings such as airy or generous are not evidence for larger gaps. screen_margin defaults to 16px and needs measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
 - color.surface.card is the raised surface and color.surface.inset the tile or field inside it: usually a tone step each in the page's hue family, unless the evidence separates surfaces another way. Tints and accents come from the evidence, not from invented hues.
-- Use radii.app for outer cards, sheets, panels, inputs, and navigation shells; it never exceeds 24px.
+- Use radii.app for outer cards, sheets, panels, inputs, and navigation shells.
 - Use radii.inner for nested cards, inset panels, segmented tabs, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
 - Use radii.pill only for true capsules and circular wells.
 - Use border_widths.standard as the default border weight across the app.
-- shadows.surface is "none" unless the evidence shows cast shadows on cards; shadows.overlay is only for stronger overlays like sheets or floating panels.
+- shadows.surface follows how cards separate: "none" for tone or a thin border, a soft diffuse shadow when cards are lifted, and a strong one only when the evidence or the user clearly asks for it. shadows.overlay is only for stronger overlays like sheets or floating panels.
 - Use gradients as first-class material tokens when the approved evidence or creative direction uses gradient depth. Provide app_background, action_primary, surface_highlight, and accent_ring values as complete CSS gradient strings. Keep them disciplined and role-based, not a grab bag of decorative effects.
 - If the visual direction is flat/minimal, gradients may be very subtle two-stop values derived from the flat color tokens rather than loud decorative fills.
 - Keep token relationships coherent. Example: sharp systems should not use very soft pill-heavy radii except where intentionally contrasting.

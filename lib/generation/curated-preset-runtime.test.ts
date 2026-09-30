@@ -9,6 +9,7 @@ vi.mock("@/lib/generation/generated/curated-style-presets.json", async () => {
   return { default: { [PRESET_REFERENCE_ID]: JSON.parse(JSON.stringify(presetFixture())) } };
 });
 
+import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { referenceAnalysisStyleInstruction } from "@/lib/generation/prompts";
 import { applyReferenceNavigationStyle } from "@/lib/project-navigation";
 import {
@@ -19,7 +20,7 @@ import {
 } from "@/lib/generation/curated-style-preset-fixtures";
 import { presetReferenceAnalysis } from "@/lib/generation/curated-style-presets";
 import { analyzeReferenceImageForScope } from "@/lib/generation/scope-contract";
-import { generateDesignTokens, planUiFlow } from "@/lib/generation/service";
+import { generateDesignTokens, planScreenBriefsForBuild, planUiFlow } from "@/lib/generation/service";
 import { generateProjectDesign } from "@/lib/product-planning/generate-project-design";
 import { approveProductScope, proposeProductScope } from "@/lib/product-planning/model";
 import { designerFixture, functionalFixture, productFixture } from "@/lib/product-planning/test-fixtures";
@@ -45,6 +46,9 @@ const modelTokens = {
     shadows: { surface: "0 4px 20px rgba(45,41,38,0.04)", overlay: "0 -8px 40px rgba(45,41,38,0.30)" },
   },
 };
+
+/** The token model's answer with its reading of what the user's own words ask for. */
+const answerWith = (userAsked: Record<string, unknown>) => ({ ...modelTokens, meta: { ...modelTokens.meta, userAsked } });
 
 const requirements = (detail: string) => [
   "EXPLICIT USER DESIGN REQUIREMENTS",
@@ -100,12 +104,41 @@ describe("an approved preset stands in for the token model", () => {
     expect(tokens.tokens?.typography?.heading_font_family).toContain("Plus Jakarta Sans");
   });
 
-  it("leaves requirements that name no colour or font to the preset", async () => {
-    await generateDesignTokens({ prompt, image, referenceMode: "curated_style", referenceId: PRESET_REFERENCE_ID, designRequirements: requirements("Keep it minimal and calm") });
-    expect(mocks.generate).not.toHaveBeenCalled();
+  it("reads the user's requirements with one token call, and keeps the preset whole when they ask nothing of its design", async () => {
+    mocks.generate.mockImplementation(async () => ({ text: JSON.stringify(answerWith({ colorRoles: [], fonts: false, corners: null, depth: null })) }));
+    const tokens = await generateDesignTokens({
+      prompt, image, referenceMode: "curated_style", referenceId: PRESET_REFERENCE_ID,
+      designRequirements: requirements("Book private jet charters in two taps"),
+    });
+    // a colour word in a product's own words ("jet") changes nothing: the model read it as a product word
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(tokens).toEqual(normalizeDesignTokens(presetFixture().tokens));
   });
 
-  it("asks the token model once when the user named colours, and takes only those roles from its answer", async () => {
+  it("keeps the preset whole when the model did not say, and a careful reading finds no colour or font", async () => {
+    const tokens = await generateDesignTokens({
+      prompt, image, referenceMode: "curated_style", referenceId: PRESET_REFERENCE_ID,
+      designRequirements: requirements("Keep it minimal and calm, like a private jet lounge"),
+    });
+    expect(mocks.generate).toHaveBeenCalledTimes(1);
+    expect(tokens).toEqual(normalizeDesignTokens(presetFixture().tokens));
+  });
+
+  it("takes the user's corner style and depth as the model read them, and keeps the preset's colours and type", async () => {
+    mocks.generate.mockImplementation(async () => ({ text: JSON.stringify(answerWith({ colorRoles: [], fonts: false, corners: "extra-rounded", depth: "soft-shadow" })) }));
+    const tokens = await generateDesignTokens({
+      prompt, image, referenceMode: "curated_style", referenceId: PRESET_REFERENCE_ID,
+      designRequirements: requirements("Bubbly, very rounded cards that float on soft shadows"),
+    });
+    // the model's 32px is inside extra-rounded, which the user asked for; its blurred shadow is kept soft
+    expect(tokens.tokens?.radii?.app).toBe("32px");
+    expect(tokens.tokens?.shadows?.surface).toBe("0px 4px 16px 0px rgba(45, 41, 38, 0.04)");
+    expect(tokens.tokens?.color?.background?.primary).toBe("#F2EADC");
+    expect(tokens.tokens?.typography?.heading_font_family).toContain("Plus Jakarta Sans");
+  });
+
+  it("asks the token model once when the user named colours, and takes the colours from its answer and nothing else", async () => {
+    mocks.generate.mockImplementation(async () => ({ text: JSON.stringify(answerWith({ colorRoles: ["action", "background"], fonts: false, corners: null, depth: null })) }));
     const tokens = await generateDesignTokens({
       prompt, image, referenceMode: "curated_style", referenceId: PRESET_REFERENCE_ID,
       designRequirements: requirements("Soft Sage and Warm Cream"),
@@ -225,6 +258,28 @@ describe("the project's reference DNA", () => {
     const { charter } = await plan(PRESET_REFERENCE_ID);
     expect(charter.referenceDna?.specimen).toEqual({ source: "preset", components: presetComponents() });
     expect(charter.referenceDna?.sourceReferenceId).toBe(PRESET_REFERENCE_ID);
+  });
+
+  it("names the preset's components to the brief planners, first batch and later ones, so that a brief can say which one a screen uses", async () => {
+    mocks.generate.mockImplementation(async () => ({ text: JSON.stringify({ screens: [shopBrief] }) }));
+    const { charter } = await plan(PRESET_REFERENCE_ID);
+    const requestText = (marker: string) => {
+      const request = mocks.generate.mock.calls.map(([call]) => call)
+        .filter((call) => (call.contents.parts as Array<{ text?: string }>).some((part) => part.text?.includes(marker))).at(-1);
+      return (request!.contents.parts as Array<{ text?: string }>).map((part) => part.text ?? "").join("\n");
+    };
+    const firstBatch = requestText("Approved Project Blueprint:");
+    expect(firstBatch).toContain("REFERENCE COMPONENT MAPPING");
+    for (const component of presetComponents()) expect(firstBatch).toContain(`${component.name} (${component.use}`);
+
+    mocks.generate.mockClear();
+    // what the planner is told is the point here; the stand-in brief is too thin to pass its quality bar
+    await planScreenBriefsForBuild({
+      screens: [{ name: "Shop", type: "root", description: "Browse the catalog." }], prompt: "Design Shop", charter,
+      navigationArchitecture: charter.navigationArchitecture!, referenceMode: "curated_style", force: true,
+    }).catch(() => undefined);
+    const laterBatch = requestText("SCREEN PLANNING TASK");
+    for (const component of presetComponents()) expect(laterBatch).toContain(`${component.name} (`);
   });
 
   it("carries none for a reference without a preset", async () => {
