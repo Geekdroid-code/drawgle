@@ -482,18 +482,21 @@ describe("builder inputs that carry the reference's component vocabulary", () =>
         },
         styleComponents: [component],
       });
-      expect(style).toContain("STYLE COMPONENTS (this project's reference vocabulary.");
+      expect(style).toContain("STYLE COMPONENTS (the components every screen of this project is built from.");
       expect(style).toContain("- calendar-strip — A week selector at the top of a day view — <div class=\"dg-surface-card");
-      expect(style).toContain("Never reproduce the reference's sections, their order or its content");
+      expect(style).toContain("the same kind of content uses the same component on every screen");
+      expect(style).toContain("never reproduce a reference's sections or their order");
       expect(style.indexOf("SCREEN FAMILY CONTRACT")).toBeLessThan(style.indexOf("STYLE COMPONENTS"));
       expect(style.indexOf("STYLE COMPONENTS")).toBeLessThan(style.indexOf("NAVIGATION ARCHITECTURE CONTRACT"));
     });
 
-    it("is absent without components, and never sent to Image to UI or a prompt-only build", () => {
+    it("is absent without components and never sent to Image to UI, and reaches a prompt-only build's kit", () => {
       expect(buildStyleScreenInstruction(screenInput)).not.toContain("STYLE COMPONENTS");
       expect(buildStyleScreenInstruction({ ...screenInput, styleComponents: [] })).not.toContain("STYLE COMPONENTS");
       expect(buildRecreateScreenInstruction({ ...screenInput, styleComponents: [component] } as never)).not.toContain("STYLE COMPONENTS");
-      expect(buildPromptScreenInstruction({ ...screenInput, styleComponents: [component] } as never)).not.toContain("STYLE COMPONENTS");
+      // a project with no reference has a component kit too, and every one of its screens is built from it
+      expect(buildPromptScreenInstruction({ ...screenInput, styleComponents: [component] } as never)).toContain("STYLE COMPONENTS");
+      expect(buildPromptScreenInstruction(screenInput as never)).not.toContain("STYLE COMPONENTS");
     });
 
     it("keeps the block inside its size budget on every build", () => {

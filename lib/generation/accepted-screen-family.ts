@@ -34,7 +34,7 @@ export function acceptedScreenFamily(code: string, screenName: string, planned: 
   const rule = (label: string, names: string[]) => names.length
     ? label + ": " + names.join(", ") + ". Apply the treatment where it serves the new task; do not copy the screen layout." : null;
   return {
-    summary: "Shared visual language anchored in the accepted " + screenName + " screen. Give each sibling its own task-specific anatomy.",
+    summary: "Shared visual language anchored in the accepted " + screenName + " screen. Give each sibling its own task-specific layout, and keep the same component for the same kind of content.",
     surfaces: [planned?.surfaces, rule("Observed surface treatments", surfaces)].filter(Boolean).join(" "),
     typography: [planned?.typography, rule("Observed type treatments", typography)].filter(Boolean).join(" "),
     spacing: [planned?.spacing, rule("Observed spacing rhythm", spacing)].filter(Boolean).join(" "),

@@ -33,9 +33,11 @@ describe("formatStyleComponents", () => {
 
     expect(lines[0]).toContain("STYLE COMPONENTS");
     expect(lines[0]).toContain("name — when to use it — html");
-    expect(block).toContain("Build this screen's content from these components wherever they fit its job.");
+    expect(block).toContain("Build this screen from these components wherever they fit its job");
+    // the same content is drawn with the same component on every screen: that is what makes a project consistent
+    expect(block).toContain("the same kind of content uses the same component on every screen");
     expect(block).toContain("must use the same surface ladder, radius roles, type roles and spacing");
-    expect(block).toContain("Never reproduce the reference's sections, their order or its content");
+    expect(block).toContain("never reproduce a reference's sections or their order");
     const componentLines = lines.filter((line) => line.startsWith("- "));
     expect(componentLines).toHaveLength(1);
     expect(componentLines[0].startsWith("- stat-tile-pair — Two counts side by side, for example meals and meds — <div")).toBe(true);

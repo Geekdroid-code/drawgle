@@ -26,7 +26,7 @@ import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
 import { recreationFrameChrome } from "@/lib/product-planning/recreation-frames";
 import { preparedPlanKey, readPreparedPlan, savePreparedPlan } from "@/lib/product-planning/prepared-plans";
-import { assetsForScopePlan, projectScopePlanForKeys, readPreparedUploadSpecimen, readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
+import { assetsForScopePlan, projectScopePlanForKeys, readPreparedComponentKit, readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
 import { earlyDesignMode, projectDesignPreparationKey,
   readProjectDesignPreparation } from "@/lib/product-planning/project-design-preparation";
 import { generateProjectDesign } from "@/lib/product-planning/generate-project-design";
@@ -95,8 +95,17 @@ import { progressiveGenerationEnabled } from "@/lib/product-planning/generation-
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
-import { styleComponentsOf } from "@/lib/generation/style-components";
-import { startUploadSpecimen, withinUploadSpecimenWait, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
+import {
+  COMPONENT_KIT_BUILD_WAIT_MS,
+  componentKitPromptOf,
+  existingProjectComponents,
+  kitScreensOf,
+  projectComponents,
+  shouldBuildComponentKit,
+  startComponentKit,
+  withComponentKit,
+  withinComponentKitWait,
+} from "@/lib/generation/component-kit";
 import {
   bindReservationToScreen,
   captureGenerationCredit,
@@ -2739,26 +2748,49 @@ export const generateUiFlowTask = task({
         scopePreparationKeys, payload.productExecutionKeys, referenceMode) : null;
     const preparedPlan = scopePlan ?? (preparationRootId && preparationKey
       ? await readPreparedPlan(admin, preparationRootId, payload.ownerId, preparationKey) : null);
-    // An uploaded style reference is learned once, at the project's first generation: its main screen is
-    // rebuilt with its components marked, beside planning, and the components go on the reference DNA that
-    // every later batch reuses. It costs one extra build and never blocks or fails the generation. (When the
-    // plan was prepared ahead, the preparation task made it; see trigger/prepare-product-scope.ts.)
-    const uploadSpecimenPromise = startUploadSpecimen({
-      applies: {
-        referencePolicy, referenceMode, isNewProject: payload.isNewProject, screenScoped,
-        image: promptImage, analysis: referenceAnalysis, tokens: designTokens,
-        existing: preparedPlan?.charter?.referenceDna?.specimen ?? projectReferenceDna?.specimen ?? null,
-        plannedAhead: Boolean(preparedPlan),
-      },
-      input: () => ({ image: promptImage!, analysis: referenceAnalysis!, tokens: designTokens!, imagePath: payload.imagePath ?? null }),
+    // One normalized copy of the style reference serves every screen build, and the component kit's.
+    let normalizedStyleReference: Promise<PromptImagePayload> | null = null;
+    const styleReferenceImage = (image: PromptImagePayload) => {
+      normalizedStyleReference ??= normalizeReferenceImage(image, "style").then((result) => result.image);
+      return normalizedStyleReference;
+    };
+    // The project's component kit is designed once, at its first generation, beside planning: one page of the
+    // components every screen is built from, so that the same content looks the same on every screen. It goes on
+    // the charter that every later batch reuses, costs one extra build, and never blocks or fails the generation.
+    // (When the plan was prepared ahead, the preparation made it; see trigger/prepare-product-scope.ts.)
+    const kitScreens = kitScreensOf(payload.productPlanning?.scope?.manifest);
+    const kitApplies = {
+      referenceMode, isNewProject: payload.isNewProject, screenScoped, tokens: designTokens,
+      existing: existingProjectComponents({ charter: preparedPlan?.charter ?? requestedCharter, referenceMode, referenceId }),
+      screenCount: kitScreens.length,
+      plannedAhead: Boolean(preparedPlan),
+    };
+    // How long the kit took and what it gave, on the run's performance record: its waits are first guesses.
+    const componentKitStartedMs = shouldBuildComponentKit(kitApplies) ? Date.now() : null;
+    let componentKitReport: Record<string, unknown> | null = null;
+    const componentKitPromise = startComponentKit({
+      applies: kitApplies,
+      input: async () => ({
+        prompt: componentKitPromptOf(payload.productPlanning, payload.prompt),
+        screens: kitScreens,
+        tokens: designTokens!,
+        // the reference as every screen's build is given it
+        image: promptImage && shouldAttachReferenceImage({ projectReference: true, engineVersion: generationEngineVersion,
+          image: promptImage, referenceMode }) ? await styleReferenceImage(promptImage) : null,
+        referenceMode,
+        referenceId,
+        referenceKey: payload.imagePath ?? referenceId,
+        designStyle,
+        productContent: payload.productContent ?? compileProductContent(productPlanning),
+      }),
       buildScreen: buildScreenCode,
-      // a preparation of this project may already have built it from the same upload
-      reuse: payload.imagePath
-        ? () => readPreparedUploadSpecimen(admin, payload.projectId, payload.ownerId, payload.imagePath!)
-        : undefined,
-      onSettled: ({ specimen, notes, error }) => {
-        if (error) logger.warn("Upload specimen skipped: the build failed", { generationRunId: payload.generationRunId, error });
-        else logger.info("Upload specimen", { generationRunId: payload.generationRunId, components: specimen?.components.length ?? 0, notes });
+      // a preparation of this project may already have made it from the same screens, tokens and reference
+      reuse: (basis) => readPreparedComponentKit(admin, payload.projectId, payload.ownerId, basis),
+      onSettled: ({ kit, notes, error, reused }) => {
+        const ms = componentKitStartedMs === null ? null : Date.now() - componentKitStartedMs;
+        componentKitReport = { ms, components: kit?.components.map((component) => component.name) ?? [], reused: Boolean(reused), failed: Boolean(error), notes };
+        if (error) logger.warn("Component kit skipped: the build failed", { generationRunId: payload.generationRunId, ms, error });
+        else logger.info("Component kit", { generationRunId: payload.generationRunId, ...componentKitReport });
       },
     });
     let plan = preparedPlan ?? (hasSeedScreens
@@ -2802,6 +2834,7 @@ export const generateUiFlowTask = task({
           existingCharter: requestedCharter,
           existingNavigationPlan: payload.navigationPlan ?? null,
           planningMode,
+          componentKit: componentKitPromise,
           onProgress: async (event) => {
             if (event.type === "blueprint_ready") {
               screenBriefsStartedAt = now();
@@ -2839,9 +2872,15 @@ export const generateUiFlowTask = task({
           },
           llmLog: llmLogFor("blueprint"),
         }));
-    // The screens do not wait long for it: past the limit they are built without it.
-    plan.charter = withReferenceSpecimen(plan.charter, await withinUploadSpecimenWait(uploadSpecimenPromise, undefined,
-      () => logger.warn("Upload specimen not ready in time; building without it", { generationRunId: payload.generationRunId })));
+    // A kit that missed the briefs still reaches every screen's build, as markup. The screens do not wait long for
+    // it: past the limit they are built without it.
+    plan.charter = withComponentKit(plan.charter, await withinComponentKitWait(componentKitPromise, COMPONENT_KIT_BUILD_WAIT_MS,
+      () => logger.warn("Component kit not ready in time; building without it", { generationRunId: payload.generationRunId })));
+    if (componentKitStartedMs !== null) {
+      await mergeGenerationPerformance(admin, payload.generationRunId, {
+        componentKit: { ...(componentKitReport ?? { ready: false, waitedMs: Date.now() - componentKitStartedMs }), used: Boolean(plan.charter.componentKit) },
+      });
+    }
 
     if (!preparedPlan && shouldPlanScreenBriefsFromSeeds) {
       if (!requestedCharter) {
@@ -3465,12 +3504,6 @@ export const generateUiFlowTask = task({
     }
 
     const screenEntries = screenPlans.map((screenPlan, index) => ({ screenPlan, index }));
-    // One normalized copy of the style reference serves every screen build.
-    let normalizedStyleReference: Promise<PromptImagePayload> | null = null;
-    const styleReferenceImage = (image: PromptImagePayload) => {
-      normalizedStyleReference ??= normalizeReferenceImage(image, "style").then((result) => result.image);
-      return normalizedStyleReference;
-    };
     const needsAcceptedAnchor = referenceMode !== "user_recreate" && payload.isNewProject === true;
     let anchorAttempted = false;
     await runRollingBuilds(screenEntries, async ({ screenPlan, index }) => {
@@ -3596,7 +3629,7 @@ export const generateUiFlowTask = task({
             designStyleId: designStyle?.id ?? null,
             designStyle,
             screenFamilyContract: acceptedFamily ?? plan.screenFamilyContract ?? plan.charter.referenceDna?.screenFamilyContract ?? null,
-            styleComponents: styleComponentsOf(plan.charter.referenceDna),
+            styleComponents: projectComponents(plan.charter),
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,

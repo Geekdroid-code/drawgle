@@ -98,18 +98,19 @@ export async function readScopePreparation(admin: PlanningStore, projectId: stri
 }
 
 /**
- * The specimen an earlier preparation of this project built from the same upload, if one is still stored. Each
- * revision of the approval card prepares the plan again under a new key; the upload, and so its specimen, is the same.
+ * The component kit an earlier preparation of this project made from the same basis (screens, tokens and reference),
+ * if one is still stored. Each revision of the approval card prepares the plan again under a new key, and a build
+ * that missed its preparation plans again; neither needs a second kit when nothing it is made from has changed.
  */
-export async function readPreparedUploadSpecimen(admin: PlanningStore, projectId: string, ownerId: string,
-  imagePath: string): Promise<ReferenceSpecimen | null> {
+export async function readPreparedComponentKit(admin: PlanningStore, projectId: string, ownerId: string,
+  basis: string): Promise<ReferenceSpecimen | null> {
   const { data, error } = await admin.from("product_scope_preparations").select("plan")
     .eq("project_id", projectId).eq("owner_id", ownerId).gt("expires_at", new Date().toISOString())
     .order("created_at", { ascending: false }).limit(5);
   if (error) throw error;
   for (const row of data ?? []) {
-    const specimen = (row.plan as PlannedUiFlow | null)?.charter?.referenceDna?.specimen;
-    if (specimen?.source === "upload" && specimen.imagePath === imagePath && specimen.components?.length) return specimen;
+    const kit = (row.plan as PlannedUiFlow | null)?.charter?.componentKit;
+    if (kit?.basis === basis && kit.components?.length) return kit;
   }
   return null;
 }

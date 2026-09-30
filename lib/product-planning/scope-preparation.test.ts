@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-import { assetsForScopePlan, projectScopePlanForKeys, readPreparedUploadSpecimen, readScopePreparation, scopePreparationKey, scopePreparationPlanningState } from "./scope-preparation";
+import { assetsForScopePlan, projectScopePlanForKeys, readPreparedComponentKit, readScopePreparation, scopePreparationKey, scopePreparationPlanningState } from "./scope-preparation";
 import { designerFixture, functionalFixture } from "./test-fixtures";
 import { formatProductTruth, scopedGenerationPrompt } from "./generation-context";
 
@@ -50,12 +50,13 @@ describe("approval-card preparation identity", () => {
     const ready = await readScopePreparation(admin, "project", "owner", "key");
     expect(ready?.assetRequirements).toEqual([]);
   });
-  it("finds the specimen an earlier preparation built from the same upload, and only from that upload", async () => {
-    const specimen = (imagePath: string) => ({ source: "upload", imagePath, components: [{ name: "summary-card", use: "a summary", html: "<div></div>" }] });
+  it("finds the component kit an earlier preparation made from the same basis, and only from that basis", async () => {
+    const kit = (basis: string) => ({ source: "kit", basis, components: [{ name: "summary-card", use: "a summary", html: "<div></div>" }] });
     const rows = [
-      { plan: { charter: { referenceDna: { specimen: specimen("owner/project/other.png") } } } },
-      { plan: { charter: { referenceDna: {} } } },
-      { plan: { charter: { referenceDna: { specimen: specimen("owner/project/upload.png") } } } },
+      { plan: { charter: { componentKit: kit("other-basis") } } },
+      { plan: { charter: {} } },
+      { plan: { charter: { componentKit: { ...kit("same-basis"), components: [] } } } },
+      { plan: { charter: { componentKit: kit("same-basis") } } },
     ];
     const query: Record<string, unknown> = {};
     const chain = { eq: () => chain, gt: (column: string, value: string) => { query.gt = [column, value]; return chain; },
@@ -63,13 +64,13 @@ describe("approval-card preparation identity", () => {
       limit: async () => ({ data: rows, error: null }) };
     const admin = { from: (table: string) => { query.table = table; return { select: () => chain }; } } as never;
 
-    const found = await readPreparedUploadSpecimen(admin, "project", "owner", "owner/project/upload.png");
-    expect(found?.imagePath).toBe("owner/project/upload.png");
+    const found = await readPreparedComponentKit(admin, "project", "owner", "same-basis");
+    expect(found).toEqual(kit("same-basis"));
     // only live preparations, newest first
     expect(query.table).toBe("product_scope_preparations");
     expect((query.gt as string[])[0]).toBe("expires_at");
     expect(query.order).toEqual(["created_at", { ascending: false }]);
-    expect(await readPreparedUploadSpecimen(admin, "project", "owner", "owner/project/new-upload.png")).toBeNull();
+    expect(await readPreparedComponentKit(admin, "project", "owner", "new-basis")).toBeNull();
   });
   it("passes the same product content to the planner before and just after approval", () => {
     const proposed = designerFixture();
