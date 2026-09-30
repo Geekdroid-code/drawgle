@@ -31,7 +31,7 @@ import { snapshotBundle } from "./run";
 const LEVELS = ["minimal", "low", "medium", "high"] as const;
 
 const usage = `Usage:
-  design:ab --bundle <dir> --label <name> [--model <id>] [--thinking minimal|low|medium|high]
+  design:ab --bundle <dir> --label <name> [--model <id>] [--thinking minimal|low|medium|high] [--as-configured]
             [--screens "Today,3"] [--limit 3] [--price "0.5,3"] [--out <dir>] [--offline] [--yes]
   design:ab --report <arm dir> <arm dir> ...
 
@@ -44,6 +44,9 @@ Options:
   --label <name>    Names the arm; the default output is scripts/design-eval/out/ab/<label>
   --model <id>      The screen build model for this run (DRAWGLE_GEMINI_FULL_BUILD_MODEL); default: the configured one
   --thinking <lvl>  The screen build thinking level (DRAWGLE_GEMINI_SCREEN_BUILD_THINKING); default: the configured one
+  --as-configured   Build with the route the environment configures, Gemini or OpenRouter, as it is: for a before and after
+                    of a change to a prompt, on the same saved project. --model and --thinking do not apply to it, and a
+                    model whose price is not known has tokens and no cost unless --price gives one
   --screens <list>  Screens to build, by name or by their number on the contact sheet; default: the first --limit
   --limit <n>       How many screens when --screens is not given (default 3)
   --price <in,out>  Dollars per million input and output tokens, for a model the price table does not know
@@ -59,6 +62,7 @@ const { values, positionals } = parseArgs({
     screens: { type: "string" },
     limit: { type: "string" },
     price: { type: "string" },
+    "as-configured": { type: "boolean", default: false },
     out: { type: "string" },
     offline: { type: "boolean", default: false },
     yes: { type: "boolean", default: false },
@@ -84,16 +88,23 @@ async function run() {
   // The model policy reads these when it is first imported, so the generation modules are imported after them.
   if (values.model?.trim()) process.env.DRAWGLE_GEMINI_FULL_BUILD_MODEL = values.model.trim();
   if (values.thinking) process.env.DRAWGLE_GEMINI_SCREEN_BUILD_THINKING = values.thinking.toLowerCase();
-  const [{ buildScreenStream, extractCode }, { geminiConfigForTask, geminiModelForTask }, { getScreenBuilderProvider }] = await Promise.all([
+  const asConfigured = values["as-configured"];
+  if (asConfigured && (values.model || values.thinking)) {
+    throw new Error("--as-configured builds with the configured route as it is; --model and --thinking do not apply to it.");
+  }
+  const [{ buildScreenStream, extractCode }, { geminiConfigForTask, geminiModelForTask }, { getOpenRouterScreenBuildModel, getScreenBuilderProvider }] = await Promise.all([
     import("@/lib/generation/service"),
     import("@/lib/ai/model-policy"),
     import("@/lib/env/server"),
   ]);
-  if (getScreenBuilderProvider() !== "gemini") {
-    throw new Error("This compares Gemini's model and thinking level, and DRAWGLE_SCREEN_BUILDER_PROVIDER is not gemini.");
+  const provider = getScreenBuilderProvider();
+  if (provider !== "gemini" && !asConfigured) {
+    throw new Error("This compares Gemini's model and thinking level, and DRAWGLE_SCREEN_BUILDER_PROVIDER is not gemini. Use --as-configured to build with the configured route as it is.");
   }
-  const model = geminiModelForTask("screen_build");
-  const thinking = String(geminiConfigForTask("screen_build").thinkingConfig?.thinkingLevel ?? "default");
+  // Only the provider and the model's name are shown; the route's credentials are read where the builder reads them.
+  const viaOpenRouter = provider === "openrouter";
+  const model = viaOpenRouter ? `${getOpenRouterScreenBuildModel()} through OpenRouter` : geminiModelForTask("screen_build");
+  const thinking = viaOpenRouter ? "as configured" : String(geminiConfigForTask("screen_build").thinkingConfig?.thinkingLevel ?? "default");
   const price = values.price ? parsePrice(values.price) : priceOf(model);
 
   const { bundle, image } = await readBundle(values.bundle);
