@@ -687,13 +687,23 @@ export function normalizeNavigationPlan({
         term.length >= 4
         && !["screen", "page", "view", "primary", "destination"].includes(term)),
   );
-  const inferScreenForNavigationItem = (label: string, role: string) => {
+  // The screens tabs name as theirs. A tab whose own screen is not in this batch is never given one of these by a
+  // guess: "Drops" once took "Release Calendar", which the Calendar tab names, and Calendar was left with nothing.
+  const namedByTabs = navigationPlan.items
+    .map((item) => ({ id: item.id, comparable: cleanComparable(item.linkedScreenName?.trim() ?? "") }))
+    .filter((entry) => entry.comparable);
+  const namedByAnotherTab = (screen: ScreenPlan, itemId: string) => {
+    const comparable = cleanComparable(screen.name);
+    return namedByTabs.some((entry) => entry.id !== itemId && entry.comparable === comparable);
+  };
+  const inferScreenForNavigationItem = (label: string, role: string, itemId: string) => {
     const itemTerms = meaningfulTerms(`${label} ${role}`);
     return screens
       .filter((screen) =>
         screen.type === "root"
         && !shouldForceImmersiveScreen(screen)
-        && !generatedScreenNames.has(screen.name.toLowerCase()))
+        && !generatedScreenNames.has(screen.name.toLowerCase())
+        && !namedByAnotherTab(screen, itemId))
       .map((screen) => {
         const screenTerms = meaningfulTerms(`${screen.name} ${screen.description}`);
         let score = 0;
@@ -728,20 +738,22 @@ export function normalizeNavigationPlan({
           return comparable === candidate || candidate.includes(comparable) || comparable.includes(candidate);
         })
       : null;
+    const plannedScreen = plannedScreenForItem.get(rawItem.id);
+    // A later batch of a product is checked against its own screens, but a tab that already opens a screen built
+    // in an earlier batch still opens it, and is not guessed another one: without this, Home turned "planned" once
+    // the other tabs' screens were built, and "Drops" was guessed onto the Calendar tab's screen.
+    const earlierLink = !matchedByName && !plannedScreen && !strictScreenLinks && rawItem.availability === "generated"
+      && rawLinkedName && !generatedScreenNames.has(rawLinkedName.toLowerCase())
+      ? rawLinkedName
+      : null;
     const matchedScreen = matchedByName
-      ?? plannedScreenForItem.get(rawItem.id)
-      ?? inferScreenForNavigationItem(label, role);
+      ?? plannedScreen
+      ?? (earlierLink ? null : inferScreenForNavigationItem(label, role, rawItem.id));
     const validGeneratedScreen = matchedScreen &&
       matchedScreen.type === "root" &&
       !shouldForceImmersiveScreen(matchedScreen) &&
       !generatedScreenNames.has(matchedScreen.name.toLowerCase())
       ? matchedScreen
-      : null;
-    // A later batch of a product is checked against its own screens, but a tab that already opens a screen built
-    // in an earlier batch still opens it: without this, Home turned "planned" once the other tabs' screens were built.
-    const earlierLink = !validGeneratedScreen && !strictScreenLinks && rawItem.availability === "generated" && rawLinkedName
-      && !generatedScreenNames.has(rawLinkedName.toLowerCase())
-      ? rawLinkedName
       : null;
     const linkedScreenName = validGeneratedScreen?.name ?? earlierLink;
 
