@@ -2,6 +2,8 @@
 
 After this branch is merged and deployed, create these projects on the live site as ten different kinds of user. Each costs real model money, roughly 20 to 50 cents a project; users 1 to 5 are the important ones.
 
+The checks below can also be run automatically: `scripts/design-eval/launch-suite.ts audit <projectId ...>` checks any projects for free, and `run` replays approved cards through production and audits them (section 11 of `docs/premium-design-quality-plan-2026-09-29.md`).
+
 ## Before you start
 
 Wait until both deploys have finished, or you will be testing half-old code:

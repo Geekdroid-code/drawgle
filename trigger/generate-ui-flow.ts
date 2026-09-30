@@ -99,6 +99,7 @@ import {
   COMPONENT_KIT_BUILD_WAIT_MS,
   componentKitPromptOf,
   existingProjectComponents,
+  kitNavigationTabsOf,
   kitScreensOf,
   projectComponents,
   shouldBuildComponentKit,
@@ -134,6 +135,7 @@ import {
   normalizeNavigationPlan,
   removesMostOfTheScreen,
   sanitizeScreenCodeForSharedNavigation,
+  withKitNavigation,
 } from "@/lib/project-navigation";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
@@ -1304,49 +1306,6 @@ export const buildScreenTask = task({
       };
     };
 
-    const failAfterSavingGeneratedCode = async ({
-      error,
-      code,
-      blockIndex,
-      metadata,
-    }: {
-      error: string;
-      code: string;
-      blockIndex: ReturnType<typeof indexScreenCode>;
-      metadata?: Record<string, unknown>;
-    }) => {
-      const userError = toUserFacingScreenError(error);
-      const failurePatch = buildScreenPersistPatch({
-        code,
-        status: "failed",
-        error: userError,
-        blockIndex,
-        chromePolicy: payload.screenPlan.chromePolicy ?? null,
-        navigationItemId: payload.screenPlan.navigationItemId ?? null,
-      });
-      await admin
-        .from("screens")
-        .update(failurePatch)
-        .eq("id", payload.screenId)
-        .eq("generation_run_id", payload.generationRunId)
-        .eq("design_revision", startingRevision);
-
-      logger.warn("Screen generation output was saved with blocking diagnostics", {
-        screenId: payload.screenId,
-        screenName: payload.screenPlan.name,
-        error: userError,
-        rawError: error,
-        ...metadata,
-      });
-
-      return {
-        screenId: payload.screenId,
-        status: "failed" as const,
-        error: userError,
-        usageByAttempt: attempts.map((attempt) => attempt.usageMetadata).filter(Boolean),
-      };
-    };
-
     const persistScreenRow = async (patch: Record<string, unknown>) => {
       if (patch.status === "ready" && typeof patch.code === "string") {
         try {
@@ -1749,20 +1708,24 @@ export const buildScreenTask = task({
     }
 
     if (!assetPolicy.valid) {
-      await appendScreenBuildDiagnostics(admin, payload.generationRunId, payload.screenId, attempts);
+      // A finished screen that shows fewer of its critical images than were planned is still the screen: it is kept
+      // and the shortfall recorded. Failing it hid whole screens behind "Generation failed", once for one avatar in ten.
       const missingAssetDetails = [
         ...assetPolicy.missingCriticalSlotIds.map((requirementId) => `slot:${requirementId}`),
         ...assetPolicy.missingRequiredUrls.map((url) => `url:${url}`),
       ].slice(0, 4);
-      const policyReason = `Generated screen did not satisfy required critical visual assets: ${missingAssetDetails.join(", ")}`;
-      return failAfterSavingGeneratedCode({
-        error: `[screen_generation:invalid_image_url] ${policyReason}`,
-        code,
-        blockIndex,
-        metadata: {
-          attempts,
-          assetPolicy,
-        },
+      const latestAttempt = attempts.at(-1);
+      if (latestAttempt) {
+        latestAttempt.qualityWarnings = Array.from(new Set([
+          ...latestAttempt.qualityWarnings,
+          `Critical visual assets were not all used: ${missingAssetDetails.join(", ")}`,
+        ]));
+      }
+      logger.warn("Screen build kept although critical visual assets were not all used", {
+        screenId: payload.screenId,
+        screenName: payload.screenPlan.name,
+        missingCriticalSlotIds: assetPolicy.missingCriticalSlotIds,
+        missingRequiredUrls: assetPolicy.missingRequiredUrls,
       });
     }
 
@@ -2782,6 +2745,7 @@ export const generateUiFlowTask = task({
         referenceKey: payload.imagePath ?? referenceId,
         designStyle,
         productContent: payload.productContent ?? compileProductContent(productPlanning),
+        navigationTabs: kitNavigationTabsOf(payload.productPlanning),
       }),
       buildScreen: buildScreenCode,
       // a preparation of this project may already have made it from the same screens, tokens and reference
@@ -2980,6 +2944,9 @@ export const generateUiFlowTask = task({
 	          ? "style_reference"
 	          : "prompt");
 	    plan.charter = { ...plan.charter, projectOrigin };
+	    // The bar the component kit drew, in the app's own style, is the bar every screen shows; the planner's
+	    // design only draws it for a project whose kit has none.
+	    plan.navigationPlan = withKitNavigation(plan.navigationPlan, plan.charter.componentKit?.navigation);
 	    plan.screens = applyNavigationPlanToScreens(plan.screens, plan.navigationPlan);
       if (payload.productExecutionKeys && referenceMode === "user_recreate") {
         plan = { ...plan, ...recreationFrameChrome(plan.screens) };

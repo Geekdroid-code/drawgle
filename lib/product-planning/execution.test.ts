@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nextProductBatch, productExecutionProgress, type ProductFulfillment } from "./execution";
+import { mapsBeyondSourceFrames, nextProductBatch, productExecutionProgress, sourceFramesSeen, type ProductFulfillment } from "./execution";
 import { functionalFixture, designerFixture } from "./test-fixtures";
 import { validateFunctionalPlan } from "./functional-plan";
 import { executionOutputs, scopeQuote } from "./scope-outputs";
@@ -8,6 +8,27 @@ import { approveProductScope, proposeProductScope } from "./model";
 
 const stateItem = (index: number, parent = "screen:onboarding") => ({ ...functionalFixture(`state:welcome:${index}`, `Welcome ${index}`, index + 1), kind: "state" as const,
   parentStableKey: parent, stateKey: `variant-${index}`, triggerLabel: "User starts", editInstruction: "Show the next onboarding step" });
+describe("an Image to UI flow whose image has fewer frames than its steps", () => {
+  // The live case: one carpooling screenshot, and a request for a four-step bank flow mapped to frames 1 to 4.
+  const steps = ["Phone Number Entry", "OTP Verification", "ID Document Upload", "Success Confirmation"]
+    .map((name, index) => ({ ...functionalFixture(`screen:step-${index + 1}`, name, index), referenceScreenIndex: index + 1 }));
+
+  it("counts the frames the batches' analyses saw, and nothing before any batch ran", () => {
+    expect(sourceFramesSeen([])).toBeNull();
+    expect(sourceFramesSeen([{ referenceAnalysisDiagnostics: { screenReferenceCount: 1 } }, {}, null])).toBe(1);
+    expect(sourceFramesSeen([{ referenceAnalysisDiagnostics: { screenReferenceCount: 2 } }, { referenceAnalysisDiagnostics: { screenReferenceCount: 4 } }])).toBe(4);
+    expect(sourceFramesSeen([{ referenceAnalysisDiagnostics: { screenReferenceCount: 0 } }, { referenceAnalysisDiagnostics: {} }])).toBeNull();
+  });
+
+  it("is noticed once a batch has counted the frames, so the rest is designed in the image's style", () => {
+    expect(mapsBeyondSourceFrames(steps, 1)).toBe(true);
+    // an image that has every frame is copied as before, and before the count is known nothing changes
+    expect(mapsBeyondSourceFrames(steps, 4)).toBe(false);
+    expect(mapsBeyondSourceFrames(steps, null)).toBe(false);
+    expect(mapsBeyondSourceFrames(steps.map((step) => ({ ...step, referenceScreenIndex: null })), 1)).toBe(false);
+  });
+});
+
 describe("approved product output execution", () => {
   it("delivers a scope across batch limits with states immediately following their parent", () => {
     const first = functionalFixture();

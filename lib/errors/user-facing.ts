@@ -9,8 +9,12 @@ const DEFAULT_GENERATION_ERROR =
 const PERSIST_FAILED_ERROR =
   "This screen was generated but could not be saved. Please retry.";
 
+/** Drawgle's own diagnostic codes, such as "[screen_generation:incomplete] …", start with a bracket but are not JSON. */
+const DIAGNOSTIC_CODE = /^\[(screen_generation|screen_health):/;
+
 const looksLikeSerializedJson = (value: string) => {
   const trimmed = value.trim();
+  if (DIAGNOSTIC_CODE.test(trimmed)) return false;
   return trimmed.startsWith("{") || trimmed.startsWith("[");
 };
 

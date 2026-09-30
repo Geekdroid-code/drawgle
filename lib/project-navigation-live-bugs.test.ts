@@ -159,4 +159,44 @@ describe("a later batch of a product keeps the bar's earlier links", () => {
     const plan = normalizeNavigationPlan({ navigationPlan: savedAfterFirstBatch, screens: secondBatch, navigationArchitecture: architecture, strictScreenLinks: true });
     expect(plan.items.find((item) => item.id === "home")?.availability).toBe("planned");
   });
+
+  // The live sneaker app: the first batch built Upcoming Drops, and the second batch's words matching gave "Drops"
+  // the Release Calendar, which the Calendar tab names, and left Calendar with nothing.
+  const sneakerAfterFirstBatch: NavigationPlan = {
+    version: 2, decision: "project-native", enabled: true, kind: "bottom-tabs",
+    evidence: { source: "approved-scope", reason: "Approved with the flow" },
+    items: [
+      { id: "drops", label: "Drops", icon: "zap", role: "Upcoming sneaker drops and release countdowns", availability: "generated", linkedScreenName: "Upcoming Drops" },
+      { id: "calendar", label: "Calendar", icon: "calendar", role: "Monthly calendar of sneaker releases", availability: "generated", linkedScreenName: "Release Calendar" },
+      { id: "profile", label: "Profile", icon: "user", role: "Wallet, entries and preferences", availability: "generated", linkedScreenName: "Profile & Wallet" },
+    ],
+    design: null,
+    visualBrief: "Typed navigation",
+    screenChrome: [{ screenName: "Upcoming Drops", chrome: "bottom-tabs", navigationItemId: "drops" }],
+  };
+  const sneakerSecondBatch: ScreenPlan[] = [
+    { name: "Sneaker Detail", type: "detail", description: "One sneaker drop with its release countdown and raffle" },
+    { name: "Release Calendar", type: "root", description: "Upcoming sneaker drops and releases on a monthly calendar" },
+    { name: "Profile & Wallet", type: "root", description: "Wallet, entries and preferences" },
+  ];
+
+  it("never guesses a tab onto a screen another tab names, and keeps its own earlier screen", () => {
+    const plan = normalizeNavigationPlan({ navigationPlan: sneakerAfterFirstBatch, screens: sneakerSecondBatch, navigationArchitecture: architecture, strictScreenLinks: false });
+    expect(plan.items.map((item) => [item.id, item.availability, item.linkedScreenName])).toEqual([
+      ["drops", "generated", "Upcoming Drops"],
+      ["calendar", "generated", "Release Calendar"],
+      ["profile", "generated", "Profile & Wallet"],
+    ]);
+    // each screen of the batch is lit by its own tab
+    const chrome = new Map(plan.screenChrome.map((entry) => [entry.screenName, entry.navigationItemId]));
+    expect(chrome.get("Release Calendar")).toBe("calendar");
+    expect(chrome.get("Profile & Wallet")).toBe("profile");
+  });
+
+  it("does not let a guess take another tab's named screen when a flow is planned whole either", () => {
+    const whole = normalizeNavigationPlan({ navigationPlan: sneakerAfterFirstBatch, screens: sneakerSecondBatch, navigationArchitecture: architecture, strictScreenLinks: true });
+    const drops = whole.items.find((item) => item.id === "drops");
+    expect(drops?.linkedScreenName).not.toBe("Release Calendar");
+    expect(whole.items.find((item) => item.id === "calendar")?.linkedScreenName).toBe("Release Calendar");
+  });
 });

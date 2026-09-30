@@ -74,8 +74,8 @@ describe("formatStyleComponents", () => {
   });
 
   it("stays inside the size budget by leaving out whole components, never by cutting markup", () => {
-    // ten components of 1000 characters would be about 10.5k characters with their names and uses
-    const large = Array.from({ length: 10 }, (_, index) => withHtml(index + 1, 1000));
+    // ten components of 1400 characters would be about 14.5k characters with their names and uses
+    const large = Array.from({ length: 10 }, (_, index) => withHtml(index + 1, 1400));
     const block = formatStyleComponents(large)!;
     expect(block.length).toBeLessThanOrEqual(MAX_STYLE_COMPONENTS_BLOCK_CHARS);
     const lines = block.split("\n").filter((line) => line.startsWith("- "));

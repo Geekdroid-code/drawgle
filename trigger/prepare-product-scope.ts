@@ -15,6 +15,7 @@ import {
   COMPONENT_KIT_BUILD_WAIT_MS,
   componentKitPromptOf,
   existingProjectComponents,
+  kitNavigationTabsOf,
   kitScreensOf,
   startComponentKit,
   withComponentKit,
@@ -120,7 +121,7 @@ export const prepareProductScopeTask = task({
           image, referenceMode: reference.mode }) ? (await normalizeReferenceImage(image, "style")).image : null,
         referenceMode: reference.mode, referenceId: reference.referenceId,
         referenceKey: reference.imagePath ?? reference.referenceId, designStyle,
-        productContent: recreate ? null : compileProductContent(state) }),
+        productContent: recreate ? null : compileProductContent(state), navigationTabs: kitNavigationTabsOf(approved) }),
       buildScreen: buildScreenCode,
       reuse: (basis) => readPreparedComponentKit(admin, projectId, ownerId, basis),
       onSettled: ({ kit, notes, error, reused }) => {

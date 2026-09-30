@@ -479,6 +479,8 @@ export interface ReferenceSpecimen {
    * preparation or build with the same basis reuses it instead of building it again.
    */
   basis?: string;
+  /** For a kit of a project with shared navigation: the bottom bar it drew, which every screen then shows. */
+  navigation?: KitNavigation | null;
 }
 
 export interface ProjectReferenceDna {
@@ -549,6 +551,24 @@ export interface NavigationDesignContract {
   inactiveTreatment?: "plain" | "well";
   /** What fills the active item: the solid action colour (default), or the project's action gradient. */
   activeFill?: "solid" | "gradient";
+  /**
+   * The bar the project's component kit drew in the app's own style (lib/kit-navigation.ts). When present, it is
+   * what every screen shows; the fields above only draw the bar for a project without one.
+   */
+  kit?: KitNavigation | null;
+}
+
+/**
+ * A bottom navigation bar as the component kit drew it, kept as templates: the renderer fills the bar's tab slots
+ * with the project's own tabs, each drawn with the current or the other tab's markup.
+ */
+export interface KitNavigation {
+  /** The bar's markup, with each of the kit's tabs replaced by a tab slot (KIT_NAV_ITEM_SLOT). */
+  bar: string;
+  /** The current tab's markup, with {{icon}} and {{label}} where the tab's icon name and label go. */
+  activeItem: string;
+  /** Any other tab's markup, with the same placeholders. */
+  inactiveItem: string;
 }
 
 export interface NavigationPlanItem {

@@ -1,6 +1,8 @@
 import { indexScreenCode } from "@/lib/generation/block-index";
+import { fillKitNavigationBar, usableKitNavigation } from "@/lib/kit-navigation";
 import { createNavigationArchitecture, resolveScreenChromePolicy, shouldForceImmersiveScreen } from "@/lib/navigation";
 import type {
+  KitNavigation,
   NavigationArchitecture,
   NavigationDesignContract,
   NavigationEvidenceSource,
@@ -208,7 +210,56 @@ export function normalizeNavigationDesignContract(
     inactiveTreatment: candidate.inactiveTreatment === "well" ? "well" : "plain",
     // Solid is the default and is left unwritten, so plans made before the option existed are unchanged.
     ...(candidate.activeFill === "gradient" ? { activeFill: "gradient" as const } : {}),
+    // The bar the component kit drew, kept only when it can be drawn; plans without one are unchanged.
+    ...(usableKitNavigation(candidate.kit) ? { kit: usableKitNavigation(candidate.kit) } : {}),
   };
+}
+
+/**
+ * The plan with the component kit's bar as the bar every screen shows. A plan without shared navigation, one that
+ * already has a kit bar, or a kit bar that cannot be drawn leaves the plan as it is.
+ */
+export function withKitNavigation(navigationPlan: NavigationPlan, kit: KitNavigation | null | undefined): NavigationPlan {
+  const usable = usableKitNavigation(kit);
+  if (!usable || !navigationPlan.enabled || navigationPlan.version !== 2 || usableKitNavigation(navigationPlan.design?.kit)) {
+    return navigationPlan;
+  }
+  return {
+    ...navigationPlan,
+    design: { ...normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief), kit: usable },
+  };
+}
+
+/**
+ * The kit's bar with the project's tabs. The renderer only places it at the bottom of the screen and owns the
+ * space the screen leaves for it; its look is the kit's. Each tab is drawn as the current one and as another, and
+ * the canvas shows the right one by the data-active it sets on the tab, as it does for the built-in bars.
+ */
+function renderKitNavigationShell(
+  navigationPlan: NavigationPlan,
+  navItems: NavigationPlanItem[],
+  design: NavigationDesignContract,
+  kit: KitNavigation,
+) {
+  const tabs = navItems.map((item) => ({
+    id: item.id,
+    label: item.label,
+    icon: lucideIconName(item.icon),
+    generated: item.availability !== "planned" && Boolean(item.linkedScreenName),
+    linkedScreenName: item.linkedScreenName,
+  }));
+  return [
+    `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="kit" data-navigation-layout="kit-bar" data-navigation-clearance-owner="renderer" class="dg-nav-shell dg-nav-kit" aria-label="Primary navigation">`,
+    "<style>",
+    `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),96px);--dg-navigation-anatomy-height:auto;--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${design.safeAreaOffsetPx}px;--dg-navigation-overlap-buffer:12px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
+    "[data-drawgle-primary-nav].dg-nav-kit{box-sizing:border-box;display:block;width:100%;max-width:100%;margin:0;padding:0 0 var(--dg-effective-safe-area-bottom);background:transparent;border:0;box-shadow:none;pointer-events:auto;}",
+    "[data-drawgle-primary-nav] .dg-nav-kit-item{display:contents;}",
+    "[data-drawgle-primary-nav] .dg-nav-kit-item[data-active=\"true\"] > [data-dg-nav-state=\"inactive\"],[data-drawgle-primary-nav] .dg-nav-kit-item:not([data-active=\"true\"]) > [data-dg-nav-state=\"active\"]{display:none !important;}",
+    "[data-drawgle-primary-nav] .dg-nav-kit-item[aria-disabled=\"true\"] > *{cursor:default;}",
+    "</style>",
+    fillKitNavigationBar(kit, tabs),
+    "</nav>",
+  ].join("\n");
 }
 const disabledNavigationPlan = (
   screens: ScreenPlan[],
@@ -241,6 +292,7 @@ export function renderDeterministicNavigationShell(navigationPlan: NavigationPla
 
   const navItems = navigationPlan.items.slice(0, MAX_SHARED_NAV_ITEMS);
   const design = normalizeNavigationDesignContract(navigationPlan.design, navigationPlan.visualBrief);
+  if (design.kit) return renderKitNavigationShell(navigationPlan, navItems, design, design.kit);
   const itemCount = navItems.length;
   const radiusDelta = Math.min(8, Math.max(4, Math.round(design.radiusPx / 3)));
   const innerRadiusPx = design.radiusPx === 0 ? 0 : Math.max(0, design.radiusPx - radiusDelta);
@@ -687,13 +739,23 @@ export function normalizeNavigationPlan({
         term.length >= 4
         && !["screen", "page", "view", "primary", "destination"].includes(term)),
   );
-  const inferScreenForNavigationItem = (label: string, role: string) => {
+  // The screens tabs name as theirs. A tab whose own screen is not in this batch is never given one of these by a
+  // guess: "Drops" once took "Release Calendar", which the Calendar tab names, and Calendar was left with nothing.
+  const namedByTabs = navigationPlan.items
+    .map((item) => ({ id: item.id, comparable: cleanComparable(item.linkedScreenName?.trim() ?? "") }))
+    .filter((entry) => entry.comparable);
+  const namedByAnotherTab = (screen: ScreenPlan, itemId: string) => {
+    const comparable = cleanComparable(screen.name);
+    return namedByTabs.some((entry) => entry.id !== itemId && entry.comparable === comparable);
+  };
+  const inferScreenForNavigationItem = (label: string, role: string, itemId: string) => {
     const itemTerms = meaningfulTerms(`${label} ${role}`);
     return screens
       .filter((screen) =>
         screen.type === "root"
         && !shouldForceImmersiveScreen(screen)
-        && !generatedScreenNames.has(screen.name.toLowerCase()))
+        && !generatedScreenNames.has(screen.name.toLowerCase())
+        && !namedByAnotherTab(screen, itemId))
       .map((screen) => {
         const screenTerms = meaningfulTerms(`${screen.name} ${screen.description}`);
         let score = 0;
@@ -728,20 +790,22 @@ export function normalizeNavigationPlan({
           return comparable === candidate || candidate.includes(comparable) || comparable.includes(candidate);
         })
       : null;
+    const plannedScreen = plannedScreenForItem.get(rawItem.id);
+    // A later batch of a product is checked against its own screens, but a tab that already opens a screen built
+    // in an earlier batch still opens it, and is not guessed another one: without this, Home turned "planned" once
+    // the other tabs' screens were built, and "Drops" was guessed onto the Calendar tab's screen.
+    const earlierLink = !matchedByName && !plannedScreen && !strictScreenLinks && rawItem.availability === "generated"
+      && rawLinkedName && !generatedScreenNames.has(rawLinkedName.toLowerCase())
+      ? rawLinkedName
+      : null;
     const matchedScreen = matchedByName
-      ?? plannedScreenForItem.get(rawItem.id)
-      ?? inferScreenForNavigationItem(label, role);
+      ?? plannedScreen
+      ?? (earlierLink ? null : inferScreenForNavigationItem(label, role, rawItem.id));
     const validGeneratedScreen = matchedScreen &&
       matchedScreen.type === "root" &&
       !shouldForceImmersiveScreen(matchedScreen) &&
       !generatedScreenNames.has(matchedScreen.name.toLowerCase())
       ? matchedScreen
-      : null;
-    // A later batch of a product is checked against its own screens, but a tab that already opens a screen built
-    // in an earlier batch still opens it: without this, Home turned "planned" once the other tabs' screens were built.
-    const earlierLink = !validGeneratedScreen && !strictScreenLinks && rawItem.availability === "generated" && rawLinkedName
-      && !generatedScreenNames.has(rawLinkedName.toLowerCase())
-      ? rawLinkedName
       : null;
     const linkedScreenName = validGeneratedScreen?.name ?? earlierLink;
 
@@ -1047,6 +1111,10 @@ export function applyNavigationDesignEdit(navigationPlan: NavigationPlan, prompt
 
   const radiusMatch = normalizedPrompt.match(/(?:radius|corner radius)[^0-9]{0,8}(\d{1,2})/);
   if (radiusMatch) next.radiusPx = clampNumber(Number(radiusMatch[1]), 0, 36, next.radiusPx);
+  // An edit to how the bar looks is drawn by the built-in bars, which the edit describes, instead of the kit's.
+  const looksChanged = (Object.keys(next) as Array<keyof NavigationDesignContract>)
+    .some((key) => key !== "kit" && next[key] !== current[key]);
+  if (looksChanged) delete next.kit;
 
   const renameMatch = prompt.match(/rename\s+["']?([^"']+?)["']?\s+to\s+["']?([^"']+?)["']?(?:\s|$)/i);
   const items = renameMatch

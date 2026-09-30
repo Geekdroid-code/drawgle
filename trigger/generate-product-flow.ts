@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { adminCreditService } from "@/lib/credits";
 import { insertProjectMessage } from "@/lib/supabase/queries";
 import { readProductPlanning } from "@/lib/product-planning/model";
-import { nextProductBatch, productExecutionProgress, type ProductFulfillment } from "@/lib/product-planning/execution";
+import { mapsBeyondSourceFrames, nextProductBatch, productExecutionProgress, sourceFramesSeen, type ProductFulfillment } from "@/lib/product-planning/execution";
 import { saveExecutionProgress } from "@/lib/product-planning/execution-progress";
 import { reusableProductOutputs } from "@/lib/product-planning/retry-outputs";
 import { functionalBrief, functionalStateVariant, functionalRoadmapItem } from "@/lib/product-planning/functional-plan";
@@ -40,7 +40,7 @@ export const generateProductFlowTask = task({
     if (!state?.scope?.manifest?.length || state.scope.status !== "approved") throw new Error("An approved functional scope is required.");
     const manifest = state.scope.manifest;
     const reference = productReferenceExecution(state);
-    const recreate = state.phase !== "canvas" && reference.mode === "user_recreate";
+    const recreateRequested = state.phase !== "canvas" && reference.mode === "user_recreate";
     const rootId = payload.generationRunId;
     const attempt = payload.productAttempt ?? 0;
     const update = async (status: "building" | "completed" | "failed", summary: string) => {
@@ -59,6 +59,19 @@ export const generateProductFlowTask = task({
       const claims = (data ?? []) as ProductFulfillment[];
       if (!await saveExecutionProgress(admin, rootId, payload.ownerId, attempt, null,
         productExecutionProgress(manifest, claims))) return { superseded: true };
+      // An Image to UI flow whose image has fewer frames than its approved steps cannot be copied frame by frame:
+      // once a batch has counted the frames, the remaining screens are designed in the image's style instead.
+      let recreate = recreateRequested;
+      let executionState = state;
+      const batchRunIds = [...new Set(claims.map((claim) => claim.generation_run_id).filter(Boolean))];
+      if (recreateRequested && batchRunIds.length > 0) {
+        const { data: batchRuns, error: batchRunsError } = await admin.from("generation_runs").select("metadata").in("id", batchRunIds);
+        if (batchRunsError) throw batchRunsError;
+        if (mapsBeyondSourceFrames(manifest, sourceFramesSeen((batchRuns ?? []).map((run) => run.metadata)))) {
+          recreate = false;
+          executionState = { ...state, input: { ...state.input, imageReferenceMode: "style" } };
+        }
+      }
       if (claims.length === manifest.length && claims.every(c => c.status === "ready")) {
         await update("completed", `Completed the approved flow: all ${manifest.length} screens and states are on this canvas.`);
         return { completed: true };
@@ -108,13 +121,13 @@ export const generateProductFlowTask = task({
       const executionKeys = batch.map(item => item.stableKey);
       const reusableOutputs = await reusableProductOutputs(admin, payload.projectId, payload.ownerId, batch, recreate);
       const child: GenerateUiFlowPayload = {
-        ...payload, referenceScope: state.phase === "canvas" ? "screen" : "project", imageReferenceMode: recreate ? "recreate" : "style", imagePath: reference.imagePath, generationRunId: batchId, productPlanning: state, productExecutionKeys: executionKeys,
+        ...payload, referenceScope: state.phase === "canvas" ? "screen" : "project", imageReferenceMode: recreate ? "recreate" : "style", imagePath: reference.imagePath, generationRunId: batchId, productPlanning: executionState, productExecutionKeys: executionKeys,
         ...(warm ? { productScopePreparationKeys: fullBatch.map(item => item.stableKey) } : {}),
         productLookaheadKeys: nextProductBatch(manifest, [
           ...claims.filter(claim => !executionKeys.includes(claim.output_key)),
           ...batch.map(item => ({ output_key: item.stableKey, generation_run_id: batchId, status: "ready" as const, screen_id: null })),
         ], 8, existingOutputs.map(output => output.item.stableKey), recreate).filter(item => item.kind === "screen" || recreate).map(item => item.stableKey),
-        prompt: scopedGenerationPrompt(state, executionKeys), scopeContract: productScopeContract(state, recreate ? "user_recreate" : "user_style", executionKeys),
+        prompt: scopedGenerationPrompt(executionState, executionKeys), scopeContract: productScopeContract(executionState, recreate ? "user_recreate" : "user_style", executionKeys),
         isNewProject: payload.isNewProject === true && claims.length === 0 && !existingOutputs.length, projectCharter: project.project_charter ?? payload.projectCharter,
         designTokens: project.design_tokens ?? payload.designTokens,
         navigationPlan: navigation?.plan ?? payload.navigationPlan,

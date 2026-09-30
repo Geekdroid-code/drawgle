@@ -180,9 +180,9 @@ describe("buildCuratedPreset", () => {
   });
 
   it("leaves out what the ten places or the block a screen build is given have no room for, and says which", async () => {
-    // the text of a component is cut to a short sample, so its size is its structure: fifteen distinct items are about 1000 characters
-    const card = (name: string) => `<div data-dg-component="${name}" data-dg-use="use ${name}" class="dg-surface-card p-4">${Array.from({ length: 15 }, (_, item) => `<span class="k${item} dg-tint-1 dg-radius-pill px-3">Item ${item}</span>`).join("")}</div>`;
-    // twelve components of about 1000 characters: ten would be over the block's budget, so fewer than ten are kept
+    // the text of a component is cut to a short sample, so its size is its structure: twenty-one distinct items are about 1400 characters
+    const card = (name: string) => `<div data-dg-component="${name}" data-dg-use="use ${name}" class="dg-surface-card p-4">${Array.from({ length: 21 }, (_, item) => `<span class="k${item} dg-tint-1 dg-radius-pill px-3">Item ${item}</span>`).join("")}</div>`;
+    // twelve components of about 1400 characters: ten would be over the block's budget, so fewer than ten are kept
     const html = `<div>${Array.from({ length: 12 }, (_, index) => card(`card-${index + 1}`)).join("")}</div>`;
     const { result } = await build({ buildSpecimen: async ({ screen }) => (screen.index === 2 ? html : "<div></div>") });
     expect(styleComponentsFit(result.preset.components)).toBe(true);
