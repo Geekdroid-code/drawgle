@@ -48,4 +48,4 @@ For each project: its number, its score, one or two screenshots, and anything th
 
 ## If it has to be undone
 
-Revert the merge commit on `main` rather than resetting it: in the pull request, click **Revert**, then merge the revert. Both deploys run again with the old code. Nothing in the database needs undoing: this release adds no migrations, and the old code ignores the few new fields it stores.
+Revert the merge commit on `main` rather than resetting it: ask Claude to revert the merge of `claude/premium-design-quality`, or run `git revert -m 1 <merge commit>` on `main` and push. Both deploys run again with the old code. Nothing in the database needs undoing: this release adds no migrations, and the old code ignores the few new fields it stores.
