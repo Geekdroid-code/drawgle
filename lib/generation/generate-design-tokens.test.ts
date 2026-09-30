@@ -205,21 +205,6 @@ describe("generateDesignTokens measures and calibrates", () => {
   });
 });
 
-describe("generateDesignTokens checks the analysis against the curator's notes", () => {
-  it("gives the token model a curated reference's notes on its typeface and density", async () => {
-    await generateDesignTokens({
-      prompt: "A pet app", image: await referenceImage(), referenceMode: "curated_style", referenceId: "mindfulness-meditation-beige-light", referenceAnalysis: analysis,
-    });
-    expect(tokenPromptText()).toContain("CURATOR'S NOTES");
-    expect(tokenPromptText()).toContain("Typography character: geometric sans, functional ui sans.");
-  });
-
-  it("has no notes to give for an uploaded reference", async () => {
-    await generateDesignTokens({ prompt: "A pet app", image: await referenceImage(), referenceMode: "user_style", referenceAnalysis: analysis });
-    expect(tokenPromptText()).not.toContain("CURATOR'S NOTES");
-  });
-});
-
 describe("generateDesignTokens keeps the fonts the evidence chose", () => {
   const modelReturns = (typography: Record<string, string>, recommendedFonts: string[]) =>
     generate.mockImplementation(async (request: { config?: { systemInstruction?: string } }) =>

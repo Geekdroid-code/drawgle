@@ -95,9 +95,8 @@ export const styleComponentsOf = (dna: ProjectReferenceDna | null | undefined): 
  */
 export const SPECIMEN_MARKING_INSTRUCTION = [
   "SPECIMEN: this build becomes the source of the project's reusable components.",
-  'Mark the root element of each reusable component with data-dg-component="<kebab-name>", data-dg-use="<when to use it, under 12 words>" and data-dg-rank="<1 to 8>",',
-  'for example data-dg-component="calendar-strip" data-dg-use="a week selector at the top of a day view" data-dg-rank="3".',
-  "Rank 1 is the component that most makes this reference look like itself, then 2, and so on; a second look-alike of a component you already ranked is not worth marking.",
+  'Mark the root element of each reusable component with data-dg-component="<kebab-name>" and data-dg-use="<when to use it, under 12 words>",',
+  'for example data-dg-component="calendar-strip" data-dg-use="a week selector at the top of a day view".',
   "Name a component by what it is, never by the content it shows.",
   "Mark composed units, because they carry the design: a whole card with the content inside it, one list row, a field with its buttons, a header row, a stat tile.",
   "Mark each different kind of card, row, tile and field the screen shows, at most eight in all, and never the same look twice.",

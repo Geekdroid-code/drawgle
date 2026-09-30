@@ -23,7 +23,6 @@ import { resolveFontFamilies } from "@/lib/font-stack";
 import { describeSurfaceClasses, describeTokenLanguage } from "@/lib/generation/design-classes";
 import { stripDesignValues, stripDesignValuesDeep } from "@/lib/generation/design-value-scrub";
 import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/generation/measured-colors";
-import { curatedReferenceNotes } from "@/lib/generation/curated-reference-notes";
 import { mergePresetTokens, presetSpecimen, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
 import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
 import { omitCraftBars } from "@/lib/generation/semantic-inspiration";
@@ -4185,10 +4184,6 @@ export async function generateDesignTokens({
           : `${referenceAnalysisLabel(resolvedReferenceMode)}:\n${formatReferenceAnalysis(referenceAnalysis)}`,
       });
     }
-
-    // The curator's notes on a curated reference's typeface and density check what the analysis says of them.
-    const curatorNotes = resolvedReferenceMode === "curated_style" ? curatedReferenceNotes(referenceId) : null;
-    if (curatorNotes) parts.push({ text: curatorNotes });
 
     if (creativeDirection) {
       parts.push({

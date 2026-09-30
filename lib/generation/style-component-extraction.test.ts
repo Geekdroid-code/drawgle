@@ -140,26 +140,6 @@ describe("extractStyleComponents", () => {
     ]);
   });
 
-  it("returns the ranked components most distinctive first and the unranked after them, without the rank in the markup", () => {
-    const { components } = extractStyleComponents(`
-      <div data-dg-component="chip" data-dg-rank="4" class="dg-tint-1">A</div>
-      <div data-dg-component="plain-row" class="dg-surface-card">B</div>
-      <div data-dg-component="hero-card" data-dg-rank="1" class="dg-surface-card">C</div>
-      <div data-dg-component="stat" data-dg-rank="2" class="dg-surface-inset">D</div>
-      <div data-dg-component="bad-rank" data-dg-rank="zero" class="p-1">E</div>`);
-    expect(components.map((component) => component.name)).toEqual(["hero-card", "stat", "chip", "plain-row", "bad-rank"]);
-    expect(components.map((component) => component.html).join("")).not.toContain("data-dg-rank");
-  });
-
-  it("gives the ten places by rank, not by position on the screen", () => {
-    const many = Array.from({ length: 13 }, (_, index) => `<div data-dg-component="component-${index}" data-dg-rank="${13 - index}" class="c${index}">Item ${index}</div>`).join("");
-    const { components, skipped } = extractStyleComponents(many);
-    // the last three on the screen are the most distinctive, so they are kept and the first three are not
-    expect(components.map((component) => component.name)[0]).toBe("component-12");
-    expect(components.map((component) => component.name)).not.toContain("component-0");
-    expect(skipped.map((item) => item.name)).toEqual(["component-2", "component-1", "component-0"]);
-  });
-
   it("keeps at most ten components", () => {
     const many = Array.from({ length: 13 }, (_, index) => `<div data-dg-component="component-${index}" class="c${index}">Item ${index}</div>`).join("");
     const { components, skipped } = extractStyleComponents(many);

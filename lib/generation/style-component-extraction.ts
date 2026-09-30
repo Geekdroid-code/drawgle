@@ -11,9 +11,7 @@ import type { StyleComponent } from "@/lib/types";
  * Reads a style reference's components out of a specimen: a recreate build whose reusable components
  * were marked with data-dg-component (see SPECIMEN_MARKING_INSTRUCTION). One instance is kept for each
  * name, cleaned of everything that is not construction, with its text cut to short samples and repeated
- * items trimmed, so that it fits the size a builder is given per component. The build ranks its components
- * (data-dg-rank, 1 for the one that most makes the reference look like itself), and they come back in that
- * order, the unranked after them in the order they appear, so that the ten places go to what is distinctive.
+ * items trimmed, so that it fits the size a builder is given per component.
  */
 
 export type ExtractedStyleComponents = {
@@ -23,7 +21,7 @@ export type ExtractedStyleComponents = {
 
 const MAX_SAMPLE_TEXT = 24;
 /** Attributes that identify or link a node rather than build it. Event handlers go too. */
-const DROPPED_ATTRIBUTES = ["data-dg-component", "data-dg-use", "data-dg-rank", "data-drawgle-id", "id", "src", "srcset", "href"];
+const DROPPED_ATTRIBUTES = ["data-dg-component", "data-dg-use", "data-drawgle-id", "id", "src", "srcset", "href"];
 
 /** The renderer draws the status bar and the shared navigation, so a screen never copies them. */
 const RENDERER_OWNED = /(^|-)(bottom-nav|bottom-navigation|navigation-bar|nav-bar|navbar|tab-bar|tabbar|dock|status-bar|statusbar|home-indicator)(-|$)|^(nav|navigation)$/;
@@ -124,8 +122,6 @@ export function extractStyleComponents(html: string): ExtractedStyleComponents {
   const seen = new Set<string>();
   /** The marked elements that were kept, by node, so that one inside another can be recognised. */
   const kept = new Map<unknown, string>();
-  const ranks = new Map<string, number>();
-  const found: StyleComponent[] = [];
 
   $("[data-dg-component]").each((_, element) => {
     const marked = $(element).attr("data-dg-component");
@@ -145,6 +141,10 @@ export function extractStyleComponents(html: string): ExtractedStyleComponents {
     const outer = $(element).parents("[data-dg-component]").toArray().map((parent) => kept.get(parent)).find(Boolean);
     if (outer) {
       skipped.push({ name, reason: `part of ${outer}, which is kept whole` });
+      return;
+    }
+    if (components.length >= MAX_STYLE_COMPONENTS) {
+      skipped.push({ name, reason: `only the first ${MAX_STYLE_COMPONENTS} components are kept` });
       return;
     }
 
@@ -170,17 +170,9 @@ export function extractStyleComponents(html: string): ExtractedStyleComponents {
       skipped.push({ name, reason: parsed.error.issues[0]?.message ?? "the component is not valid" });
       return;
     }
-    found.push(parsed.data);
+    components.push(parsed.data);
     kept.set(element, name);
-    const rank = Number.parseInt($(element).attr("data-dg-rank") ?? "", 10);
-    if (Number.isInteger(rank) && rank >= 1 && rank <= 99) ranks.set(name, rank);
   });
 
-  // the ranked first, most distinctive first, then the rest as they appear; the ten places go in that order
-  const ordered = [...found].sort((left, right) => (ranks.get(left.name) ?? Number.POSITIVE_INFINITY) - (ranks.get(right.name) ?? Number.POSITIVE_INFINITY));
-  for (const component of ordered) {
-    if (components.length < MAX_STYLE_COMPONENTS) components.push(component);
-    else skipped.push({ name: component.name, reason: `only the first ${MAX_STYLE_COMPONENTS} components are kept` });
-  }
   return { components, skipped };
 }
