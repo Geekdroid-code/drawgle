@@ -70,6 +70,29 @@ describe("stripDesignValues", () => {
     expect(stripDesignValues("A #add8e6 tint")).toBe("A tint");
   });
 
+  it("leaves a product's own content alone: points, order and ticket numbers, tags, releases, print settings", () => {
+    // each of these was cut to fragments ("1,s", "Maya s", "Order", "i") when a unit could run into a word
+    for (const text of [
+      "Header shows 1,250 pts earned this week and a streak badge.",
+      "Leaderboard rows: Maya 980 pts, Leo 875 pts.",
+      "Latest order card: Order #1042, arriving Friday.",
+      "Support ticket #203 with its status chip.",
+      "A #cafe tag chip under the post.",
+      "Printer settings list: 300 dpi, 600 dpi.",
+      "Work 2 remote days a week.",
+      "Join the alpha 2 waitlist.",
+    ]) {
+      expect(hasDesignValues(text), text).toBe(false);
+      expect(stripDesignValues(text)).toBe(text);
+    }
+  });
+
+  it("still removes the short colours a model writes: a repeated character, or letters with digits", () => {
+    expect(stripDesignValues("Text in #fff on a #000 bar")).toBe("Text in on a bar");
+    expect(stripDesignValues("A #F5A accent and a #3b82 ring")).toBe("A accent and a ring");
+    expect(stripDesignValues("Cards at 16 pt, a 1rem gap and opacity: 40%")).toBe("Cards, a gap");
+  });
+
   it("is idempotent and handles empty input", () => {
     for (const line of PET_RUN) {
       const once = stripDesignValues(line);
