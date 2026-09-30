@@ -295,6 +295,26 @@ describe("visual asset planning groups", () => {
     });
   });
 
+  it("qualifies a photo of any animal, not only of the pets a mockup usually has", () => {
+    const animal = (subject: string): AssetRequirement => ({
+      ...requirement("Profiles", "animal-portrait"),
+      role: "avatar",
+      subject,
+      semanticCategory: "animal",
+      semanticTags: [],
+    });
+    const photo = (id: string, description: string) => ({
+      provider: "pexels" as const, providerAssetId: id, imageUrl: `https://images.example/${id}.jpg`, sourceUrl: null,
+      description, tags: [], attribution: null, license: "Pexels", width: 1200, height: 1200,
+    });
+    // captions name the animal, not the category: a horse, a lion and a fish qualify as a rabbit does
+    for (const [subject, caption] of [["Horse portrait", "Brown horse in a field"], ["Lion portrait", "Lion resting on a rock"], ["Fish portrait", "Orange fish in clear water"], ["Rabbit portrait", "Brown rabbit on grass"]]) {
+      expect(rankStockCandidates(animal(subject), [photo("a", caption)]), subject).toHaveLength(1);
+    }
+    // and a photo of something else is still not one of them
+    expect(rankStockCandidates(animal("Horse portrait"), [photo("b", "Portrait of a smiling woman")])).toHaveLength(0);
+  });
+
   it("builds a short domain-focused stock query and rejects generic bottle matches", () => {
     const skincare: AssetRequirement = {
       ...requirement("Products", "skincare-products"),

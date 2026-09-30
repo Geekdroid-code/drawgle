@@ -132,11 +132,13 @@ describe("state-scoped prompt construction", () => {
   it("asks for a surface ladder instead of one card recipe, in every mode", () => {
     for (const mode of modes) {
       const instruction = buildDesignInstruction(mode);
-      expect(instruction).toContain("page, then card (raised: a neutral one tone step lighter than the page, never stark white on a tinted page)");
+      expect(instruction).toContain("page, then card (raised one tone step from the page)");
       expect(instruction).toContain("then inset (tiles and fields inside cards");
-      expect(instruction).toContain("then tints (pastel wells and chips)");
-      expect(instruction).toContain("at most one strong dark control");
-      expect(instruction).toContain("cards are at most 24px, inset surfaces use the inner radius, controls are pills, and icon wells are circles");
+      expect(instruction).toContain("then tints (wells and chips) when the evidence has them");
+      // how surfaces separate and what shape controls take come from the evidence, not from one aesthetic
+      expect(instruction).toContain("Surfaces separate the way the evidence shows (tone, a thin border or a shadow); tone first is the default when there is none.");
+      expect(instruction).toContain("cards use the app radius (at most 24px), inset surfaces the inner radius, and controls and icon wells the pill radius only when the evidence shows capsules and circles");
+      expect(instruction).not.toMatch(/pastel|at most one strong dark control|controls are pills/);
       expect(instruction).toContain('"inset": "HEX one tone step from card"');
       expect(instruction).toContain("color.surface.card is the raised surface and color.surface.inset the tile or field inside it");
       // the old single-recipe instruction is gone
@@ -233,7 +235,7 @@ describe("state-scoped prompt construction", () => {
   it("plans sample people and pets as photos and flags only the user's own identity", () => {
     for (const mode of modes) {
       const instruction = plannerScreenBriefStepInstruction(mode);
-      expect(instruction).toContain("Sample people and pets (family members, pet profiles, team avatars) are planned like any other photo: role avatar, assetType photo, desiredAspectRatio 1:1.");
+      expect(instruction).toContain("Sample people or animals (profile avatars, team members, contacts) are planned like any other photo: role avatar, assetType photo, desiredAspectRatio 1:1.");
       expect(instruction).toContain("Set userIdentity true only for the signed-in user's own face or their brand's logo, which only they can supply.");
     }
   });
@@ -511,7 +513,9 @@ describe("builder inputs that carry the reference's component vocabulary", () =>
   describe("the strict design contract", () => {
     it("describes the surface ladder and the radius roles when the tokens define them", () => {
       const style = buildStyleScreenInstruction({ ...screenInput, designTokens: tokensWithLadder });
-      expect(style).toContain("Surface ladder, back to front: page (dg-bg-primary) → card (dg-surface-card) → inset tile or field inside a card (dg-surface-inset) → pastel tint wells and chips (dg-tint-1 to dg-tint-4) → one focal accent (dg-action-primary or a token gradient) → at most one strong dark control.");
+      expect(style).toContain("Surface ladder, back to front: page (dg-bg-primary) → card (dg-surface-card) → inset tile or field inside a card (dg-surface-inset) → tint wells and chips (dg-tint-1 to dg-tint-4) → one focal accent (dg-action-primary or a token gradient).");
+      expect(style).toContain("Separate surfaces the way the tokens do, by stepping one rung and by the surface shadow or border token where one is defined; do not invent other borders or shadows.");
+      expect(style).not.toMatch(/pastel|at most one strong dark control|not by adding borders or shadows/);
       expect(style).toContain("Radius roles: card 20px (cards, sheets, panels, fields, and navigation shells); inner 12px (tiles and fields inside a card, segmented tabs, and active navigation items); pill 9999px (capsule controls); circle 9999px on a square element (icon wells and avatars).");
       expect(style).toContain("Shadows: only where a token defines one. Surface shadow: none, so cards separate by tone.");
       // the single card recipe is gone
@@ -523,7 +527,7 @@ describe("builder inputs that carry the reference's component vocabulary", () =>
       const style = buildStyleScreenInstruction({ ...screenInput, designTokens: oldTokens });
       // the token guide lists every utility class; the contract lists only the rungs this project defines
       const contract = style.split("STRICT DESIGN CONTRACT:")[1].split("NAVIGATION ARCHITECTURE CONTRACT:")[0];
-      expect(contract).toContain("Surface ladder, back to front: page (dg-bg-primary) → card (dg-surface-card) → one focal accent (dg-action-primary or a token gradient) → at most one strong dark control.");
+      expect(contract).toContain("Surface ladder, back to front: page (dg-bg-primary) → card (dg-surface-card) → one focal accent (dg-action-primary or a token gradient).");
       expect(contract).not.toContain("dg-surface-inset");
       expect(contract).not.toContain("dg-tint-1");
       expect(contract).toContain("Surface shadow: 0 12px 32px rgba(15,23,42,0.14).");

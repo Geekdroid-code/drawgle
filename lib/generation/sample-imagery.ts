@@ -2,10 +2,11 @@ import { normalizeSemanticTags } from "@/lib/generation/asset-semantics";
 import type { AssetRequirement, VisualAssetSemanticCategory } from "@/lib/types";
 
 /**
- * The sample people and pets a mockup needs: the family members, the team, the clients and the
- * pets of a product that has no photos of its own. A planner-inferred avatar looks for one of these
- * in the internal library before it asks a stock provider, so the same reviewed photos turn up
- * project after project. `pnpm seed:sample-imagery` fills the library from this list.
+ * A starter set of sample portraits for the avatars a mockup shows: people of every age, and the animals people
+ * keep. A planner-inferred avatar looks for one of these in the internal library before it asks a stock
+ * provider, so the same reviewed photos turn up project after project. It is a starting point and not the limit
+ * of what a product can show: any other subject (a horse, a chef, a shopfront) is found by the stock providers
+ * the same way, and an entry added here is seeded by `pnpm seed:sample-imagery`.
  */
 export type SampleImagerySpec = {
   id: string;

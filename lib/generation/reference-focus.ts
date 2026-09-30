@@ -42,7 +42,7 @@ export const TYPEFACE_QUESTION = [
   "This is the top part of a mobile app screen. Look only at the shapes of the letters: the largest heading, and the smaller text.",
   "Serif faces have small feet or flared ends on the strokes of their letters. If the letters end plainly, the typeface is a sans-serif. Do not judge by the mood or the style of the app.",
   "Return strictly valid JSON only:",
-  '{ "headingClass": "sans | serif | display | mono", "kind": "geometric | grotesque | humanist | rounded | transitional | didone | slab | other", "bodyClass": "sans | serif | mono", "sameTypefaceForBody": true, "weights": "one weight | a light word beside a bold word | several weights" }',
+  '{ "headingClass": "sans | serif | display | mono", "kind": "geometric | grotesque | humanist | rounded | transitional | didone | slab | other", "bodyClass": "sans | serif | mono", "sameTypefaceForBody": true, "weights": "one weight | mixed weights within a heading | several weights" }',
   "- display means a decorative face made for large sizes, not a plain text face.",
   "- sameTypefaceForBody is true when the smaller text is set in the same typeface as the heading, in other weights.",
 ].join("\n");
@@ -50,7 +50,7 @@ export const TYPEFACE_QUESTION = [
 export const NAVIGATION_QUESTION = [
   "This is the bottom part of a mobile app screen, inside a phone frame (the thin white outline around the screen). Describe its persistent bottom navigation bar. If there is none, return { \"present\": false }.",
   "Return strictly valid JSON only:",
-  '{ "present": true, "touchesFrameLeft": true, "touchesFrameRight": true, "widerThanCardsAbove": true, "topCorners": "rounded | square", "itemCount": 5, "icons": ["house", "trophy"], "labels": "always | active-only | hidden", "activeTreatment": "icon-fill | tint | underline | compact-chip", "inactiveTreatment": "plain | well", "activeFill": "solid | gradient", "material": "solid | translucent | glass", "geometry": "one short sentence" }',
+  '{ "present": true, "touchesFrameLeft": true, "touchesFrameRight": true, "widerThanCardsAbove": true, "topCorners": "rounded | square", "itemCount": 4, "icons": ["<what the first icon shows>", "<what the second shows>"], "labels": "always | active-only | hidden", "activeTreatment": "icon-fill | tint | underline | compact-chip", "inactiveTreatment": "plain | well", "activeFill": "solid | gradient", "material": "solid | translucent | glass", "geometry": "one short sentence" }',
   "- touchesFrameLeft and touchesFrameRight: at the height of the icons, does the bar's own surface run all the way to the phone frame on that side, with no page background between the frame and the bar? The frame's rounded bottom corners curve the bar's ends inward, which does not count as a gap.",
   "- widerThanCardsAbove: is the bar wider than the content cards above it, which sit inside the screen's side margins? null when no card is visible above the bar.",
   "- Count every icon of the bar, even when it has no labels. icons lists them in order, by what they show.",

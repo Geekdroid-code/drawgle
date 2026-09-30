@@ -329,7 +329,7 @@ const plannerScreenModeRule = (mode: GenerationPromptMode) => mode === "recreate
   : mode === "style"
     ? `- Mode cues: style mode needs at least 3 borrowed visual invariants from material, typography, edge/depth, iconography, or density. reference_transfer.layout_source MUST be "screen-purpose". Put source-only section order, component topology, hero scaffolds, connector/decorative systems, and object positions in reject unless the target screen's task independently requires them. If shared navigation is enabled, nav treatment is renderer-owned and must not appear as screen anatomy.
 - The builder sees the reference image and owns visual treatment. In PREMIUM DESIGN DECISIONS, say which reference devices this screen uses and for which content (its focal device, control vocabulary such as chips, icon wells, or sliders, and its depth treatment). Say what must stand out, never how to decorate it: do not prescribe colored side borders, stripe indicators, or outlined boxes the reference does not show.
-- When a REFERENCE COMPONENT MAPPING is supplied, name the reference component a screen should use in KEY COMPONENTS whenever it fits that screen's job (for example the calendar strip for a week selector, or the stat-tile pair for two counts). Never reproduce the reference's sections, their order or its content.`
+- When a REFERENCE COMPONENT MAPPING is supplied, name the reference component a screen should use in KEY COMPONENTS whenever it fits that screen's job (for example its list row for a stream of items, or its stat tile for a single figure). Never reproduce the reference's sections, their order or its content.`
     : `- Mode cues: prompt-only mode needs at least 3 concrete cues traceable to the user brief and Creative Direction, including one product-specific composition or component-construction decision. Do not claim that any cue was observed in an image.
 - Say what must stand out, never how to decorate it: do not prescribe colored side borders, stripe indicators, or outlined boxes for status or priority.`;
 
@@ -366,7 +366,7 @@ ${mode === "style"
   ? ""
   : "- Material specificity: call out typography hierarchy, imagery, chart geometry, background planes, rounded shapes, elevation, edge treatment, inner/outer borders, highlight edges, bevels, glass/frosting, and must-preserve composition cues without repeating token class names.\n"}- Copy/anatomy: preserve real copy when it anchors layout; use placeholders only for volatile names, numbers, and dates. Do not duplicate anatomy across screens unless the approved product shell or evidence clearly reuses it.
 - Viewport fit: include a 390px fit note and how the screen avoids overflow and text collision. On shared-navigation screens, the renderer supplies the bottom content clearance; the plan must not assign a numeric value or spacer.
-- Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products. Sample people and pets (family members, pet profiles, team avatars) are planned like any other photo: role avatar, assetType photo, desiredAspectRatio 1:1. Set userIdentity true only for the signed-in user's own face or their brand's logo, which only they can supply.
+- Asset planning: plan bitmap groups in asset_needs; use [] when none. Declare subject, semanticCategory, semanticTags, type, priority, placementHint, slotCount, and reusePolicy. Eight similar image-bearing cards are one need with slotCount=8 and reusePolicy=repeat, not eight needs. Use distinct for different people or explicitly different named products. Sample people or animals (profile avatars, team members, contacts) are planned like any other photo: role avatar, assetType photo, desiredAspectRatio 1:1. Set userIdentity true only for the signed-in user's own face or their brand's logo, which only they can supply.
 - Asset sourcePreference: internal_library for transparent foreground cutouts; stock for non-transparent photos/textures; user_upload only for explicit user-owned logo/product/brand/person/private image. Never output "ai_generated"; placeholders are resolved later. Do not request bitmaps for icons, decorative blobs, CSS gradients, HTML/CSS charts, simple cards, or generic chrome.
 - State proposals: return an empty state_variants array unless this execution supplies explicitly approved state variants. Selection highlights and border changes are inline interactions, never separate paid outputs. Do not invent companion states. When approved, state_variants are local states of the same route shell, not destinations. Suggest at most three meaningful states opened by visible controls: modal/dialog/sheet/popover, active tab with a distinct content body, filtered/search results, selected detail panel, or a concrete form flow. Never use onboarding, auth, profile/settings routes, checkout, navigation destinations, theme/dark mode, hover/focus styling, or generic loading/empty states as local paid states. Set explicitly_requested and default_selected true only when the user prompt explicitly requires that visible state, except for the additional recreate-mode evidence rule above. Every edit_instruction must preserve the parent shell, navigation, tokens, typography, spacing, and overall layout.
 ${plannerScreenModeRule(mode)}
@@ -609,7 +609,7 @@ Return strictly valid JSON in this format:
   ],
   "primaryNavigation": {
     "present": true,
-    "itemCount": 5,
+    "itemCount": 4,
     "anatomy": "fixed-tab-rail | floating-dock | glass-dock | compact-icon-rail | center-action-dock",
     "labels": "always | active-only | hidden",
     "activeTreatment": "icon-fill | tint | underline | compact-chip",
@@ -672,8 +672,8 @@ Treat these as platform constraints, not stylistic variables: safe_area_top, saf
 Treat these as dynamic design variables that should change when the approved evidence changes: spacing rhythm, section gaps, radii, border widths, shadow depth, surface contrast, font recommendations, and typography hierarchy.
 Use 16px as the production baseline for mobile screen_margin. Deviate only when the user explicitly requests another margin or the approved evidence contains clear measured screen-edge padding; vague words such as airy, spacious, premium, or generous are not evidence for a larger margin. Never enlarge the outer margin merely to create whitespace because it squeezes the usable content rail.
 Create one disciplined visual language for the whole app. Do not hand the builder a menu of different radii, border widths, or shadow strengths to choose from per screen.
-Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (raised: a neutral one tone step lighter than the page, never stark white on a tinted page), then inset (tiles and fields inside cards: one tone step from the card), then tints (pastel wells and chips), then one focal accent or gradient surface, and at most one strong dark control. Surfaces separate by tone first; a shadow is used only where the evidence shows a cast shadow.
-Shape follows a hierarchy: cards are at most 24px, inset surfaces use the inner radius, controls are pills, and icon wells are circles. Keep one border width.
+Build the tokens as a SURFACE LADDER, not as one card recipe: page, then card (raised one tone step from the page), then inset (tiles and fields inside cards: one tone step from the card), then tints (wells and chips) when the evidence has them, then one focal accent or gradient surface. Surfaces separate the way the evidence shows (tone, a thin border or a shadow); tone first is the default when there is none.
+Shape follows a hierarchy taken from the evidence: cards use the app radius (at most 24px), inset surfaces the inner radius, and controls and icon wells the pill radius only when the evidence shows capsules and circles. Keep one border width.
 
  REQUIRED JSON SCHEMA:
 {
@@ -732,9 +732,9 @@ Rules:
 - recommendedFonts should be a short list of fonts that fit the direction, beginning with the selected heading and body families.
 - heading_font_family and body_font_family are mandatory CSS font stacks whose first entry is a real Google Fonts family (never a bare keyword such as serif or sans-serif, and never a face only some devices have, such as SF Pro), then a generic fallback. Use the same family for both when the evidence shows one typeface, with the hierarchy from size and weight; use two only when two clearly different typefaces are visible.
 - nav_title is the small title of a top app bar, screen_title heads a root screen, and hero_title is a display headline that only exists when the evidence shows one. Title weights follow the evidence; do not default them to bold.
-- spacing and mobile_layout come from the gaps the evidence shows, read against the phone's width (393px), as one consistent rhythm. element_gap is the space between neighbouring blocks that belong together, and section_gap the space before a new titled section, normally a step larger. Typical premium mobile layouts use 8-12px between the rows of one list, 12-16px between neighbouring blocks and 20-28px before a new section; go larger only when the evidence clearly shows it. Feelings such as airy or generous are not evidence for larger gaps. screen_margin defaults to 16px and needs measured evidence to be larger.
+- spacing and mobile_layout come from the gaps the evidence shows, read against the phone's width (393px), as one consistent rhythm. element_gap is the space between neighbouring blocks that belong together, and section_gap the space before a new titled section, normally a step larger. Typical premium mobile layouts use 8-12px between the rows of one list, 12-16px between neighbouring blocks and 20-28px before a new section, but the evidence decides: a dense product goes tighter and an editorial one larger. Feelings such as airy or generous are not evidence for larger gaps. screen_margin defaults to 16px and needs measured evidence to be larger.
 - radii, border_widths, and shadows must define one coherent app-wide geometry/elevation language, not multiple interchangeable options.
-- color.surface.card is the raised surface and color.surface.inset the tile or field inside it: a tone step each, in the same hue family as the page. Tints and accents come from the evidence, not from invented hues.
+- color.surface.card is the raised surface and color.surface.inset the tile or field inside it: usually a tone step each in the page's hue family, unless the evidence separates surfaces another way. Tints and accents come from the evidence, not from invented hues.
 - Use radii.app for outer cards, sheets, panels, inputs, and navigation shells; it never exceeds 24px.
 - Use radii.inner for nested cards, inset panels, segmented tabs, and active navigation items. It must be smaller than radii.app unless both are 0px in a sharp system.
 - Use radii.pill only for true capsules and circular wells.
@@ -816,13 +816,12 @@ const buildStrictDesignContract = (designTokens?: DesignTokens | null) => {
     "page (dg-bg-primary)",
     "card (dg-surface-card)",
     color?.surface?.inset ? "inset tile or field inside a card (dg-surface-inset)" : null,
-    tintCount > 0 ? `pastel tint wells and chips (dg-tint-1 to dg-tint-${tintCount})` : null,
+    tintCount > 0 ? `tint wells and chips (dg-tint-1 to dg-tint-${tintCount})` : null,
     "one focal accent (dg-action-primary or a token gradient)",
-    "at most one strong dark control",
   ].filter(Boolean).join(" → ");
 
   return [
-    `- Surface ladder, back to front: ${ladder}. Separate surfaces by stepping one rung, not by adding borders or shadows.`,
+    `- Surface ladder, back to front: ${ladder}. Separate surfaces the way the tokens do, by stepping one rung and by the surface shadow or border token where one is defined; do not invent other borders or shadows.`,
     `- Radius roles: card ${appRadius} (cards, sheets, panels, fields, and navigation shells); inner ${innerRadius} (tiles and fields inside a card, segmented tabs, and active navigation items); pill ${pillRadius} (capsule controls); circle ${pillRadius} on a square element (icon wells and avatars).`,
     `- Standard border width: ${standardBorder}`,
     `- Shadows: only where a token defines one. Surface shadow: ${/^\s*none\s*$/i.test(surfaceShadow) ? "none, so cards separate by tone" : surfaceShadow}. Overlay shadow: ${overlayShadow} (sheets and floating panels only).`,
@@ -1119,7 +1118,7 @@ const buildDesignThinking = (mode: GenerationPromptMode) => {
       : "1. Read the creative direction and tokens as a designer would. Commit to this product's signature moves: one focal device, how surfaces separate (tone and soft elevation rather than lines), a small control vocabulary, and a clear type contrast.",
     `2. Give this screen one focal element for its main job and build it with ${source}'s focal device. Everything else recedes through size, tone, and spacing.`,
     `3. Wherever this screen needs a filter, secondary action, status, progress, or completion control, use ${source}'s version of that control instead of a stock widget.`,
-    "4. Build hierarchy from scale, weight, and tone with at most three levels. Group content into calm islands: tight spacing inside a group, more between groups, following the token rhythm.",
+    "4. Build hierarchy from scale, weight, and tone with at most three levels. Group content into islands: tight spacing inside a group, more between groups, following the token rhythm.",
     "5. Show status and priority with small devices (chips, dots, tinted pills, icons), never with colored side borders or edge stripes.",
     mode === "style"
       ? "6. Final check: would this screen sit next to the reference as the same product by the same designer? Redesign any region that looks like a generic admin template."
@@ -1250,7 +1249,7 @@ CRITICAL INSTRUCTION 0.75: HUMAN LAYOUT PREFLIGHT
 Mentally plan spatial orchestration before writing HTML.
 Preflight checklist: establish viewport budget (header, focal center, nav clearance), build flexible containers for real text wraps, and make grouping visible through spacing (tight inside a group, more between groups).
 Use one horizontal rail across the app, normally px-[var(--dg-mobile-layout-screen-margin)] unless the brief explicitly calls for full-bleed media.
-Use one vertical rhythm from the tokens, in three levels. Inside a group (the rows of one list, chips in a rail): gap-[var(--dg-spacing-xs)] to gap-[var(--dg-spacing-sm)]. Between neighbouring blocks that belong together (a header row, a search field, a chip rail, the card after them, sibling cards): mt-[var(--dg-mobile-layout-element-gap)]. Only the first element of a new titled section gets mt-[var(--dg-mobile-layout-section-gap)]. A section title and its content are one group. A column whose blocks are all separated by the section gap is wrong. Card internals use p-[var(--dg-spacing-md)] or a clearly tighter token.
+Use one vertical rhythm from the tokens, in three levels. Inside a group (the rows of one list, the items of one control row): gap-[var(--dg-spacing-xs)] to gap-[var(--dg-spacing-sm)]. Between neighbouring blocks that belong together (a header row, a row of controls, the content block after them, sibling cards): mt-[var(--dg-mobile-layout-element-gap)]. Only the first element of a new titled section gets mt-[var(--dg-mobile-layout-section-gap)]. A section title and its content are one group. A column whose blocks are all separated by the section gap is wrong. Card internals use p-[var(--dg-spacing-md)] or a clearly tighter token.
 If shared bottom navigation is injected, mark exactly one real scroll/main content wrapper with dg-shared-nav-clearance and data-drawgle-nav-clearance-owner="true". The renderer supplies its padding; never add a manual bottom-padding formula or empty spacer.
 Every compact card, list row, chip row, and nav-adjacent area must be designed for real text: use min-w-0 on flex text groups, truncate or wrap intentionally, avoid fixed heights that cannot contain the copy, and never let labels collide with icons, badges, prices, or chevrons.
 Every chart, map, gauge, progress ring, or visual panel must contain visible constructed geometry. Do not leave blank chart cards, empty axes, empty map panels, or placeholder rectangles.

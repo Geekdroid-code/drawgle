@@ -128,9 +128,17 @@ export const describeTokenLanguage = (designTokens: DesignTokens | null | undefi
     radiusClass: Number.isFinite(appRadius) ? radiusClassForPx(appRadius) : null,
     surfaceElevation: tokens.shadows ? surfaceElevationOfShadow(tokens.shadows.surface) : null,
   });
+  // The rungs this project's tokens define: a project with no inset or tints has no such rungs to describe.
+  const rungs = [
+    "the page",
+    "cards one tone step above it",
+    tokens.color?.surface?.inset ? "inset tiles and fields inside cards" : null,
+    Object.keys(tokens.color?.accent_tints ?? {}).length > 0 ? "tint wells and chips" : null,
+    "one focal accent",
+  ].filter((rung): rung is string => Boolean(rung));
   return [
-    heading && body ? `Fonts: ${heading} for headings and ${body} for everything else.` : null,
+    heading && body ? (heading === body ? `Fonts: ${heading} for everything.` : `Fonts: ${heading} for headings and ${body} for everything else.`) : null,
     shape.length ? `Shape and depth: ${shape.join("; ")}.` : null,
-    "Surface ladder: the page, then cards one tone step above it, then inset tiles and fields inside cards, then pastel tints, then one focal accent.",
+    `Surface ladder: ${rungs.join(", then ")}.`,
   ].filter((line): line is string => Boolean(line));
 };

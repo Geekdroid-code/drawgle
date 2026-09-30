@@ -96,9 +96,9 @@ export const styleComponentsOf = (dna: ProjectReferenceDna | null | undefined): 
 export const SPECIMEN_MARKING_INSTRUCTION = [
   "SPECIMEN: this build becomes the source of the project's reusable components.",
   'Mark the root element of each reusable component with data-dg-component="<kebab-name>" and data-dg-use="<when to use it, under 12 words>",',
-  'for example data-dg-component="calendar-strip" data-dg-use="a week selector at the top of a day view".',
+  'for example data-dg-component="list-row" data-dg-use="one item of a list, with its trailing action".',
   "Name a component by what it is, never by the content it shows.",
-  "Mark composed units, because they carry the design: a whole card with the content inside it, one list row, a field with its buttons, a header row, a stat tile.",
+  "Mark composed units, because they carry the design: a whole card with the content inside it, one list row, a field with its buttons, a header row, a tile.",
   "Mark each different kind of card, row, tile and field the screen shows, at most eight in all, and never the same look twice.",
   "Mark a chip, badge or button on its own only when it appears outside every unit you marked. Never mark a whole list, grid or section.",
   "Keep each marked element's markup under about 900 characters: leave decorative art (illustrations, sparkles, blurred shapes, chart plots) out of it, and style it with the token classes and variables only, never raw hex colours.",

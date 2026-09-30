@@ -118,7 +118,8 @@ describe("the token model reads type and spacing from the evidence", () => {
 
 describe("the reference analysis", () => {
   it("asks the style analysis for the bar's icon count, which a preset's sample bar is drawn from", () => {
-    expect(referenceAnalysisStyleInstruction).toMatch(/"primaryNavigation": \{\s+"present": true,\s+"itemCount": 5,/);
+    // the example is a count of no reference in particular: a schema's example value is what a model answers with
+    expect(referenceAnalysisStyleInstruction).toMatch(/"primaryNavigation": \{\s+"present": true,\s+"itemCount": 4,/);
     expect(referenceAnalysisStyleInstruction).toContain("itemCount is the number of icons in the bar, even when it has no labels.");
   });
 

@@ -107,6 +107,27 @@ describe("token language for the planning layers", () => {
     expect(language.join("\n")).not.toMatch(/#[0-9a-f]{3}|\d+\s?px/i);
   });
 
+  it("describes only the ladder rungs a project's tokens define, and one family when there is one", () => {
+    const withInsetAndTints = normalizeDesignTokens({
+      system_schema: "mobile_universal_core",
+      tokens: {
+        ...tokensWith("20px", "none").tokens,
+        color: {
+          ...tokensWith("20px", "none").tokens!.color,
+          surface: { card: "#F7F4E8", inset: "#EDEAD7", bottom_sheet: "#F7F4E8", modal: "#F7F4E8" },
+          accent_tints: { "1": "#F6E3C3", "2": "#E8EBC9" },
+        },
+      },
+    });
+    expect(describeTokenLanguage(withInsetAndTints)).toContain("Surface ladder: the page, then cards one tone step above it, then inset tiles and fields inside cards, then tint wells and chips, then one focal accent.");
+    // a project with no inset and no tints has no such rungs, and no word of them
+    const plain = describeTokenLanguage(tokensWith("20px", "none")).join("\n");
+    expect(plain).toContain("Surface ladder: the page, then cards one tone step above it, then one focal accent.");
+    expect(plain).not.toMatch(/inset|tint|pastel/);
+    const oneFamily = describeTokenLanguage(tokensWith("20px", "none", { heading_font_family: "Outfit, sans-serif", body_font_family: "Outfit, sans-serif" }));
+    expect(oneFamily[0]).toBe("Fonts: Outfit for everything.");
+  });
+
   it("follows the tokens: a small radius and a light shadow read differently", () => {
     const language = describeTokenLanguage(tokensWith("8px", "0 4px 16px rgba(33,30,30,0.06)")).join("\n");
     expect(language).toContain(RADIUS_CLASS_DESCRIPTION.soft);

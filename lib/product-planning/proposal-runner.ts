@@ -38,10 +38,12 @@ How to write the plan
 - surfaceRefs, journeyRefs and decisionRefs name fact refs from this plan or active fact ids.
 - dependencyRefs are rare build prerequisites, never navigation order.
 - scope.outputRefs lists the screens to design now, in order. scope.goal says in one sentence what these screens let people do.
-- navigation decides whether the app has one persistent bottom bar. The person approves it with the screens. persistent is true only when the product has peer areas that people move between (for example Today, Pets, Routines, Family). Then destinations lists 2 to 5 of them in order, each with a short label and the outputRef of the screen that opens it (null when no screen in this plan does). A linear flow, a single task, or a hierarchy of detail screens has no bar: persistent false and no destinations. Decide from the product and its screens, never from how a visual reference looks. Keep currentNavigation unless the conversation changed it.
+- navigation decides whether the app has one persistent bottom bar. The person approves it with the screens. persistent is true only when the product has peer areas that people move between (the things people go back and forth between all day, such as Home, Orders and Messages in one product, or Library and Search in another). Then destinations lists 2 to 5 of them in order, each with a short label and the outputRef of the screen that opens it (null when no screen in this plan does). A linear flow, a single task, or a hierarchy of detail screens has no bar: persistent false and no destinations. Decide from the product and its screens, never from how a visual reference looks. Keep currentNavigation unless the conversation changed it.
 Return JSON only.`;
 
 export const PROPOSAL_READY_REPLY = "The screen flow is ready to review. Use the approval card to start generation.";
+/** The planner's instruction, exported so that a test can check it names no product of its own. */
+export { instructions as PROPOSAL_INSTRUCTIONS };
 
 async function roadmapRows(admin: PlanningStore, projectId: string, ownerId: string): Promise<RoadmapRow[]> {
   const { data, error } = await admin.from("project_screen_roadmap")

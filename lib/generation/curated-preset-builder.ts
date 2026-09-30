@@ -72,7 +72,7 @@ export { cropToBox, pickSpecimenScreen };
 /**
  * More phones than this in one reference would cost more builds than their components are worth. A preset is
  * made once, so it learns from every phone of the reference, not from the one with the most components: a
- * reference's vocabulary (a media card, a calendar strip, a stat tile, a mood row) is spread over its phones.
+ * reference's vocabulary (its cards, its rows, its controls) is spread over its phones.
  */
 export const MAX_SPECIMEN_PHONES = 4;
 

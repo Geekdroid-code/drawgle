@@ -744,11 +744,15 @@ export type StockCandidate = {
 };
 
 // A candidate has to mention one of a category's terms, and the first term is what a search starts with.
-// Stock captions name the subject ("Brown rabbit on grass", "Smiling woman"), not the category, so the
-// common pets and the people words are listed too, or most sample portraits and pets would be filtered out.
+// Stock captions name the subject ("Brown rabbit on grass", "Lion resting", "Smiling woman"), not the
+// category, so common animals (pets, farm and wild) and the people words are listed too, or most portraits
+// of them would be filtered out. A list is a start: an animal that is not on it needs "animal" in its caption.
 const STOCK_CATEGORY_TERMS: Partial<Record<VisualAssetSemanticCategory, readonly string[]>> = {
   person: ["person", "portrait", "face", "headshot", "man", "woman", "boy", "girl", "child", "kid", "adult", "senior", "teenager"],
-  animal: ["animal", "pet", "dog", "cat", "puppy", "kitten", "rabbit", "bunny", "bird", "parrot", "hamster", "guinea", "turtle"],
+  animal: [
+    "animal", "pet", "wildlife", "dog", "cat", "puppy", "kitten", "rabbit", "bunny", "bird", "parrot", "hamster", "guinea", "turtle",
+    "horse", "cow", "sheep", "goat", "pig", "chicken", "duck", "fish", "lion", "tiger", "elephant", "deer", "fox", "wolf", "bear", "monkey", "owl", "eagle",
+  ],
   food: ["food", "meal", "restaurant", "bakery", "dessert"],
   fashion: ["fashion", "clothing", "shoe", "bag", "watch"],
   electronics: ["technology", "device", "phone", "laptop", "audio"],
