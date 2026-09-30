@@ -2,6 +2,26 @@ import type { FunctionalItem } from "./functional-plan";
 
 export type ProductFulfillment = { output_key: string; generation_run_id: string; status: "claimed" | "ready" | "failed" | "blocked"; screen_id: string | null };
 
+/**
+ * How many frames the source image showed, as the analyses of the flow's earlier batches counted them, or null
+ * before any batch was analysed. Each batch of an Image to UI flow records its count on its run.
+ */
+export function sourceFramesSeen(runMetadata: ReadonlyArray<unknown>): number | null {
+  const counts = runMetadata
+    .map((metadata) => Number((metadata as { referenceAnalysisDiagnostics?: { screenReferenceCount?: unknown } } | null)
+      ?.referenceAnalysisDiagnostics?.screenReferenceCount))
+    .filter((count) => Number.isFinite(count) && count > 0);
+  return counts.length > 0 ? Math.max(...counts) : null;
+}
+
+/**
+ * Whether the approved flow maps a step to a frame the source image does not have. Such a flow cannot be copied:
+ * the first live one was a single screenshot with a request for a four-step flow, and steps 2 to 4 failed on every
+ * retry. Its remaining screens are designed in the image's style instead.
+ */
+export const mapsBeyondSourceFrames = (manifest: readonly FunctionalItem[], framesSeen: number | null) =>
+  framesSeen !== null && manifest.some((item) => item.referenceScreenIndex != null && item.referenceScreenIndex > framesSeen);
+
 // The complete manifest has no batch-size target. This selects only the next
 // bounded execution chunk, prioritizing states whose parent is already ready.
 export function nextProductBatch(manifest: FunctionalItem[], claims: ProductFulfillment[], capacity = 8, existingKeys: string[] = [], recreate = false) {
