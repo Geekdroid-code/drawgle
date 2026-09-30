@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeFacts, applyProductPatch, approveProductScope, createProductPlanning, proposeProductScope, readinessIssues, readProductPlanning } from "./model";
+import { activeFacts, applyProductPatch, approveProductScope, createProductPlanning, describeScopeNavigation, proposeProductScope, readinessIssues, readProductPlanning } from "./model";
 import { formatProductTruth, groundCharterInProduct, productScopeContract, scopedGenerationPrompt } from "./generation-context";
 import { productFixture, designerFixture } from "./test-fixtures";
 import type { ProjectCharter } from "@/lib/types";
@@ -117,5 +117,23 @@ describe("durable product truth and scope", () => {
     expect(grounded.keyFeatures).toEqual(["Purchase: Select sizes and place an order"]);
     expect(grounded.designRationale).toBe("Editorial");
     expect(grounded.navigationModel).toBe("Tabs");
+  });
+  it("saves the navigation decided with the scope, and reads a scope approved before it existed", () => {
+    const decided = { persistent: true, rationale: "Two areas people switch between.",
+      destinations: [{ label: "Today", screenKey: "screen:today" }, { label: "Pets", screenKey: null }] };
+    const state = proposeProductScope(productFixture());
+    expect(readProductPlanning(state)?.scope?.navigation).toBeUndefined();
+    expect(readProductPlanning({ ...state, scope: { ...state.scope!, navigation: decided } })?.scope?.navigation).toEqual(decided);
+    // a bar cannot hold more than five destinations, and a destination needs a name
+    const six = Array.from({ length: 6 }, (_, index) => ({ label: `Area ${index}`, screenKey: null }));
+    expect(() => readProductPlanning({ ...state, scope: { ...state.scope!, navigation: { ...decided, destinations: six } } })).toThrow();
+    expect(() => readProductPlanning({ ...state, scope: { ...state.scope!, navigation: { ...decided, destinations: [{ label: " ", screenKey: null }] } } })).toThrow();
+  });
+  it("describes the navigation for the approval card", () => {
+    expect(describeScopeNavigation({ persistent: true, rationale: "", destinations: [
+      { label: "Today", screenKey: "screen:today" }, { label: "Pets", screenKey: null }, { label: "Family", screenKey: null }] }))
+      .toEqual({ line: "Bottom navigation: Today · Pets · Family", planned: ["Pets", "Family"] });
+    expect(describeScopeNavigation({ persistent: false, rationale: "", destinations: [] }))
+      .toEqual({ line: "No bottom navigation", planned: [] });
   });
 });

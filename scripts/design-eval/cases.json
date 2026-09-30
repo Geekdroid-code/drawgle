@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "description": "The visual eval set for premium design quality. Create each project through the real pipeline (pnpm dev plus npx trigger.dev dev, then submit the prompt in the app), record its project id in a projects file next to the baseline, and snapshot it with pnpm design:eval.",
+  "howToRun": [
+    "Prompt cases: paste the prompt into a new project and let discovery pick its curated reference.",
+    "Upload-style cases: attach the reference image (download it from referenceImageUrl), choose Style, then paste the prompt.",
+    "Record { \"<case id>\": \"<project id>\" } in a projects file, then run: pnpm design:eval --set <file> --label <name>."
+  ],
+  "cases": [
+    {
+      "id": "pets-family",
+      "kind": "prompt",
+      "prompt": "An app for families with multiple pets",
+      "notes": "The founder's test case. Discovery picks mindfulness-meditation-beige-light: tone-on-tone cream, no shadows, radius up to about 20pt, an attached icon bar with a gradient active circle."
+    },
+    {
+      "id": "finance-personal",
+      "kind": "prompt",
+      "prompt": "Premium personal finance dashboard for freelancers with cash flow, invoices, tax reserve, and recent activity."
+    },
+    {
+      "id": "fitness-coach",
+      "kind": "prompt",
+      "prompt": "Fitness coaching dashboard with today's workout, recovery score, exercise sets, and progress chart."
+    },
+    {
+      "id": "recipes",
+      "kind": "prompt",
+      "prompt": "Premium recipe discovery app with seasonal hero, cuisine filters, and a dense recipe collection."
+    },
+    {
+      "id": "travel-journal",
+      "kind": "prompt",
+      "prompt": "Editorial travel journal with destination photography, trip timeline, and saved places."
+    },
+    {
+      "id": "team-tasks",
+      "kind": "prompt",
+      "prompt": "Team project dashboard with milestones, workload, recent files, and urgent blockers."
+    },
+    {
+      "id": "upload-style-dark-glass",
+      "kind": "upload-style",
+      "prompt": "Apply the reference's floating dark navigation dock to a wellness dashboard.",
+      "referenceImageUrl": "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/curated-library/crypto-wallet-glowing-dark.jpg",
+      "notes": "A dark reference with frosted overlay cards: checks that a raised surface and calibrated geometry also hold in dark themes, and that shadows the reference really shows are kept."
+    },
+    {
+      "id": "upload-style-skeuomorphic-light",
+      "kind": "upload-style",
+      "prompt": "Use the reference's clay surfaces and warm depth for a habit tracker.",
+      "referenceImageUrl": "https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/curated-library/fintech-skeuomorphic-clean-light.jpg",
+      "notes": "A light reference with real cast depth: calibration must not flatten a reference that has shadows."
+    }
+  ]
+}

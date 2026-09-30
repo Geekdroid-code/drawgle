@@ -33,6 +33,29 @@ export const productFactSchema = z.object({
   messageId: z.string().uuid().nullable().default(null),
 });
 export type ProductFact = z.infer<typeof productFactSchema>;
+/** Most destinations a persistent bar can hold; the renderer draws no more. */
+export const MAX_SCOPE_NAVIGATION_DESTINATIONS = 5;
+/**
+ * Whether the product has persistent navigation, decided in the flow the person approves.
+ * `screenKey` is a roadmap stable key; a destination without a screen in this flow is null.
+ */
+export const scopeNavigationSchema = z.object({
+  persistent: z.boolean(),
+  destinations: z.array(z.object({
+    label: z.string().trim().min(1).max(40),
+    screenKey: z.string().min(1).max(200).nullable(),
+  })).max(MAX_SCOPE_NAVIGATION_DESTINATIONS),
+  rationale: z.string().trim().max(600),
+});
+export type ScopeNavigation = z.infer<typeof scopeNavigationSchema>;
+/** What the approval card says about the bar; a destination without a screen in the flow is named after it. */
+export function describeScopeNavigation(navigation: ScopeNavigation): { line: string; planned: string[] } {
+  if (!navigation.persistent) return { line: "No bottom navigation", planned: [] };
+  return {
+    line: `Bottom navigation: ${navigation.destinations.map(destination => destination.label).join(" · ")}`,
+    planned: navigation.destinations.filter(destination => !destination.screenKey).map(destination => destination.label),
+  };
+}
 export const designScopeSchema = z.object({
   outputPolicy: z.literal("manual_states_v1").optional(),
   goal: text,
@@ -41,6 +64,8 @@ export const designScopeSchema = z.object({
   manifest: z.array(functionalItemSchema).max(500).optional(),
   existingOutputs: z.array(z.object({ item: functionalItemSchema, screenId: z.string().uuid() })).max(500).optional(),
   boundaries: z.array(z.object({ key: z.string(), name: z.string(), outcome: z.string() })).max(500).optional(),
+  // Absent on scopes approved before navigation was decided here; those keep the planner's heuristic.
+  navigation: scopeNavigationSchema.optional(),
   journeyCoverage: z.array(journeyCoverageSchema).max(100).optional(),
   requestedScope: z.enum(["whole_product", "focused"]).optional(),
   scopeEvidence: z.string().max(1500).optional(),

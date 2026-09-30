@@ -173,6 +173,7 @@ export async function POST(req: Request) {
             prompt: payload.prompt,
             image: referenceImage,
             referenceMode,
+            referenceId,
           }).then((referenceAnalysisResult) => ({
           scopeContract: providedScopeContract,
           referenceAnalysis: referenceAnalysisResult.analysis,
@@ -184,6 +185,7 @@ export async function POST(req: Request) {
           referenceMode,
           planningMode: payload.planningMode as PlanningMode,
           cachedReferenceAnalysis: cachedReferenceDna?.dna.analysis,
+          referenceId,
         });
 
     if (!providedScopeContract && scopePreflight.scopeContract.requiresConfirmation) {

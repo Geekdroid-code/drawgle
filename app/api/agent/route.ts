@@ -759,6 +759,8 @@ const classifyDeterministicTokenStyleIntent = ({
     }
   } else if (/\bsecondary\b/i.test(prompt) && mentionsColor) {
     addTokenStyle(mentionsText && !mentionsBackground ? "color" : "background-color", "color.action.secondary");
+  } else if (/\b(inset|tile|field)\b/i.test(prompt) && /\b(card|surface|background)\b/i.test(prompt) && mentionsColor) {
+    addTokenStyle("background-color", "color.surface.inset");
   } else if (/\b(card|surface)\b/i.test(prompt) && mentionsColor) {
     addTokenStyle("background-color", "color.surface.card");
   } else if (/\b(app background|primary background|project background|background token)\b/i.test(prompt) && mentionsBackground) {

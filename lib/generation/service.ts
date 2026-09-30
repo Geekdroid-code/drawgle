@@ -1,7 +1,7 @@
 import { SCREEN_REFERENCE_INSTRUCTION } from "./reference-authority";
 import "server-only";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
-import { type ProductPlanning, activeFacts } from "@/lib/product-planning/model";
+import { type ProductPlanning, type ScopeNavigation, activeFacts } from "@/lib/product-planning/model";
 import { formatProductTruth, groundCharterInProduct, productScopeContract } from "@/lib/product-planning/generation-context";
 import { reconcileScreenBriefsWithDesignRequirements } from "@/lib/product-planning/reconcile-design";
 import { scopeParents } from "@/lib/product-planning/scope-outputs";
@@ -12,7 +12,23 @@ import { createGeminiClient } from "@/lib/ai/gemini";
 import { generateScreenBuilderContent, generateScreenBuilderContentStream } from "@/lib/ai/provider";
 import { geminiPolicyForTask } from "@/lib/ai/model-policy";
 import { getOpenRouterScreenBuildModel, getScreenBuilderProvider, getScreenEditorModel } from "@/lib/env/server";
-import { ensureLegibleGeneratedTokens, hasApprovedDesignTokens, normalizeDesignTokens } from "@/lib/design-tokens";
+import {
+  calibrateGeneratedTokens,
+  ensureLegibleGeneratedTokens,
+  hasApprovedDesignTokens,
+  normalizeDesignTokens,
+  type CalibrationEvidence,
+} from "@/lib/design-tokens";
+import { resolveFontFamilies } from "@/lib/font-stack";
+import { describeSurfaceClasses, describeTokenLanguage } from "@/lib/generation/design-classes";
+import { stripDesignValues, stripDesignValuesDeep } from "@/lib/generation/design-value-scrub";
+import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/generation/measured-colors";
+import { mergePresetTokens, presetSpecimen, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
+import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
+import { omitCraftBars } from "@/lib/generation/semantic-inspiration";
+import { SPECIMEN_MARKING_INSTRUCTION, styleComponentSummaries, usableStyleComponents } from "@/lib/generation/style-components";
+import { asksAnything, readTokenLabels, withoutTokenLabels, type UserAsked } from "@/lib/generation/token-labels";
+import { userNamedColorRoles, userNamesTypography } from "@/lib/generation/user-color-roles";
 import { applyEdits } from "@/lib/diff-engine";
 import { buildScopedEditContext } from "@/lib/generation/block-index";
 import { parseNumberedScreenSections } from "@/lib/generation/explicit-screen-sections";
@@ -27,10 +43,18 @@ import { formatDesignStyleContract, getDesignStylePack, summarizeDesignStyle } f
 import { createNavigationArchitecture, deriveRequiresBottomNav, resolveScreenChromePolicy } from "@/lib/navigation";
 import { savedProjectBlueprint } from "@/lib/generation/saved-blueprint";
 import {
+  applyApprovedNavigation,
+  approvedNavigationLinkedScreens,
+  approvedNavigationScreenNames,
+  formatApprovedNavigation,
+  navigationMatchesApproved,
+} from "@/lib/generation/approved-navigation";
+import {
   applyReferenceNavigationRolesToScreens,
   applyReferenceNavigationStyle,
   applyNavigationPlanToScreens,
   deriveReferenceNavigationPlan,
+  minimumNavigationItems,
   normalizeNavigationPlan,
   renderDeterministicNavigationShell,
   validateNavigationShell,
@@ -63,6 +87,7 @@ import {
   analyzeReferenceImageForScope,
   preflightGenerationScope,
   resolveGenerationScopeContract,
+  resultForKnownAnalysis,
 } from "@/lib/generation/scope-contract";
 import { buildTokenPromptContext } from "@/lib/token-runtime";
 import { detectTokenDrift } from "@/lib/token-drift";
@@ -310,7 +335,9 @@ const AssetNeedSchema = z.object({
     z.enum(["repeat", "distinct"]),
   ).optional(),
   userAssetId: z.preprocess(normalizePlannerUserAssetId, z.string().uuid().optional()),
-  origin: z.enum(["reference_visible", "user_explicit", "planner_inferred", "heuristic_inferred"]).optional(),
+  origin: z.enum(["reference_visible", "user_explicit", "user_specified", "planner_inferred", "heuristic_inferred"]).optional(),
+  /** The signed-in user's own face or their brand's logo. Sample people and pets leave it unset. */
+  userIdentity: z.preprocess((value) => coerceBooleanish(value) ?? false, z.boolean()).optional(),
 });
 
 const ScreenLayoutContractSchema = z.object({
@@ -445,6 +472,8 @@ const normalizeNavigationEvidenceSource = (value: unknown) => {
   if (value === null || value === undefined || value === "") return null;
   if (typeof value !== "string") return value;
   const normalized = value.toLowerCase();
+  // Before the loose patterns below: "approved" contains "app".
+  if (/^approved[-_\s]?scope$/.test(normalized)) return "approved-scope";
   if (/reference|image|screenshot/.test(normalized)) return "reference";
   if (/prompt|user|explicit/.test(normalized)) return "explicit-prompt";
   if (/product|architecture|app|domain/.test(normalized)) return "product-architecture";
@@ -485,13 +514,18 @@ const NavigationDesignContractSchema = z.object({
     (value) => value === "well" || value === "plain" ? value : undefined,
     z.enum(["plain", "well"]).optional(),
   ),
+  // Carried from the saved plan; the planner does not choose it.
+  active_fill: z.preprocess(
+    (value) => value === "gradient" || value === "solid" ? value : undefined,
+    z.enum(["solid", "gradient"]).optional(),
+  ),
 }).nullable().optional();
 
 const NavigationPlanSchema = z.object({
   version: z.preprocess((value) => Number(value), z.literal(2)),
   decision: z.preprocess(normalizeNavigationDecision, z.enum(["none", "project-native", "reference-derived"])),
   evidence: z.object({
-    source: z.preprocess(normalizeNavigationEvidenceSource, z.enum(["explicit-prompt", "reference", "product-architecture"]).nullable()),
+    source: z.preprocess(normalizeNavigationEvidenceSource, z.enum(["explicit-prompt", "reference", "product-architecture", "approved-scope"]).nullable()),
     reason: z.string().trim().min(1).max(1200),
   }),
   enabled: BooleanishSchema.optional(),
@@ -863,7 +897,12 @@ const resolveGeneratedScreenMargin = ({
     : null)
   ?? "16px";
 
-const buildApprovedDesignTokens = (candidate: unknown, screenMargin = "16px"): DesignTokens => {
+const buildApprovedDesignTokens = (
+  candidate: unknown,
+  screenMargin = "16px",
+  calibration: CalibrationEvidence | null = null,
+  { keepDeviceFaces = false }: { keepDeviceFaces?: boolean } = {},
+): DesignTokens => {
   if (!isRecord(candidate)) {
     throw new Error("Design generation did not return a valid mobile_universal_core token object.");
   }
@@ -876,30 +915,20 @@ const buildApprovedDesignTokens = (candidate: unknown, screenMargin = "16px"): D
       screen_margin: screenMargin,
     };
 
+    // A font the app can load is kept as the model chose it, one family for both roles included: a
+    // reference set in a single typeface has a single typeface. Only a role with no loadable font
+    // (a generic keyword such as `serif`, a device-only face, nothing) is filled in.
     const typography = next.tokens.typography ?? {};
-    const primaryFamily = (value?: string) => value
-      ?.split(",")[0]
-      ?.replace(/["']/g, "")
-      .trim()
-      .toLowerCase() ?? "";
-    const recommendedFonts = next.meta?.recommendedFonts?.filter((value) => value.trim()) ?? [];
-    const heading = typography.heading_font_family?.trim()
-      || (recommendedFonts[0] ? `"${recommendedFonts[0]}", sans-serif` : '"Manrope", sans-serif');
-    const bodyCandidate = typography.body_font_family?.trim();
-    const compatibleBody = bodyCandidate && primaryFamily(bodyCandidate) !== primaryFamily(heading)
-      ? bodyCandidate
-      : recommendedFonts
-        .find((family) => primaryFamily(family) !== primaryFamily(heading));
-    const body = compatibleBody
-      ? (compatibleBody.includes(",") ? compatibleBody : `"${compatibleBody}", sans-serif`)
-      : primaryFamily(heading) === "inter"
-        ? 'system-ui, sans-serif'
-        : '"Inter", system-ui, sans-serif';
-
+    const fonts = resolveFontFamilies({
+      heading: typography.heading_font_family,
+      body: typography.body_font_family,
+      recommended: next.meta?.recommendedFonts ?? [],
+      keepDeviceFaces,
+    });
     next.tokens.typography = {
       ...typography,
-      heading_font_family: heading,
-      body_font_family: body,
+      heading_font_family: fonts.heading,
+      body_font_family: fonts.body,
     };
   }
 
@@ -907,7 +936,9 @@ const buildApprovedDesignTokens = (candidate: unknown, screenMargin = "16px"): D
     throw new Error("Design generation did not return a usable mobile_universal_core token set.");
   }
 
-  return ensureLegibleGeneratedTokens(next);
+  // Generated tokens drift toward the same clichés (32px radii, blurred shadows, white on cream);
+  // calibrate them in code first, then keep the contrast floor on the calibrated colours.
+  return ensureLegibleGeneratedTokens(calibration ? calibrateGeneratedTokens(next, calibration) : next);
 };
 
 const humanizeReferenceRole = (value: string, index: number) => {
@@ -1369,10 +1400,13 @@ const buildScreenFamilyContract = ({
           ...designStyle.densityRules.slice(0, 2),
         ]
     : [];
-  const portableCraftCues = referenceAnalysis?.screenReferences
-    .flatMap((screen) => screen.stylingCues)
-    .filter(Boolean)
-    .slice(0, 4) ?? [];
+  // The reference's shape and depth reach the planner as categories. Its styling cues used to be
+  // copied here verbatim, values included ("Warm cream background (#FDFBF0)", "High corner
+  // radius (24pt+)"), and every later stage repeated them as orders.
+  const portableCraftCues = describeSurfaceClasses({
+    radiusClass: referenceAnalysis?.radiusClass,
+    surfaceElevation: referenceAnalysis?.surfaceElevation,
+  });
   const summary = designStyle
     ? `${designStyle.label}: ${designStyle.premiumIntent}`
     : portableStyleMode && signals
@@ -1398,7 +1432,7 @@ const buildScreenFamilyContract = ({
         "Every planned screen must look like it belongs to the same product family while keeping a screen-specific composition.",
       ];
 
-  return {
+  const contract: ScreenFamilyContract = {
     summary,
     surfaces: signals?.surfaces ?? designStyle?.creativeDirectionSeed.surfaceLanguage ?? [
       tokenColor?.surface?.card ? `Use card surfaces from approved tokens such as ${tokenColor.surface.card}.` : "Use one shared card/surface language.",
@@ -1414,6 +1448,9 @@ const buildScreenFamilyContract = ({
     imagery: designStyle?.assetAndImageryRules.join(" ") ?? "Use bitmap imagery only when it is visible in the reference, explicitly requested, or truly required by the screen purpose; otherwise use CSS, icons, charts, and text structure.",
     consistencyRules: consistencyRules.slice(0, 8),
   };
+
+  // A style reference is transferred by intent: nothing numeric may reach the planner from an older stored analysis.
+  return portableStyleMode ? stripDesignValuesDeep(contract) : contract;
 };
 const normalizeScreenBriefs = ({
   screens,
@@ -1439,6 +1476,14 @@ const normalizeScreenBriefs = ({
     description: `${screen.description}\n\n${profileContext}`.slice(0, 9000),
   };
 });
+
+/** Removes px, hex and opacity values from a style-mode brief and its construction contracts. */
+export const stripScreenBriefValues = (screens: ScreenPlan[]): ScreenPlan[] => screens.map((screen) => ({
+  ...screen,
+  description: stripDesignValues(screen.description),
+  layoutContract: screen.layoutContract ? stripDesignValuesDeep(screen.layoutContract) : screen.layoutContract,
+  referenceTransfer: screen.referenceTransfer ? stripDesignValuesDeep(screen.referenceTransfer) : screen.referenceTransfer,
+}));
 
 const attachReferenceScreenTargets = ({
   screens,
@@ -1699,6 +1744,7 @@ const toNavigationPlan = (parsed?: ParsedNavigationPlan | null): NavigationPlan 
           elevation: parsed.design.elevation,
           centerActionItemId: parsed.design.center_action_item_id ?? null,
           inactiveTreatment: parsed.design.inactive_treatment ?? "plain",
+          ...(parsed.design.active_fill === "gradient" ? { activeFill: "gradient" as const } : {}),
         }
       : null,
     enabled,
@@ -1726,7 +1772,8 @@ const navigationBlueprintIssues = (navigationPlan?: ParsedNavigationPlan | null)
 
   const issues: string[] = [];
   if (!navigationPlan.evidence?.source) issues.push("positive evidence source is required");
-  const minimumItems = decision === "project-native" ? 3 : 2;
+  // A bar the person approved with the flow may hold two peer areas; one the planner chose needs three.
+  const minimumItems = minimumNavigationItems(decision, 2, navigationPlan.evidence?.source);
   if (navigationPlan.items.length < minimumItems || navigationPlan.items.length > 5) {
     issues.push(decision + " requires " + minimumItems + "-5 destinations");
   }
@@ -1768,11 +1815,14 @@ export const enforceNavigationEvidencePolicy = ({
   roadmap,
   prompt,
   mode,
+  approvedNavigation,
 }: {
   navigationPlan?: ParsedNavigationPlan | null;
   roadmap?: z.infer<typeof ProjectRoadmapSchema> | null;
   prompt: string;
   mode: ReferenceTransferMode;
+  /** What the person approved with the flow. Their approval is evidence; a model's claim of it is not. */
+  approvedNavigation?: ScopeNavigation | null;
 }): ParsedNavigationPlan | undefined => {
   if (!navigationPlan || navigationPlan.decision === "none") {
     return navigationPlan ?? undefined;
@@ -1782,8 +1832,9 @@ export const enforceNavigationEvidencePolicy = ({
     && !hasExplicitNavigationRequest(prompt);
   const claimedStyleReferenceArchitecture = navigationPlan.evidence.source === "reference"
     && mode !== "recreate";
+  const claimedApproval = navigationPlan.evidence.source === "approved-scope" && !approvedNavigation;
 
-  if (!claimedExplicitEvidence && !claimedStyleReferenceArchitecture) {
+  if (!claimedExplicitEvidence && !claimedStyleReferenceArchitecture && !claimedApproval) {
     return navigationPlan;
   }
 
@@ -1806,9 +1857,11 @@ export const enforceNavigationEvidencePolicy = ({
     };
   }
 
-  const reason = claimedExplicitEvidence
-    ? "Persistent navigation was removed because the user did not explicitly request it and the roadmap did not establish at least three peer root product areas."
-    : "Persistent navigation was removed because a style reference supplies visual craft, not product information architecture.";
+  const reason = claimedApproval
+    ? "Persistent navigation was removed because the screen flow the person approved did not include it."
+    : claimedExplicitEvidence
+      ? "Persistent navigation was removed because the user did not explicitly request it and the roadmap did not establish at least three peer root product areas."
+      : "Persistent navigation was removed because a style reference supplies visual craft, not product information architecture.";
 
   return {
     version: 2,
@@ -1856,6 +1909,23 @@ const fallbackScreensFromReference = ({
   return screens.length > 0 ? screens : [fallbackScreenPlan(prompt)];
 };
 
+/**
+ * A style reference is transferred by intent, so its charter describes the design
+ * language in words and the tokens carry every value. Anything numeric that an
+ * older stored analysis, a fallback or a model slip put there is removed.
+ */
+const withoutDesignValues = (charter: ProjectCharter, referenceMode?: ReferenceMode | null): ProjectCharter =>
+  isStyleReferenceMode(referenceMode)
+    ? {
+        ...charter,
+        imageReferenceSummary: charter.imageReferenceSummary ? stripDesignValues(charter.imageReferenceSummary) : charter.imageReferenceSummary,
+        designRationale: stripDesignValues(charter.designRationale),
+        creativeDirection: charter.creativeDirection ? stripDesignValuesDeep(charter.creativeDirection) : charter.creativeDirection,
+        designSystemSignals: charter.designSystemSignals ? stripDesignValuesDeep(charter.designSystemSignals) : charter.designSystemSignals,
+        referenceScreens: charter.referenceScreens ? stripDesignValuesDeep(charter.referenceScreens) : charter.referenceScreens,
+      }
+    : charter;
+
 export const fallbackProjectCharter = ({
   prompt,
   image,
@@ -1874,7 +1944,7 @@ export const fallbackProjectCharter = ({
   designStyle?: DesignStylePack | null;
   navigationArchitecture: NavigationArchitecture;
   existingCharter?: ProjectCharter | null;
-}): ProjectCharter => ({
+}): ProjectCharter => withoutDesignValues({
   originalPrompt: prompt.trim() || existingCharter?.originalPrompt || "Create a polished mobile app experience from the provided reference.",
   imageReferenceSummary: image
     ? isStyleReferenceMode(referenceMode)
@@ -1900,7 +1970,7 @@ export const fallbackProjectCharter = ({
     ? existingCharter?.creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis })
     : creativeDirection,
   designStyle: summarizeDesignStyle(designStyle) ?? existingCharter?.designStyle ?? null,
-});
+}, referenceMode);
 
 const truncateText = (value: string, maxLength: number) =>
   value.trim().replace(/\s+\n/g, "\n").replace(/[ \t]{2,}/g, " ").slice(0, maxLength).trim();
@@ -2004,7 +2074,7 @@ const enrichProjectCharter = ({
   designStyle?: DesignStylePack | null;
   navigationArchitecture: NavigationArchitecture;
   diagnostics?: ProjectCharter["planningDiagnostics"] | null;
-}): ProjectCharter => ({
+}): ProjectCharter => withoutDesignValues({
   ...base,
   imageReferenceSummary: base.imageReferenceSummary
     ?? (referenceAnalysis
@@ -2018,7 +2088,7 @@ const enrichProjectCharter = ({
   designSystemSignals: base.designSystemSignals ?? referenceAnalysis?.designSystemSignals ?? null,
   planningDiagnostics: diagnostics ?? base.planningDiagnostics ?? { source },
   charterSource: source,
-});
+}, referenceMode);
 
 const salvageProjectCharterFromRawPlan = ({
   rawPlan,
@@ -2208,6 +2278,7 @@ export const normalizeScreenAssetNeeds = (screenName: string, value: unknown): N
             reusePolicy: item.reusePolicy ?? item.reuse_policy,
             userAssetId: item.userAssetId ?? item.user_asset_id,
             origin: item.origin,
+            userIdentity: item.userIdentity ?? item.user_identity,
           }
         : item;
       const parsed = AssetNeedSchema.safeParse(input);
@@ -2215,19 +2286,23 @@ export const normalizeScreenAssetNeeds = (screenName: string, value: unknown): N
         return null;
       }
 
+      const { userIdentity, ...need } = parsed.data;
       return {
-        ...parsed.data,
-        id: parsed.data.id ?? roadmapSlug(
-          `${screenName}-${parsed.data.role}-${index + 1}`,
+        ...need,
+        id: need.id ?? roadmapSlug(
+          `${screenName}-${need.role}-${index + 1}`,
           `asset-${index + 1}`,
         ),
         screenName,
-        reuseKey: parsed.data.reuseKey ?? `${parsed.data.role}-${parsed.data.subject}`,
-        semanticCategory: parsed.data.semanticCategory ?? inferSemanticCategory(parsed.data.subject, parsed.data.role),
-        semanticTags: parsed.data.semanticTags ?? [],
-        slotCount: parsed.data.slotCount ?? 1,
-        reusePolicy: parsed.data.reusePolicy ?? "repeat",
-        origin: parsed.data.origin ?? (parsed.data.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
+        reuseKey: need.reuseKey ?? `${need.role}-${need.subject}`,
+        semanticCategory: need.semanticCategory ?? inferSemanticCategory(need.subject, need.role),
+        semanticTags: need.semanticTags ?? [],
+        slotCount: need.slotCount ?? 1,
+        reusePolicy: need.reusePolicy ?? "repeat",
+        // The user's own identity is the one kind of person or logo that no stock image can stand in for.
+        origin: userIdentity
+          ? "user_specified"
+          : need.origin ?? (need.sourcePreference === "user_upload" ? "user_explicit" : "planner_inferred"),
       };
     })
     .filter((item): item is NonNullable<ScreenPlan["assetNeeds"]>[number] => Boolean(item));
@@ -2879,12 +2954,16 @@ export async function planScreenBriefsForBuild({
     navigation_plan: navigationPlan ?? undefined,
     charter: {
       originalPrompt: charter.originalPrompt || prompt,
-      imageReferenceSummary: charter.imageReferenceSummary ?? null,
+      imageReferenceSummary: plannerMode === "style" && charter.imageReferenceSummary
+        ? stripDesignValues(charter.imageReferenceSummary)
+        : charter.imageReferenceSummary ?? null,
       appType: charter.appType || "Mobile product",
       targetAudience: charter.targetAudience || "Primary users",
       navigationModel: charter.navigationModel || navigationArchitecture.primaryNavigation,
       keyFeatures: charter.keyFeatures?.length ? charter.keyFeatures : [prompt.slice(0, 200)],
-      designRationale: charter.designRationale || "Use the approved project design system.",
+      designRationale: plannerMode === "style"
+        ? stripDesignValues(charter.designRationale || "Use the approved project design system.")
+        : charter.designRationale || "Use the approved project design system.",
       creativeDirection: plannerMode === "style"
         ? toPortableCreativeDirection(charter.creativeDirection)
         : charter.creativeDirection ?? null,
@@ -2921,10 +3000,18 @@ export async function planScreenBriefsForBuild({
     },
   ];
 
+  // The reference's own components, by name, so that a later batch's briefs can say which one a screen uses.
+  const componentMapping = plannerMode === "style"
+    ? formatReferenceComponentMapping({ presetComponents: styleComponentSummaries(charter.referenceDna) })
+    : null;
+  if (componentMapping) parts.push({ text: componentMapping });
+
   if (requestImage) parts.push({ text: "Request-local image: adapt its relevant layout and content to the approved tokens and navigation. This is not a new project design system." }, { inlineData: requestImage });
 
   const screenPolicy = geminiPolicyForTask("project_planning", {
-    systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
+    systemInstruction: plannerScreenBriefStepInstruction(plannerMode, {
+      referenceDrivesDirection: Boolean(charter.referenceDna?.analysis),
+    }),
     responseMimeType: "application/json",
     temperature: 0.15,
   });
@@ -3023,7 +3110,7 @@ export async function planScreenBriefsForBuild({
       })),
     });
 
-    return { screens: mergedWithTransfer, planned: true };
+    return { screens: plannerMode === "style" ? stripScreenBriefValues(mergedWithTransfer) : mergedWithTransfer, planned: true };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     llmLog?.("[plan-screen-briefs-for-build] failed", {
@@ -3123,6 +3210,7 @@ export async function planUiFlow({
         referenceMode: resolvedReferenceMode,
         planningMode,
         cachedReferenceAnalysis: providedReferenceAnalysis ?? providedReferenceDna?.analysis ?? null,
+        referenceId,
         llmLog,
       })
     : null;
@@ -3132,14 +3220,7 @@ export async function planUiFlow({
     ?? null;
   const referenceAnalysisResult: ReferenceAnalysisResult | null = referencePreflight?.referenceAnalysisResult
     ?? (referenceAnalysis
-      ? {
-          analysis: referenceAnalysis,
-          screenCountEstimate: referenceAnalysis.screenCountEstimate,
-          screenReferenceCount: referenceAnalysis.screenReferences.length,
-          confidence: "medium",
-          source: "salvaged_analysis",
-          diagnostics: ["Reference analysis was provided by caller."],
-        }
+      ? resultForKnownAnalysis(referenceAnalysis, "Reference analysis was provided by caller.", "medium")
       : null);
   const resolvedScopeContract = scopeContract ?? resolveGenerationScopeContract({
     prompt,
@@ -3168,6 +3249,15 @@ export async function planUiFlow({
     // shared navigation. The approved experience and full flow govern that.
     intentContract.allowSharedNavigation = true;
   }
+  // The person approved the navigation with the flow. That decision replaces the heuristics below;
+  // a flow approved before navigation was decided in it (no decision) keeps them. Recreated frames
+  // own their own navigation.
+  const approvedNavigation: ScopeNavigation | null = productPlanning && resolvedReferenceMode !== "user_recreate"
+    ? productPlanning.scope?.navigation ?? null
+    : null;
+  const approvedNavigationPersistent = Boolean(approvedNavigation?.persistent && approvedNavigation.destinations.length >= 2);
+  const approvedScreenNames = productPlanning ? approvedNavigationScreenNames(productPlanning) : new Map<string, string>();
+  if (approvedNavigationPersistent) intentContract.allowSharedNavigation = true;
   if (productExecutionKeys) {
     intentContract.exactScreenCount = resolvedScopeContract.finalScreenCount;
     intentContract.maxInitialScreens = resolvedScopeContract.finalScreenCount;
@@ -3185,13 +3275,19 @@ export async function planUiFlow({
     hasReferenceAnalysis: Boolean(referenceAnalysis),
     hasProjectVisualMemory: Boolean(providedReferenceDna || existingCharter?.referenceDna),
   });
-  const forceFiniteFlowWithoutPersistentNav = !productExecutionKeys && looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
+  const forceFiniteFlowWithoutPersistentNav = !approvedNavigation && !productExecutionKeys
+    && looksLikeFiniteFlowWithoutPersistentNav(prompt, explicitScreenSections);
   const fallbackRequiresBottomNav = screenCountContract.disableSharedNavigation ? false : inferLegacyRequiresBottomNav({
     prompt,
     planningMode,
     referenceAnalysis,
   });
-  const creativeDirection = projectContext?.trim()
+  // A style reference is the art direction, and the builder sees it. A model's paraphrase of it is
+  // where "32px" and "glass-morphism dock" first appeared, so no creative direction is written for it.
+  // Prompt-only projects keep one: there it is the only art direction.
+  const referenceDrivesDirection = plannerMode === "style"
+    && (Boolean(toInlineImage(image)) || Boolean(referenceAnalysis));
+  const creativeDirection = projectContext?.trim() || referenceDrivesDirection
     ? null
     : await generateCreativeDirection({
         prompt,
@@ -3201,7 +3297,7 @@ export async function planUiFlow({
         designStyle: resolvedDesignStyle,
         llmLog,
       });
-  const resolvedCreativeDirection = projectContext?.trim()
+  const resolvedCreativeDirection = projectContext?.trim() || referenceDrivesDirection
     ? null
     : creativeDirection ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
   const planningCreativeDirection = plannerMode === "style"
@@ -3226,6 +3322,9 @@ export async function planUiFlow({
         intentContract,
         mode: plannerMode,
       });
+  // A curated reference with an approved preset brings its component vocabulary; every later batch
+  // reuses it through the project's reference DNA.
+  const referencePreset = resolvedReferenceMode === "curated_style" ? resolveCuratedStylePreset(referenceId) : null;
   const referenceDna = providedReferenceDna
     ?? (referenceAnalysis
       ? createProjectReferenceDna({
@@ -3234,6 +3333,7 @@ export async function planUiFlow({
           referenceMode: resolvedReferenceMode,
           sourceReferenceId: referenceId ?? null,
           sourceReferenceCatalogHash: referenceCatalogHash ?? null,
+          specimen: referencePreset ? presetSpecimen(referencePreset) : null,
         })
       : null);
   const withReferenceDna = (charter: ProjectCharter): ProjectCharter =>
@@ -3272,6 +3372,10 @@ export async function planUiFlow({
     });
   }
 
+  if (approvedNavigation) {
+    parts.push({ text: formatApprovedNavigation(approvedNavigation, approvedScreenNames) });
+  }
+
   if (referenceAnalysis) {
     parts.push({
       text: plannerMode === "style"
@@ -3288,7 +3392,11 @@ export async function planUiFlow({
 
   if (designTokens?.tokens) {
     parts.push({
-      text: `Approved Token Context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
+      text: plannerMode === "style"
+        // The planner names structure and intent; the builder applies the token values, which a planner
+        // would otherwise copy into every brief as an order.
+        ? `Approved Token Language (words only; the builder applies the token values):\n${describeTokenLanguage(designTokens).join("\n")}`
+        : `Approved Token Context:\n${buildTokenPromptContext(designTokens, "compact_visual")}`,
     });
   }
 
@@ -3318,9 +3426,18 @@ export async function planUiFlow({
     rawBlueprint = savedBlueprintCandidate;
     parsedBlueprint = savedBlueprint;
     llmLog?.("[planUiFlow] reused the saved project blueprint", { executionKeys: productExecutionKeys ?? [] });
+    if (approvedNavigation) {
+      // The saved navigation is what an earlier batch drew; the approved decision is the newest word on it.
+      const applied = applyApprovedNavigation(savedBlueprint.data, approvedNavigation, approvedScreenNames);
+      const revalidated = ProjectBlueprintSchema.safeParse(applied);
+      if (revalidated.success) {
+        rawBlueprint = applied;
+        parsedBlueprint = revalidated;
+      }
+    }
   } else {
     const policy = geminiPolicyForTask("project_planning", {
-      systemInstruction: plannerBlueprintStepInstruction(plannerMode),
+      systemInstruction: plannerBlueprintStepInstruction(plannerMode, { referenceDrivesDirection }),
       responseMimeType: "application/json",
       temperature: 0.1,
     });
@@ -3404,6 +3521,25 @@ export async function planUiFlow({
       };
     }
 
+    // The approved navigation is applied here, before the checks below: it is valid by construction, so
+    // it never costs a repair call. Only when the planner's own navigation could not be read is it
+    // applied after the repair, so the repair can still supply the destinations' icons.
+    const withApprovedNavigation = (current: ReturnType<typeof ProjectBlueprintSchema.safeParse>) => {
+      if (!approvedNavigation || !current.success) return null;
+      const applied = applyApprovedNavigation(current.data, approvedNavigation, approvedScreenNames);
+      const revalidated = ProjectBlueprintSchema.safeParse(applied);
+      return revalidated.success ? { raw: applied as unknown, parsed: revalidated } : null;
+    };
+    let approvedNavigationApplied = false;
+    if (!canonicalBlueprint.navigationRecovered) {
+      const approved = withApprovedNavigation(parsedBlueprint);
+      if (approved) {
+        rawBlueprint = approved.raw;
+        parsedBlueprint = approved.parsed;
+        approvedNavigationApplied = true;
+      }
+    }
+
     if (parsedBlueprint.success) {
       const navigationIssues = canonicalBlueprint.navigationRecovered
         ? canonicalBlueprint.issues
@@ -3439,10 +3575,13 @@ export async function planUiFlow({
           llmLog("[TOKEN USAGE] plan-ui-flow-navigation-repair", repairResponse.usageMetadata as Record<string, unknown>);
         }
         const repairedRaw = normalizePlannerBlueprintResponse(parseJsonResponse<unknown>(repairResponse.text || "{}"));
-        const repairedBlueprint = ProjectBlueprintSchema.safeParse(repairedRaw);
+        const repairedPlanned = ProjectBlueprintSchema.safeParse(repairedRaw);
+        const repairedApproved = withApprovedNavigation(repairedPlanned);
+        const repairedBlueprint = repairedApproved?.parsed ?? repairedPlanned;
         if (repairedBlueprint.success && navigationBlueprintIssues(repairedBlueprint.data.navigation_plan).length === 0) {
-          rawBlueprint = repairedRaw;
+          rawBlueprint = repairedApproved?.raw ?? repairedRaw;
           parsedBlueprint = repairedBlueprint;
+          if (repairedApproved) approvedNavigationApplied = true;
         } else {
           llmLog?.("[navigation:v2] blueprint repair rejected", {
             issues: repairedBlueprint.success
@@ -3453,12 +3592,21 @@ export async function planUiFlow({
       }
     }
 
+    if (!approvedNavigationApplied) {
+      const approved = withApprovedNavigation(parsedBlueprint);
+      if (approved) {
+        rawBlueprint = approved.raw;
+        parsedBlueprint = approved.parsed;
+      }
+    }
+
     if (parsedBlueprint.success) {
       const evidenceAdjustedNavigation = enforceNavigationEvidencePolicy({
         navigationPlan: parsedBlueprint.data.navigation_plan,
         roadmap: parsedBlueprint.data.roadmap,
         prompt,
         mode: plannerMode,
+        approvedNavigation,
       });
       if (JSON.stringify(evidenceAdjustedNavigation) !== JSON.stringify(parsedBlueprint.data.navigation_plan)) {
         const navigationEnabled = Boolean(
@@ -3555,11 +3703,21 @@ export async function planUiFlow({
   let parsed = PlanSchema.safeParse(rawPlan);
 
   if (parsedBlueprint.success) {
+    // The discovery designer already mapped the reference's components onto this product. The brief
+    // planner gets that mapping as its own labelled evidence, not as one field of a JSON dump, with the
+    // names of the components the builder will be given, so that a brief can say which one a screen uses.
+    const componentMapping = plannerMode === "style"
+      ? formatReferenceComponentMapping({
+          adaptations: productPlanning?.experience?.adaptations,
+          presetComponents: styleComponentSummaries(referenceDna),
+        })
+      : null;
     const screenParts: Array<Record<string, unknown>> = [
-      ...parts.filter((part) => typeof part.text !== "string" || !part.text.startsWith("Approved Token Context:\n")),
+      ...parts.filter((part) => typeof part.text !== "string" || !part.text.startsWith("Approved Token ")),
       {
         text: `Approved Project Blueprint:\n${JSON.stringify(parsedBlueprint.data, null, 2)}`,
       },
+      ...(componentMapping ? [{ text: componentMapping }] : []),
       {
         text: `Initial batch contract:\n${formatScreenCountContract(screenCountContract)}\n${parsedBlueprint.data.roadmap
           ? planningMode === "single-screen"
@@ -3569,7 +3727,7 @@ export async function planUiFlow({
       },
     ];
     const screenPolicy = geminiPolicyForTask("project_planning", {
-      systemInstruction: plannerScreenBriefStepInstruction(plannerMode),
+      systemInstruction: plannerScreenBriefStepInstruction(plannerMode, { referenceDrivesDirection }),
       responseMimeType: "application/json",
       temperature: 0.1,
     });
@@ -3720,13 +3878,20 @@ export async function planUiFlow({
     adjustedContract.reason = `Overridden: raw plan contained ${rawScreenCount} screens but the screen count contract defaulted to 1.`;
   }
 
+  // A project's saved architecture is kept from batch to batch, unless the person has since approved a
+  // flow that decides navigation the other way.
+  const savedArchitectureStillApproved = !approvedNavigation
+    || deriveRequiresBottomNav(existingCharter?.navigationArchitecture) === approvedNavigationPersistent;
   const navigationArchitecture = adjustedContract.disableSharedNavigation || forceFiniteFlowWithoutPersistentNav
     ? createNavigationArchitecture({ requiresBottomNav: false })
     : coerceNavigationArchitecture({
         parsedNavigationArchitecture: parsed.data.navigation_architecture ?? null,
         existingNavigationArchitecture: existingCharter?.navigationArchitecture,
-        requiresBottomNav: parsed.data.requires_bottom_nav ?? fallbackRequiresBottomNav,
-        lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture),
+        requiresBottomNav: approvedNavigation
+          ? approvedNavigationPersistent
+          : parsed.data.requires_bottom_nav ?? fallbackRequiresBottomNav,
+        lockToExistingArchitecture: Boolean(projectContext?.trim() && existingCharter?.navigationArchitecture)
+          && savedArchitectureStillApproved,
       });
 
   const charter = groundCharterInProduct(withReferenceDna(enrichProjectCharter({
@@ -3764,12 +3929,17 @@ export async function planUiFlow({
   const parsedScreens = planningMode === "single-screen"
       ? parsed.data.screens.slice(0, 1)
       : parsed.data.screens;
+  // A screen the approved bar opens is a peer root screen, whatever the brief planner called it: the
+  // bar's own destinations cannot be detail screens.
+  const approvedRootScreens = new Set(approvedNavigation
+    ? approvedNavigationLinkedScreens(approvedNavigation, approvedScreenNames).map(normalizeScreenName)
+    : []);
   const rawScreens = parsedScreens.map((screenPlan) => {
     const roadmapItem = parsed.data.roadmap?.items.find((item) => item.stable_key === screenPlan.roadmap_stable_key)
       ?? parsed.data.roadmap?.items.find((item) => normalizeScreenName(item.name) === normalizeScreenName(screenPlan.name));
     const base = {
       name: screenPlan.name,
-      type: screenPlan.type,
+      type: approvedRootScreens.has(normalizeScreenName(screenPlan.name)) ? "root" as const : screenPlan.type,
       description: screenPlan.description,
     };
     return {
@@ -3831,7 +4001,7 @@ export async function planUiFlow({
     })),
     referenceAnalysis,
   );
-  const screens = normalizeScreenBriefs({
+  const normalizedScreens = normalizeScreenBriefs({
     prompt,
     screens: ensureBuilderGradeScreenBriefs({
       referenceAnalysis,
@@ -3843,7 +4013,13 @@ export async function planUiFlow({
       }),
     }),
   });
-  const suppliedNavigationPlan = (productExecutionKeys && existingNavigationPlan?.enabled ? existingNavigationPlan : null)
+  // A brief decides what a screen does; the reference and the tokens decide how it looks.
+  // In style mode a value written into a brief would be built as an order.
+  const screens = plannerMode === "style" ? stripScreenBriefValues(normalizedScreens) : normalizedScreens;
+  // The saved navigation stands while it is what the person approved; a flow approved since that decides
+  // it differently is the newer word.
+  const savedNavigationStillApproved = !approvedNavigation || navigationMatchesApproved(existingNavigationPlan, approvedNavigation);
+  const suppliedNavigationPlan = (productExecutionKeys && existingNavigationPlan?.enabled && savedNavigationStillApproved ? existingNavigationPlan : null)
     ?? toNavigationPlan(parsed.data.navigation_plan) ?? (planningMode === "single-screen" ? existingNavigationPlan : null);
   const referenceNavigationPlan = plannerMode === "recreate"
     ? deriveReferenceNavigationPlan({ screens, referenceAnalysis })
@@ -3851,6 +4027,8 @@ export async function planUiFlow({
   const navigationCandidate = suppliedNavigationPlan && (
     suppliedNavigationPlan.enabled
     || (suppliedNavigationPlan.version === 2 && suppliedNavigationPlan.decision !== "none")
+    // An approved "no navigation" is a decision, kept as the plan's evidence rather than replaced by a default.
+    || suppliedNavigationPlan.evidence?.source === "approved-scope"
   )
     ? suppliedNavigationPlan
     : referenceNavigationPlan;
@@ -3907,6 +4085,7 @@ export async function generateDesignTokens({
   designStyle,
   referenceAnalysis: providedReferenceAnalysis,
   designRequirements,
+  ignorePreset = false,
   llmLog,
 }: {
   prompt: string;
@@ -3916,12 +4095,24 @@ export async function generateDesignTokens({
   designStyle?: DesignStylePack | null;
   referenceAnalysis?: ReferenceAnalysis | null;
   designRequirements?: string | null;
+  /** The preset builder makes the tokens a preset is made of, so it must not be handed one. */
+  ignorePreset?: boolean;
   llmLog?: LlmLogFn;
 }) {
   try {
+    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
+    // An approved curated preset holds tokens that were calibrated and checked once. With no requirements of the
+    // user's own, they are the project's tokens and no model is asked. With some, the model reads them and says
+    // beside its tokens what they ask for (token-labels.ts); only that is changed in the preset.
+    const preset = !ignorePreset && !designStyle && resolvedReferenceMode === "curated_style"
+      ? resolveCuratedStylePreset(referenceId)
+      : null;
+    if (preset && !designRequirements?.trim()) {
+      llmLog?.("[design-tokens] approved curated preset used; no model call", { referenceId });
+      return normalizeDesignTokens(preset.tokens);
+    }
     const ai = createGeminiClient();
     const parts: Array<Record<string, unknown>> = [];
-    const resolvedReferenceMode = normalizeReferenceMode(referenceMode);
     const inlineImage = toInlineImage(image);
     const designStyleContract = formatDesignStyleContract(designStyle);
     const referenceAnalysis = providedReferenceAnalysis !== undefined
@@ -3930,6 +4121,7 @@ export async function generateDesignTokens({
           prompt,
           image,
           referenceMode: resolvedReferenceMode,
+          referenceId: ignorePreset ? null : referenceId,
           llmLog,
         })).analysis;
     const promptMode = resolveGenerationPromptMode({
@@ -3938,19 +4130,35 @@ export async function generateDesignTokens({
       hasDesignStyle: Boolean(designStyle),
       hasReferenceAnalysis: Boolean(referenceAnalysis),
     });
+    // Colours are measured from the reference pixels, not guessed in prose. A preset measured them once.
+    const measuredPalette = preset
+      ? preset.measured
+      : await measureStyleReferencePalette({
+          image,
+          referenceMode: resolvedReferenceMode,
+          referenceAnalysis,
+          onError: (message) => llmLog?.("[PALETTE] reference palette could not be measured", { message }),
+        });
+    // No temperature override: Gemini 3 is tuned for its default, as the screen build is.
     const policy = geminiPolicyForTask("design_tokens", {
       systemInstruction: buildDesignInstruction(promptMode),
       responseMimeType: "application/json",
-      temperature: 0.35,
     });
-    const creativeDirection = (await generateCreativeDirection({
-      prompt,
-      image,
-      referenceAnalysis,
-      referenceMode: resolvedReferenceMode,
-      designStyle,
-      llmLog,
-    })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
+    // A style reference is the art direction and the builder sees it; a model's paraphrase of it is
+    // where "32px" and "glass-morphism dock" first appeared. The tokens take the analysis and the
+    // measured palette as their evidence. Prompt-only projects keep a creative direction, because
+    // there it is the only art direction there is.
+    const referenceIsTheDirection = promptMode === "style" && (Boolean(inlineImage) || Boolean(referenceAnalysis));
+    const creativeDirection = referenceIsTheDirection
+      ? null
+      : (await generateCreativeDirection({
+        prompt,
+        image,
+        referenceAnalysis,
+        referenceMode: resolvedReferenceMode,
+        designStyle,
+        llmLog,
+      })) ?? fallbackCreativeDirection({ prompt, referenceAnalysis });
 
     if (designStyleContract) {
       parts.push({
@@ -3987,9 +4195,15 @@ export async function generateDesignTokens({
       });
     }
 
-    parts.push({
-      text: `Creative Direction:\n${formatCreativeDirection(creativeDirection)}`,
-    });
+    if (creativeDirection) {
+      parts.push({
+        text: `Creative Direction:\n${formatCreativeDirection(creativeDirection)}`,
+      });
+    }
+
+    if (measuredPalette) {
+      parts.push({ text: formatMeasuredColors(measuredPalette, referenceAnalysis ?? {}) });
+    }
 
     if (llmLog) {
       const si = typeof policy.config.systemInstruction === "string" ? policy.config.systemInstruction : "";
@@ -4015,22 +4229,63 @@ export async function generateDesignTokens({
     }
 
     const rawTokens = parseJsonResponse<unknown>(response.text || "{}");
-    const parsed = DesignTokensSchema.safeParse(rawTokens);
+    // What the user's own words ask for and whether the design uses tints, as the model read them. They describe
+    // the request, not the design, so they are taken off the tokens before those are kept.
+    const labels = readTokenLabels(rawTokens);
+    const tokenCandidate = withoutTokenLabels(rawTokens);
+    const parsed = DesignTokensSchema.safeParse(tokenCandidate);
     const screenMargin = resolveGeneratedScreenMargin({
       prompt,
       referenceMode: resolvedReferenceMode,
       referenceAnalysis,
     });
+    // When the model did not say, a careful reading of the requirements' words stands in for it.
+    const asked: UserAsked = labels.userAsked ?? {
+      colorRoles: [...userNamedColorRoles(designRequirements)],
+      fonts: userNamesTypography(designRequirements),
+      corners: null,
+      depth: null,
+    };
 
-    if (!parsed.success) {
-      return buildApprovedDesignTokens(rawTokens, screenMargin);
+    // Image-to-UI reproduces its source and an explicit design style is the user's own choice,
+    // so only tokens derived from a style reference or from the prompt are calibrated.
+    const calibration: CalibrationEvidence | null = resolvedReferenceMode === "user_recreate" || designStyle
+      ? null
+      : {
+          palette: measuredPalette,
+          radiusClass: referenceAnalysis?.radiusClass ?? null,
+          surfaceElevation: referenceAnalysis?.surfaceElevation ?? null,
+          userRadiusClass: asked.corners,
+          userSurfaceElevation: asked.depth,
+          // a preset's reference, and one being built into a preset, is looked at by a person before it is used
+          reviewedRadius: ignorePreset || Boolean(preset),
+          // tints only for a design that uses them; for a preset's reference, its reviewed tokens say whether it does
+          tints: preset ? Object.keys(preset.tokens.tokens?.color?.accent_tints ?? {}).length > 0 : labels.tints === true,
+          userColorRoles: asked.colorRoles,
+          // fonts the user named are theirs; otherwise the letters that were read decide the class
+          typeface: asked.fonts ? null : referenceAnalysis?.typefaceClass ?? null,
+        };
+
+    const generated = parsed.success
+      ? buildApprovedDesignTokens(parsed.data as {
+          system_schema?: string;
+          meta?: DesignTokenMetadata;
+          tokens?: DesignTokenValues;
+        }, screenMargin, calibration, { keepDeviceFaces: asked.fonts })
+      : buildApprovedDesignTokens(tokenCandidate, screenMargin, calibration, { keepDeviceFaces: asked.fonts });
+    if (!preset) return generated;
+    if (!asksAnything(asked)) {
+      llmLog?.("[design-tokens] the user's requirements ask nothing of the approved preset's design; it is used as it is", { referenceId });
+      return normalizeDesignTokens(preset.tokens);
     }
-
-    return buildApprovedDesignTokens(parsed.data as {
-      system_schema?: string;
-      meta?: DesignTokenMetadata;
-      tokens?: DesignTokenValues;
-    }, screenMargin);
+    return mergePresetTokens({
+      preset,
+      generated,
+      fonts: asked.fonts,
+      colors: asked.colorRoles.length > 0,
+      corners: Boolean(asked.corners),
+      depth: Boolean(asked.depth),
+    });
   } catch (error) {
     console.error("Failed to generate design tokens", error);
     throw error instanceof Error
@@ -4067,11 +4322,25 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     ].join("\n"),
   });
 
+  if (input.specimenMarking) parts.push({ text: SPECIMEN_MARKING_INSTRUCTION });
+
   if (resolvedReferenceMode === "user_recreate" && input.sourceDetail) {
     parts.push({ text: "Verified detail crop of this output's target frame. Use it for fine detail; the original composite above remains authoritative for context and anything outside this crop." }, toInlineImage(input.sourceDetail)!);
   }
+  const promptMode = resolveGenerationPromptMode({
+    referenceMode: resolvedReferenceMode,
+    hasImage: Boolean(inlineImage),
+    hasDesignStyle: Boolean(input.designStyle),
+    hasReferenceAnalysis: false,
+    hasProjectVisualMemory: input.referenceSource === "project_memory" || input.referenceSource === "project_upload",
+  });
   if (resolvedReferenceMode !== "user_recreate" && input.productContent) parts.push({ text: input.productContent });
-  const compactProjectContext = resolvedReferenceMode === "user_recreate" ? null : input.projectContext?.trim().slice(0, 6000);
+  // With the reference's components as markup, the composition library's craft bars only restate what that markup shows.
+  const hasStyleComponents = promptMode === "style" && usableStyleComponents(input.styleComponents).length > 0;
+  const memory = input.projectContext?.trim();
+  const compactProjectContext = resolvedReferenceMode === "user_recreate"
+    ? null
+    : (hasStyleComponents && memory ? omitCraftBars(memory) : memory)?.slice(0, 6000);
   if (compactProjectContext) {
     parts.push({
       text: `Compact Existing Project Memory:\n${compactProjectContext}`,
@@ -4084,13 +4353,6 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     });
   }
 
-  const promptMode = resolveGenerationPromptMode({
-    referenceMode: resolvedReferenceMode,
-    hasImage: Boolean(inlineImage),
-    hasDesignStyle: Boolean(input.designStyle),
-    hasReferenceAnalysis: false,
-    hasProjectVisualMemory: input.referenceSource === "project_memory" || input.referenceSource === "project_upload",
-  });
   const buildInstruction = promptMode === "recreate"
     ? buildRecreateScreenInstruction
     : promptMode === "style"
@@ -4100,6 +4362,7 @@ export async function* buildScreenStream(input: BuildScreenInput): AsyncGenerato
     designTokens: input.designTokens,
     designStyle: input.designStyle,
     screenFamilyContract: input.screenFamilyContract,
+    styleComponents: input.styleComponents,
     screenPlan: input.screenPlan,
     prompt: input.prompt,
     requiresBottomNav: input.requiresBottomNav,

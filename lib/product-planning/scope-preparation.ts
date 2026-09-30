@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import type { AssetRequirement, DesignTokens, NavigationPlan, PlannedUiFlow, ProjectCharter, ReferenceAnalysis } from "@/lib/types";
+import type { AssetRequirement, DesignTokens, NavigationPlan, PlannedUiFlow, ProjectCharter, ReferenceAnalysis, ReferenceSpecimen } from "@/lib/types";
 import { designRequirementsKey } from "./design-requirements";
 import { earlyDesignMode } from "./project-design-preparation";
 import { productScopeContract } from "./generation-context";
@@ -37,7 +37,8 @@ export function scopePreparationKey(state: ProductPlanning, keys: string[], shar
     // Approval changes discovery to canvas without changing this design.
     version, tokenPolicy: earlyDesignMode() === "on" ? "project-wide-v1" : "screen-scoped-v1",
     contentRevision: state.contentRevision ?? 0,
-    manifest: state.scope?.manifest, keys, experience: state.experience,
+    // Absent for a scope approved before navigation was decided in it, so those keys are unchanged.
+    manifest: state.scope?.manifest, navigation: state.scope?.navigation, keys, experience: state.experience,
     reference: { provenance: state.experience?.provenance, hash: state.experience?.referenceHash,
       screenReference: state.screenReference },
     requirements: designRequirementsKey(state), input: state.input, shared,
@@ -94,6 +95,23 @@ export async function readScopePreparation(admin: PlanningStore, projectId: stri
     plan, assetRequirements: assetsReady ? data.asset_requirements as AssetRequirement[] : null, assetsReady,
     planReadyAt: data.created_at as string, assetsReadyAt: (data.assets_ready_at as string | null) ?? null,
     queuedAt: (data.queued_at as string | null) ?? null };
+}
+
+/**
+ * The specimen an earlier preparation of this project built from the same upload, if one is still stored. Each
+ * revision of the approval card prepares the plan again under a new key; the upload, and so its specimen, is the same.
+ */
+export async function readPreparedUploadSpecimen(admin: PlanningStore, projectId: string, ownerId: string,
+  imagePath: string): Promise<ReferenceSpecimen | null> {
+  const { data, error } = await admin.from("product_scope_preparations").select("plan")
+    .eq("project_id", projectId).eq("owner_id", ownerId).gt("expires_at", new Date().toISOString())
+    .order("created_at", { ascending: false }).limit(5);
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const specimen = (row.plan as PlannedUiFlow | null)?.charter?.referenceDna?.specimen;
+    if (specimen?.source === "upload" && specimen.imagePath === imagePath && specimen.components?.length) return specimen;
+  }
+  return null;
 }
 
 export async function saveScopePreparation(admin: PlanningStore, projectId: string, ownerId: string, key: string,

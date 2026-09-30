@@ -2,6 +2,14 @@ import {
   referenceAnalysisRecreateInstruction,
   referenceAnalysisStyleInstruction,
 } from "@/lib/generation/prompts";
+import { presetReferenceAnalysis, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
+import { normalizeRadiusClass, normalizeSurfaceElevation } from "@/lib/generation/design-classes";
+import {
+  completeReferenceAnalysis,
+  needsCompletion,
+  type ReferenceCompletionDeps,
+  type ScreenBox,
+} from "@/lib/generation/reference-completion";
 import {
   ensureSemanticCompositionPrimitives,
   normalizeSemanticCompositionPrimitives,
@@ -617,6 +625,8 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
           ["plain", "well"] as const),
         width: oneOf(readField(primaryNavigationRecord, ["width", "widthMode", "width_mode"]), ["content", "inset", "full"] as const),
         material: oneOf(readField(primaryNavigationRecord, ["material"]), ["solid", "translucent", "glass"] as const),
+        activeFill: oneOf(readField(primaryNavigationRecord, ["activeFill", "active_fill"]), ["solid", "gradient"] as const),
+        corners: oneOf(readField(primaryNavigationRecord, ["corners", "cornerShape", "corner_shape"]), ["square", "rounded"] as const),
       }
     : null;
   const rawCount = readField(raw, ["screenCountEstimate", "screen_count_estimate", "visibleScreenCount", "visible_screen_count", "screenCount", "screen_count"]);
@@ -649,9 +659,15 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
     };
   }
 
+  // The model classifies radius and elevation; code owns the numbers (design-classes.ts).
+  const radiusClass = normalizeRadiusClass(readField(raw, ["radiusClass", "radius_class"]) ?? readField(signals, ["radiusClass", "radius_class"]));
+  const surfaceElevation = normalizeSurfaceElevation(readField(raw, ["surfaceElevation", "surface_elevation"]) ?? readField(signals, ["surfaceElevation", "surface_elevation"]));
+
   const analysis: ReferenceAnalysis = ensureSemanticCompositionPrimitives({
     overallVisualStyle: textField(raw, ["overallVisualStyle", "overall_visual_style", "visualStyle", "visual_style"], "Reference visual style was not described by the model.", 3000),
     screenCountEstimate,
+    ...(radiusClass ? { radiusClass } : {}),
+    ...(surfaceElevation ? { surfaceElevation } : {}),
     screenReferences: screenReferences.length > 0
       ? screenReferences
       : Array.from({ length: screenCountEstimate }, (_, index) => ({
@@ -779,17 +795,157 @@ const countOnlyFallback = async ({
   }
 };
 
+/**
+ * The result for an analysis that already exists (a project's saved reference DNA, one a caller supplied).
+ * It is a full analysis when it describes every screen it counts, and only then; "salvaged" is for one that
+ * does not.
+ */
+export const resultForKnownAnalysis = (
+  analysis: ReferenceAnalysis,
+  diagnostic: string,
+  confidence: ReferenceAnalysisResult["confidence"],
+): ReferenceAnalysisResult => ({
+  analysis,
+  screenCountEstimate: analysis.screenCountEstimate,
+  screenReferenceCount: analysis.screenReferences.length,
+  confidence,
+  source: analysis.screenReferences.length === analysis.screenCountEstimate ? "full_analysis" : "salvaged_analysis",
+  diagnostics: [diagnostic],
+});
+
+/** What an approved curated preset stands in for: a complete analysis, made offline and checked once. */
+const presetAnalysisResult = (analysis: ReferenceAnalysis): ReferenceAnalysisResult => ({
+  analysis,
+  screenCountEstimate: analysis.screenCountEstimate,
+  screenReferenceCount: analysis.screenReferences.length,
+  confidence: "high",
+  source: "full_analysis",
+  diagnostics: ["Used the approved curated style preset; skipped multimodal reference analysis."],
+  validationIssues: [],
+});
+
+/** The boxes a model returned for the screens of an image, in the completion's own shape. */
+export function parseLocatedScreens(raw: unknown): ScreenBox[] {
+  const entries = Array.isArray(raw) ? raw : isRecord(raw) ? readField(raw, ["screens", "boxes", "screenReferences", "screen_references"]) : null;
+  if (!Array.isArray(entries)) return [];
+  return entries.filter(isRecord).flatMap((entry, position) => {
+    const box = normalizeBoundingBox(readField(entry, ["boundingBox", "bounding_box", "box", "bounds"]));
+    if (!box) return [];
+    return [{ index: clampScopeScreenCount(readField(entry, ["index", "screenIndex", "screen_index", "number"])) ?? position + 1, box }];
+  });
+}
+
+/**
+ * The model calls that complete an analysis that counted more screens than it described: one short look at the
+ * whole image to find where every screen is, then one description per missing screen, from a crop of that screen.
+ */
+const completionDeps = async ({
+  prompt,
+  referenceMode,
+  llmLog,
+}: {
+  prompt: string;
+  referenceMode: ReferenceMode;
+  llmLog?: LlmLogFn;
+}): Promise<ReferenceCompletionDeps> => {
+  const [{ createGeminiClient }, { geminiPolicyForTask }, { cropToBox }] = await Promise.all([
+    import("@/lib/ai/gemini"),
+    import("@/lib/ai/model-policy"),
+    import("@/lib/generation/specimen-build"),
+  ]);
+  const ai = createGeminiClient();
+  return {
+    crop: cropToBox,
+    locate: async ({ image, count, known }) => {
+      const policy = geminiPolicyForTask("project_planning", { responseMimeType: "application/json", temperature: 0 });
+      const inlineImage = toInlineImage(image);
+      if (!inlineImage) return [];
+      const instruction = [
+        `This image shows ${count} mobile app screens (phone screens or app frames), arranged left to right, and top to bottom when stacked.`,
+        'Return strictly valid JSON only: { "screens": [ { "index": 1, "boundingBox": { "x": 0.0, "y": 0.0, "width": 0.33, "height": 1.0 } } ] }',
+        `- One entry for each of the ${count} screens, numbered left to right and then top to bottom.`,
+        "- boundingBox uses normalized 0-1 coordinates relative to the whole image and encloses that screen's visible frame, including its rounded corners.",
+        known.length > 0
+          ? `- Screens ${known.map((entry) => entry.index).join(", ")} are already described, at ${known.map((entry) => `${entry.index}: ${JSON.stringify(entry.box)}`).join("; ")}. Keep their numbers, and return the box of every other screen.`
+          : null,
+        "- Count only visible phone screens or app frames, never tabs, segmented controls or rows inside a screen.",
+      ].filter(Boolean).join("\n");
+      llmLog?.("[LLM INPUT] reference-analysis-locate", { model: policy.model, count, known: known.length, userParts: ["[image]", instruction] });
+      const response = await ai.models.generateContent({
+        model: policy.model,
+        contents: { parts: [inlineImage, { text: instruction }] },
+        config: policy.config,
+      });
+      return parseLocatedScreens(parseJsonResponse<unknown>(response.text || "{}"));
+    },
+    describe: async ({ crop, index, count }) => {
+      const policy = geminiPolicyForTask("project_planning", {
+        systemInstruction: isStyleReferenceMode(referenceMode) ? referenceAnalysisStyleInstruction : referenceAnalysisRecreateInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.1,
+      });
+      const inlineImage = toInlineImage(crop);
+      if (!inlineImage) return null;
+      const instruction = [
+        prompt.trim() ? `User/Product Intent: "${prompt}"` : "Analyze the mobile UI reference image and describe the visible screen anatomy.",
+        `This image is screen ${index} of ${count}, cropped out of a larger reference image by its bounding box.`,
+        `Return the same JSON format for this one screen only: screenCountEstimate is 1, screenReferences has exactly one entry for this screen with index ${index}, and radiusClass, surfaceElevation, semanticCompositionPrimitives, primaryNavigation and designSystemSignals are left out. Describe it with the depth the other screens of the reference get.`,
+      ].join("\n");
+      llmLog?.("[LLM INPUT] reference-analysis-screen", { model: policy.model, index, count, userParts: ["[image]", instruction] });
+      const response = await ai.models.generateContent({
+        model: policy.model,
+        contents: { parts: [inlineImage, { text: instruction }] },
+        config: policy.config,
+      });
+      const described = normalizeReferenceAnalysis(parseJsonResponse<unknown>(response.text || "{}"));
+      return (described.screenReferenceCount ?? 0) > 0 ? described.analysis?.screenReferences[0] ?? null : null;
+    },
+  };
+};
+
+/** Asks for the screens an analysis counted and did not describe; on any failure the analysis stays as it was. */
+const completeMissingScreens = async ({
+  image,
+  normalized,
+  prompt,
+  referenceMode,
+  llmLog,
+}: {
+  image: PromptImagePayload;
+  normalized: ReferenceAnalysisResult;
+  prompt: string;
+  referenceMode: ReferenceMode;
+  llmLog?: LlmLogFn;
+}): Promise<ReferenceAnalysisResult> => {
+  try {
+    return await completeReferenceAnalysis({ image, result: normalized, deps: await completionDeps({ prompt, referenceMode, llmLog }) });
+  } catch (error) {
+    return {
+      ...normalized,
+      diagnostics: [...normalized.diagnostics, `Completing the reference analysis failed: ${error instanceof Error ? error.message : String(error)}`],
+    };
+  }
+};
+
 export async function analyzeReferenceImageForScope({
   prompt,
   image,
   referenceMode,
+  referenceId,
   llmLog,
 }: {
   prompt: string;
   image?: PromptImagePayload | null;
   referenceMode?: ReferenceMode | null;
+  /** A curated reference with an approved preset is not analysed again: its preset is the analysis. */
+  referenceId?: string | null;
   llmLog?: LlmLogFn;
 }): Promise<ReferenceAnalysisResult> {
+  const preset = normalizeReferenceMode(referenceMode) === "curated_style" ? resolveCuratedStylePreset(referenceId) : null;
+  if (preset) {
+    llmLog?.("[reference-analysis] approved curated preset used; no model call", { referenceId });
+    return presetAnalysisResult(presetReferenceAnalysis(preset));
+  }
   const inlineImage = toInlineImage(image);
   if (!inlineImage || !image) {
     return {
@@ -841,7 +997,10 @@ export async function analyzeReferenceImageForScope({
     const normalized = normalizeReferenceAnalysis(rawAnalysis);
 
     if (normalized.screenCountEstimate) {
-      return normalized;
+      // The model counted screens it did not describe: ask for those alone rather than build from placeholders.
+      return needsCompletion(normalized)
+        ? completeMissingScreens({ image, normalized, prompt, referenceMode: resolvedReferenceMode, llmLog })
+        : normalized;
     }
 
     const fallback = await countOnlyFallback({ prompt, image, referenceMode, llmLog });
@@ -991,6 +1150,7 @@ export async function preflightGenerationScope({
   referenceMode,
   planningMode = "project",
   cachedReferenceAnalysis,
+  referenceId,
   llmLog,
 }: {
   prompt: string;
@@ -998,6 +1158,7 @@ export async function preflightGenerationScope({
   referenceMode?: ReferenceMode | null;
   planningMode?: PlanningMode;
   cachedReferenceAnalysis?: ReferenceAnalysis | null;
+  referenceId?: string | null;
   llmLog?: LlmLogFn;
 }): Promise<{
   scopeContract: GenerationScopeContract;
@@ -1006,14 +1167,7 @@ export async function preflightGenerationScope({
 }> {
   const useSemanticScope = process.env.DRAWGLE_GENERATION_ENGINE_VERSION !== "v1";
   const cachedReferenceAnalysisResult: ReferenceAnalysisResult | null = cachedReferenceAnalysis
-    ? {
-        analysis: cachedReferenceAnalysis,
-        screenCountEstimate: cachedReferenceAnalysis.screenCountEstimate,
-        screenReferenceCount: cachedReferenceAnalysis.screenReferences.length,
-        confidence: "high",
-        source: "salvaged_analysis",
-        diagnostics: ["Reused cached project reference DNA; skipped multimodal reference analysis."],
-      }
+    ? resultForKnownAnalysis(cachedReferenceAnalysis, "Reused cached project reference DNA; skipped multimodal reference analysis.", "high")
     : null;
   const [promptIntent, referenceAnalysisResult] = await Promise.all([
     useSemanticScope
@@ -1021,7 +1175,7 @@ export async function preflightGenerationScope({
       : Promise.resolve(parsePromptScreenIntent(prompt)),
     cachedReferenceAnalysisResult
       ? Promise.resolve(cachedReferenceAnalysisResult)
-      : analyzeReferenceImageForScope({ prompt, image, referenceMode, llmLog }),
+      : analyzeReferenceImageForScope({ prompt, image, referenceMode, referenceId, llmLog }),
   ]);
   const scopeContract = resolveGenerationScopeContract({
     prompt,

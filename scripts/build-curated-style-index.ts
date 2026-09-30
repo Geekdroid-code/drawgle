@@ -12,11 +12,16 @@ import {
   type CuratedStyleIndexEntry,
   type CuratedStyleIndexManifest,
 } from "../lib/generation/curated-style-index-core";
+import { curatedPresetReport } from "../lib/generation/curated-style-presets";
 import { generateEmbeddings } from "../lib/generation/embeddings";
 
 const INDEX_PATH = resolve(
   process.cwd(),
   "lib/generation/generated/curated-style-embeddings.json",
+);
+const PRESETS_PATH = resolve(
+  process.cwd(),
+  "lib/generation/generated/curated-style-presets.json",
 );
 const CHECK_ONLY = process.argv.includes("--check");
 const BATCH_SIZE = 32;
@@ -74,6 +79,35 @@ const validateManifest = (manifest: CuratedStyleIndexManifest | null) => {
   return issues;
 };
 
+/**
+ * The curated style presets (see lib/generation/curated-style-presets.ts). A preset built from a catalogue
+ * entry that has since changed is stale and fails the check; a malformed one does too, since it would
+ * silently never be used. A reference without an approved preset is listed and does not fail: presets
+ * roll out one reference at a time, after the founder has looked at each preview.
+ */
+const checkPresets = async () => {
+  let raw: unknown = {};
+  try {
+    raw = JSON.parse(await readFile(PRESETS_PATH, "utf8"));
+  } catch {
+    // No presets file yet is the same as no presets.
+  }
+  const report = curatedPresetReport(raw);
+  const problems = [
+    ...report.issues.map((issue) => `malformed preset ${issue.id}: ${issue.problem}`),
+    ...report.statuses.filter((entry) => entry.status === "stale")
+      .map((entry) => `stale preset (the catalogue entry changed after it was built): ${entry.id}`),
+    ...report.orphans.map((id) => `preset for a reference that is not in the catalogue: ${id}`),
+  ];
+  const count = (status: string) => report.statuses.filter((entry) => entry.status === status).length;
+  const waiting = report.statuses.filter((entry) => entry.status !== "approved").map((entry) => entry.id);
+  return {
+    problems: [...new Set(problems)],
+    summary: `Curated style presets: ${count("approved")} approved, ${count("unapproved")} built and awaiting approval, ${report.statuses.length - count("approved") - count("unapproved")} without a usable preset (of ${report.statuses.length} references).`,
+    waiting,
+  };
+};
+
 const sleep = (milliseconds: number) =>
   new Promise((resolvePromise) => setTimeout(resolvePromise, milliseconds));
 
@@ -98,6 +132,12 @@ async function main() {
       throw new Error(`Curated style embedding index is stale:\n- ${issues.join("\n- ")}`);
     }
     console.log(`Curated style embedding index is current (${documents.length} references).`);
+    const presets = await checkPresets();
+    if (presets.problems.length > 0) {
+      throw new Error(`Curated style presets need attention:\n- ${presets.problems.join("\n- ")}`);
+    }
+    console.log(presets.summary);
+    if (presets.waiting.length > 0) console.log(`Without an approved preset (the run-time analysis is used): ${presets.waiting.join(", ")}`);
     return;
   }
 

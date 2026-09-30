@@ -1,4 +1,5 @@
 import { buildPortableReferenceContext } from "@/lib/generation/reference-transfer";
+import { usableStyleComponents } from "@/lib/generation/style-components";
 
 import type {
   ProjectCharter,
@@ -6,6 +7,7 @@ import type {
   ReferenceAnalysis,
   ReferenceDesignSystemSignals,
   ReferenceMode,
+  ReferenceSpecimen,
   ScreenFamilyContract,
 } from "@/lib/types";
 
@@ -175,6 +177,7 @@ export function createProjectReferenceDna({
   sourceImagePath = null,
   sourceReferenceId = null,
   sourceReferenceCatalogHash = null,
+  specimen = null,
   createdAt = new Date().toISOString(),
 }: {
   analysis: ReferenceAnalysis;
@@ -184,8 +187,12 @@ export function createProjectReferenceDna({
   sourceImagePath?: string | null;
   sourceReferenceId?: string | null;
   sourceReferenceCatalogHash?: string | null;
+  /** The reference's components as markup (from an approved preset or a specimen built from an upload). */
+  specimen?: ReferenceSpecimen | null;
   createdAt?: string;
 }): ProjectReferenceDna {
+  // Only components the builder can use are kept; a specimen without any is no specimen.
+  const components = usableStyleComponents(specimen?.components);
   return {
     schemaVersion: PROJECT_REFERENCE_DNA_SCHEMA_VERSION,
     source,
@@ -196,6 +203,9 @@ export function createProjectReferenceDna({
     createdAt,
     analysis,
     screenFamilyContract,
+    ...(specimen && components.length > 0
+      ? { specimen: { source: specimen.source, components, ...(specimen.imagePath ? { imagePath: specimen.imagePath } : {}) } }
+      : {}),
   };
 }
 

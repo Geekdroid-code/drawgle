@@ -3,7 +3,7 @@ import { useState } from "react";
 import Image from "next/image";
 import { usePlanningLease } from "@/hooks/use-planning-lease";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
-import { activeFacts, type ProductPlanning } from "@/lib/product-planning/model";
+import { activeFacts, describeScopeNavigation, type ProductPlanning } from "@/lib/product-planning/model";
 import { scopeQuote, scopeParents } from "@/lib/product-planning/scope-outputs";
 
 export function ProductScopeCard({ state, projectId, disabled, onApprove }: {
@@ -18,6 +18,7 @@ export function ProductScopeCard({ state, projectId, disabled, onApprove }: {
   const later = surfaces.filter((surface) => !state.scope!.surfaceIds.includes(surface.id));
   const manifest = state.scope.manifest;
   const quote = scopeQuote(state);
+  const navigation = state.scope.navigation ? describeScopeNavigation(state.scope.navigation) : null;
   return (
     <section className="mx-4 my-3 min-w-0 rounded-[20px] bg-white p-4 text-sm text-slate-800 ring-1 ring-slate-950/[0.09]" aria-label="Current design scope" aria-busy={busy}>
       <p className="text-[11px] font-medium tracking-wide text-slate-500">Ready for your approval</p>
@@ -39,6 +40,8 @@ export function ProductScopeCard({ state, projectId, disabled, onApprove }: {
             {manifest.filter(state => state.parentStableKey === item.stableKey).map(state => <p key={state.stableKey} className="mt-1 text-xs text-slate-600">↳ {state.name}: {state.triggerLabel}</p>)}
           </details></li>) : selected.map((surface, index) => <li key={surface!.id} className="break-words py-2.5 text-[12px] font-medium"><span className="mr-2 font-mono text-[11px] text-slate-400">{String(index + 1).padStart(2, "0")}</span>{surface!.label}</li>)}
       </ol>
+      {navigation && <p className="mt-3 text-xs leading-5 text-slate-600">{navigation.line}
+        {navigation.planned.length > 0 && <span className="text-slate-500"> ({navigation.planned.join(", ")} come{navigation.planned.length === 1 ? "s" : ""} later)</span>}</p>}
       {later.length > 0 && <p className="mt-3 text-xs leading-5 text-slate-500">Later: {later.map((surface) => surface.label).join(", ")}</p>}
       {!!state.scope.boundaries?.length && <p className="mt-2 text-xs leading-5 text-slate-500">Flow continues outside this scope: {state.scope.boundaries.map(item => item.name).join(", ")}</p>}
       <p className="mt-3 text-xs leading-5 text-slate-500">{state.scope.rationale}</p>

@@ -1,5 +1,6 @@
 import type { ProductPlanning } from "@/lib/product-planning/model";
 import type { CreativeDirection, NavigationPlan, ProjectCharter } from "@/lib/types";
+import { blueprintNavigationDesign } from "./approved-navigation";
 
 const text = (value: unknown, maxLength: number) =>
   typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -86,23 +87,7 @@ export function savedProjectBlueprint({ productPlanning, executionKeys, charter,
         availability: item.availability,
         linked_screen_name: item.linkedScreenName ?? null,
       })),
-      design: design
-        ? {
-            anatomy: design.anatomy,
-            width: design.width,
-            labels: design.labels,
-            active_treatment: design.activeTreatment,
-            surface: design.surface,
-            radius_px: design.radiusPx,
-            safe_area_offset_px: design.safeAreaOffsetPx,
-            item_gap_px: design.itemGapPx,
-            icon_size_px: design.iconSizePx,
-            border: design.border,
-            elevation: design.elevation,
-            center_action_item_id: design.centerActionItemId ?? null,
-            inactive_treatment: design.inactiveTreatment ?? "plain",
-          }
-        : null,
+      design: design ? blueprintNavigationDesign(design) : null,
       visual_brief: text(navigationPlan.visualBrief, 1600) || undefined,
       screen_chrome: navigationPlan.screenChrome.map((entry) => ({
         screen_name: entry.screenName,

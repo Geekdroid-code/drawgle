@@ -498,6 +498,12 @@ export function buildSemanticTransferPlan({
   return { targetCapabilities, semanticDecisions, premiumQualityTargets };
 }
 
+/**
+ * Removes the craft bars from a formatted composition library. Once the builder has the
+ * reference's components as markup, the craft bars only restate what that markup shows.
+ */
+export const omitCraftBars = (text: string) => text.replace(/\r?\n[ \t]*Craft bar:[^\r\n]*/g, "");
+
 export function formatSemanticCompositionLibrary(referenceAnalysis: ReferenceAnalysis) {
   const analysis = ensureSemanticCompositionPrimitives(referenceAnalysis);
   const primitives = analysis.semanticCompositionPrimitives ?? [];

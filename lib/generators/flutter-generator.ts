@@ -135,6 +135,7 @@ function hasExplicitBackground(node: TranspileNode): boolean {
     c.startsWith('bg-') ||
     c.startsWith('dg-bg-') ||
     c.startsWith('dg-surface-') ||
+    c.startsWith('dg-tint-') ||
     c.startsWith('dg-action-')
   )) return true;
 

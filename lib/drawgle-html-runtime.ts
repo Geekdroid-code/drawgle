@@ -27,6 +27,7 @@ export function buildDrawgleTailwindConfigScript(): string {
                 DEFAULT: "var(--popover, var(--dg-color-surface-modal))",
                 foreground: "var(--foreground, var(--dg-color-text-high-emphasis))"
               },
+              inset: "var(--dg-color-surface-inset, var(--card, var(--dg-color-surface-card)))",
               foreground: "var(--foreground, var(--dg-color-text-high-emphasis))",
               primary: {
                 DEFAULT: "var(--primary, var(--dg-color-action-primary))",
@@ -40,7 +41,17 @@ export function buildDrawgleTailwindConfigScript(): string {
                 orange: "var(--tint-orange, var(--dg-color-functional-tints-orange-base))",
                 cyan: "var(--tint-cyan, var(--dg-color-functional-tints-cyan-base))",
                 purple: "var(--tint-purple, var(--dg-color-functional-tints-purple-base))",
-                gray: "var(--surface-muted, #F5F5F5)"
+                gray: "var(--surface-muted, #F5F5F5)",
+                "1": "var(--dg-color-accent-tints-1, var(--card, var(--dg-color-surface-card)))",
+                "2": "var(--dg-color-accent-tints-2, var(--card, var(--dg-color-surface-card)))",
+                "3": "var(--dg-color-accent-tints-3, var(--card, var(--dg-color-surface-card)))",
+                "4": "var(--dg-color-accent-tints-4, var(--card, var(--dg-color-surface-card)))"
+              },
+              "tint-text": {
+                "1": "var(--dg-color-accent-tints-text-1, var(--foreground, var(--dg-color-text-high-emphasis)))",
+                "2": "var(--dg-color-accent-tints-text-2, var(--foreground, var(--dg-color-text-high-emphasis)))",
+                "3": "var(--dg-color-accent-tints-text-3, var(--foreground, var(--dg-color-text-high-emphasis)))",
+                "4": "var(--dg-color-accent-tints-text-4, var(--foreground, var(--dg-color-text-high-emphasis)))"
               }
             },
             borderRadius: {

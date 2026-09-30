@@ -74,6 +74,11 @@ export type VisualAssetPriority = "critical" | "supporting" | "optional";
 export type VisualAssetRequirementOrigin =
   | "reference_visible"
   | "user_explicit"
+  /**
+   * The user's own identity: their face or their brand's logo. Only they can supply it, so an
+   * avatar of this origin is never faked with a stock photo. Sample people and pets are not.
+   */
+  | "user_specified"
   | "planner_inferred"
   | "heuristic_inferred";
 
@@ -195,10 +200,16 @@ export interface DesignColorTokens {
   };
   surface?: {
     card?: string;
+    /** A tile or field inside a card: one tone step from the card. Optional; old projects fall back to the card. */
+    inset?: string;
     bottom_sheet?: string;
     modal?: string;
     [key: string]: JsonValue | undefined;
   };
+  /** 3 or 4 pastel wells and chips, each an accent mixed toward the background. Keys "1" to "4". */
+  accent_tints?: Record<string, string>;
+  /** Text colours that keep the contrast floor on the matching tint. Keys "1" to "4". */
+  accent_tints_text?: Record<string, string>;
   text?: {
     high_emphasis?: string;
     medium_emphasis?: string;
@@ -449,6 +460,24 @@ export interface ProjectCharterPlanningDiagnostics {
   [key: string]: JsonValue | undefined;
 }
 
+/** One reusable component of a style reference: the name a brief uses, when to use it, and its markup. */
+export interface StyleComponent {
+  name: string;
+  use: string;
+  html: string;
+}
+
+/**
+ * The reference's component vocabulary as markup the builder can copy, from an approved
+ * curated preset or from a specimen built out of an uploaded reference.
+ */
+export interface ReferenceSpecimen {
+  source: "preset" | "upload";
+  components: StyleComponent[];
+  /** Where the upload a specimen was built from is stored, so that a later preparation of it reuses the specimen. */
+  imagePath?: string | null;
+}
+
 export interface ProjectReferenceDna {
   schemaVersion: 1;
   source: "image_analysis" | "legacy_reconstruction";
@@ -459,6 +488,7 @@ export interface ProjectReferenceDna {
   createdAt: string;
   analysis: ReferenceAnalysis;
   screenFamilyContract: ScreenFamilyContract;
+  specimen?: ReferenceSpecimen | null;
 }
 
 export type PrimaryNavigationKind = "bottom-tabs" | "none";
@@ -489,7 +519,8 @@ export interface NavigationArchitecture {
 export type NavigationPlanKind = "bottom-tabs" | "none";
 
 export type NavigationDecision = "none" | "project-native" | "reference-derived";
-export type NavigationEvidenceSource = "explicit-prompt" | "reference" | "product-architecture";
+/** "approved-scope": the person approved this navigation (or its absence) with the screen flow. */
+export type NavigationEvidenceSource = "explicit-prompt" | "reference" | "product-architecture" | "approved-scope";
 export type NavigationDestinationAvailability = "generated" | "planned";
 export type NavigationAnatomy =
   | "fixed-tab-rail"
@@ -513,6 +544,8 @@ export interface NavigationDesignContract {
   centerActionItemId?: string | null;
   /** How destinations other than the active one are drawn: bare icons, or circular icon wells. */
   inactiveTreatment?: "plain" | "well";
+  /** What fills the active item: the solid action colour (default), or the project's action gradient. */
+  activeFill?: "solid" | "gradient";
 }
 
 export interface NavigationPlanItem {
@@ -830,7 +863,23 @@ export interface ReferenceNavigationEvidence {
   inactiveTreatment?: NonNullable<NavigationDesignContract["inactiveTreatment"]> | null;
   width?: NavigationDesignContract["width"] | null;
   material?: NavigationDesignContract["surface"] | null;
+  /** Whether the active item is filled with one colour or a gradient between two. */
+  activeFill?: NonNullable<NavigationDesignContract["activeFill"]> | null;
+  /** The top corners of a bar attached to the bottom edge: square, or rounded. */
+  corners?: "square" | "rounded" | null;
 }
+/**
+ * Corner radius of the main cards, judged against a 390pt screen: square 0-4pt, soft 6-10pt, rounded 12-16pt,
+ * very-rounded 18-24pt, extra-rounded 26-32pt. A model classifies; code owns the px.
+ */
+export type RadiusClass = "square" | "soft" | "rounded" | "very-rounded" | "extra-rounded";
+
+/** How the main cards separate from the page. */
+export type SurfaceElevation = "flat-tone" | "hairline" | "soft-shadow" | "strong-shadow";
+
+/** What the letterforms of a reference's headings are: read from a close-up of them, not from the style's mood. */
+export type TypefaceClass = "sans" | "serif" | "display" | "mono";
+
 export interface ReferenceAnalysis {
   overallVisualStyle: string;
   screenCountEstimate: number;
@@ -838,6 +887,10 @@ export interface ReferenceAnalysis {
   designSystemSignals: ReferenceDesignSystemSignals;
   primaryNavigation?: ReferenceNavigationEvidence | null;
   semanticCompositionPrimitives?: SemanticCompositionPrimitive[];
+  radiusClass?: RadiusClass | null;
+  surfaceElevation?: SurfaceElevation | null;
+  /** The class of the headings' typeface, when a close-up of them was read (see reference-focus.ts). */
+  typefaceClass?: TypefaceClass | null;
 }
 
 export interface ReferenceAnalysisResult {
@@ -1196,6 +1249,10 @@ export interface BuildScreenInput {
   referenceScreenCount?: number | null;
   designStyle?: DesignStylePack | null;
   screenFamilyContract?: ScreenFamilyContract | null;
+  /** The style reference's components, as markup to copy. Style mode only. */
+  styleComponents?: StyleComponent[] | null;
+  /** Ask the build to mark its reusable components, so that a specimen can be read back out of it. */
+  specimenMarking?: boolean;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;

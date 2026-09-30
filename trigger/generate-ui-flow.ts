@@ -26,7 +26,7 @@ import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
 import { recreationFrameChrome } from "@/lib/product-planning/recreation-frames";
 import { preparedPlanKey, readPreparedPlan, savePreparedPlan } from "@/lib/product-planning/prepared-plans";
-import { assetsForScopePlan, projectScopePlanForKeys, readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
+import { assetsForScopePlan, projectScopePlanForKeys, readPreparedUploadSpecimen, readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
 import { earlyDesignMode, projectDesignPreparationKey,
   readProjectDesignPreparation } from "@/lib/product-planning/project-design-preparation";
 import { generateProjectDesign } from "@/lib/product-planning/generate-project-design";
@@ -78,6 +78,7 @@ import {
 } from "@/lib/generation/screen-quality";
 import {
   buildNavigationShellCode,
+  buildScreenCode,
   buildScreenStream,
   extractCode,
   fallbackProjectCharter,
@@ -94,6 +95,8 @@ import { progressiveGenerationEnabled } from "@/lib/product-planning/generation-
 import { loadStoredPromptImage } from "@/lib/generation/prompt-reference-storage";
 import { resolveGenerationReferencePolicy } from "@/lib/generation/reference-policy";
 import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
+import { styleComponentsOf } from "@/lib/generation/style-components";
+import { startUploadSpecimen, withinUploadSpecimenWait, withReferenceSpecimen } from "@/lib/generation/upload-specimen";
 import {
   bindReservationToScreen,
   captureGenerationCredit,
@@ -129,7 +132,7 @@ import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
 import { getGenerationEngineVersion } from "@/lib/env/server";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 import type { Database, ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
-import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenFamilyContract, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan, TopChromeContinuityEvidence } from "@/lib/types";
+import type { DesignStylePack, DesignTokens, GenerationJournalMetadata, GenerationPreviewMetadata, GenerationReferencePolicy, GenerationRetryContext, GenerationScopeContract, ImageReferenceMode, LlmProviderEvent, NavigationArchitecture, NavigationPlan, PlanningMode, ProjectAssetManifest, ProjectRoadmap, PromptImagePayload, ProjectCharter, ReferenceAnalysis, ReferenceMode, ReferenceSource, ScreenAssetManifest, ScreenBaseStatePlan, ScreenFamilyContract, ScreenPlan, ScreenPlanningSeed, ScreenStateVariantPlan, StyleComponent, TopChromeContinuityEvidence } from "@/lib/types";
 
 type AdminClient = ReturnType<typeof createAdminClient>;
 
@@ -189,6 +192,7 @@ type BuildScreenTaskPayload = {
   designStyleId?: string | null;
   designStyle?: DesignStylePack | null;
   screenFamilyContract?: ScreenFamilyContract | null;
+  styleComponents?: StyleComponent[] | null;
   requiresBottomNav: boolean;
   navigationArchitecture?: NavigationArchitecture | null;
   navigationPlan?: NavigationPlan | null;
@@ -1105,6 +1109,7 @@ async function collectScreenBuild(
       designTokens: input.designTokens,
       designStyle: input.designStyle,
       screenFamilyContract: input.screenFamilyContract,
+      styleComponents: input.styleComponents,
       prompt: input.prompt,
       image: input.image,
       referenceScope: input.referenceScope,
@@ -1172,6 +1177,7 @@ async function collectNonStreamingScreenBuild(input: BuildScreenTaskPayload, scr
     designTokens: input.designTokens,
     designStyle: input.designStyle,
     screenFamilyContract: input.screenFamilyContract,
+    styleComponents: input.styleComponents,
     prompt: input.prompt,
     image: input.image,
     referenceScope: input.referenceScope,
@@ -2432,6 +2438,7 @@ export const generateUiFlowTask = task({
             prompt: payload.prompt,
             image: promptImage,
             referenceMode,
+            referenceId,
             llmLog: llmLogFor("reference"),
           }).then((referenceAnalysisResult) => ({
             scopeContract: { ...payload.scopeContract!, referenceMode },
@@ -2444,6 +2451,7 @@ export const generateUiFlowTask = task({
           referenceMode,
           planningMode: payload.planningMode ?? "project",
           cachedReferenceAnalysis: reusableProjectReferenceDna?.analysis,
+          referenceId,
           llmLog: llmLogFor("scope"),
         });
     const scopeContract = scopePreflight.scopeContract;
@@ -2721,6 +2729,28 @@ export const generateUiFlowTask = task({
         scopePreparationKeys, payload.productExecutionKeys, referenceMode) : null;
     const preparedPlan = scopePlan ?? (preparationRootId && preparationKey
       ? await readPreparedPlan(admin, preparationRootId, payload.ownerId, preparationKey) : null);
+    // An uploaded style reference is learned once, at the project's first generation: its main screen is
+    // rebuilt with its components marked, beside planning, and the components go on the reference DNA that
+    // every later batch reuses. It costs one extra build and never blocks or fails the generation. (When the
+    // plan was prepared ahead, the preparation task made it; see trigger/prepare-product-scope.ts.)
+    const uploadSpecimenPromise = startUploadSpecimen({
+      applies: {
+        referencePolicy, referenceMode, isNewProject: payload.isNewProject, screenScoped,
+        image: promptImage, analysis: referenceAnalysis, tokens: designTokens,
+        existing: preparedPlan?.charter?.referenceDna?.specimen ?? projectReferenceDna?.specimen ?? null,
+        plannedAhead: Boolean(preparedPlan),
+      },
+      input: () => ({ image: promptImage!, analysis: referenceAnalysis!, tokens: designTokens!, imagePath: payload.imagePath ?? null }),
+      buildScreen: buildScreenCode,
+      // a preparation of this project may already have built it from the same upload
+      reuse: payload.imagePath
+        ? () => readPreparedUploadSpecimen(admin, payload.projectId, payload.ownerId, payload.imagePath!)
+        : undefined,
+      onSettled: ({ specimen, notes, error }) => {
+        if (error) logger.warn("Upload specimen skipped: the build failed", { generationRunId: payload.generationRunId, error });
+        else logger.info("Upload specimen", { generationRunId: payload.generationRunId, components: specimen?.components.length ?? 0, notes });
+      },
+    });
     let plan = preparedPlan ?? (hasSeedScreens
       ? {
           requiresBottomNav: Boolean(payload.navigationPlan?.enabled),
@@ -2799,6 +2829,9 @@ export const generateUiFlowTask = task({
           },
           llmLog: llmLogFor("blueprint"),
         }));
+    // The screens do not wait long for it: past the limit they are built without it.
+    plan.charter = withReferenceSpecimen(plan.charter, await withinUploadSpecimenWait(uploadSpecimenPromise, undefined,
+      () => logger.warn("Upload specimen not ready in time; building without it", { generationRunId: payload.generationRunId })));
 
     if (!preparedPlan && shouldPlanScreenBriefsFromSeeds) {
       if (!requestedCharter) {
@@ -3553,6 +3586,7 @@ export const generateUiFlowTask = task({
             designStyleId: designStyle?.id ?? null,
             designStyle,
             screenFamilyContract: acceptedFamily ?? plan.screenFamilyContract ?? plan.charter.referenceDna?.screenFamilyContract ?? null,
+            styleComponents: styleComponentsOf(plan.charter.referenceDna),
             requiresBottomNav: plan.requiresBottomNav,
             navigationArchitecture: plan.navigationArchitecture,
             navigationPlan: plan.navigationPlan,

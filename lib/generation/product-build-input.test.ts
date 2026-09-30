@@ -54,4 +54,51 @@ describe("actual builder input contracts", () => {
     expect(mocks.stream.mock.calls.at(-1)![0].configOverride.systemInstruction)
       .toContain("Quiet purple family planner");
   });
+  describe("a style reference's components", () => {
+    const component = { name: "calendar-strip", use: "A week selector at the top of a day view", html: '<div class="dg-surface-card">Mon</div>' };
+    const memory = [
+      "PROJECT REFERENCE DNA",
+      "SEMANTIC COMPOSITION LIBRARY (principles, never source geometry)",
+      "- focal-anchor ? Single focal anchor [primary; focal-anchor]: One first read",
+      "  Adaptation rule: Choose a target-native focal object.",
+      "  Craft bar: Only one region should carry peak scale or contrast.",
+    ].join("\n");
+    const screenPlan = { name: "Today", type: "root" as const, description: "Daily habit progress" };
+    const built = () => mocks.stream.mock.calls.at(-1)![0];
+    const memoryPart = () => (built().contents.parts as Array<{ text?: string }>).map((part) => part.text ?? "").find((text) => text.startsWith("Compact Existing Project Memory")) ?? "";
+
+    it("go to the style builder, and the craft bars they replace stay out of its project memory", async () => {
+      await buildScreenCode({ screenPlan, prompt: "Habit tracker", image: { data: "style-image", mimeType: "image/png" },
+        referenceMode: "curated_style", requiresBottomNav: false, projectContext: memory, styleComponents: [component] });
+      expect(built().configOverride.systemInstruction).toContain("STYLE COMPONENTS");
+      expect(built().configOverride.systemInstruction).toContain("- calendar-strip — A week selector at the top of a day view — <div class=\"dg-surface-card\">Mon</div>");
+      expect(memoryPart()).toContain("Adaptation rule: Choose a target-native focal object.");
+      expect(memoryPart()).not.toContain("Craft bar:");
+
+      // without them, the memory is sent whole
+      await buildScreenCode({ screenPlan, prompt: "Habit tracker", image: { data: "style-image", mimeType: "image/png" },
+        referenceMode: "curated_style", requiresBottomNav: false, projectContext: memory });
+      expect(built().configOverride.systemInstruction).not.toContain("STYLE COMPONENTS");
+      expect(memoryPart()).toContain("Craft bar: Only one region should carry peak scale or contrast.");
+    });
+
+    it("are ignored by a prompt-only build and by Image to UI", async () => {
+      await buildScreenCode({ screenPlan, prompt: "Habit tracker", referenceMode: "internal_style", requiresBottomNav: false,
+        projectContext: memory, styleComponents: [component] });
+      expect(built().configOverride.systemInstruction).not.toContain("STYLE COMPONENTS");
+      expect(memoryPart()).toContain("Craft bar:");
+
+      await buildScreenCode({ screenPlan, prompt: "Recreate this", image: { data: "source-image", mimeType: "image/png" },
+        referenceMode: "user_recreate", requiresBottomNav: false, styleComponents: [component] });
+      expect(built().configOverride.systemInstruction).not.toContain("STYLE COMPONENTS");
+    });
+
+    it("that are malformed are left out instead of breaking the build", async () => {
+      await buildScreenCode({ screenPlan, prompt: "Habit tracker", image: { data: "style-image", mimeType: "image/png" },
+        referenceMode: "curated_style", requiresBottomNav: false, projectContext: memory,
+        styleComponents: [{ name: "", use: "x", html: "" }] as never });
+      expect(built().configOverride.systemInstruction).not.toContain("STYLE COMPONENTS");
+      expect(memoryPart()).toContain("Craft bar:");
+    });
+  });
 });

@@ -410,6 +410,7 @@ export function DesignSystemEditor({
                 </TokenGroup>
                 <TokenGroup label="Surfaces" panel={isPanel}>
                   <ColorField label="Card" value={cardBg} tokenPath={["color", "surface", "card"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "card"], nextValue)} />
+                  <ColorField label="Inset" value={tokens.color?.surface?.inset || cardBg} tokenPath={["color", "surface", "inset"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "inset"], nextValue)} />
                   <ColorField label="Sheet" value={tokens.color?.surface?.bottom_sheet || "#ffffff"} tokenPath={["color", "surface", "bottom_sheet"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "bottom_sheet"], nextValue)} />
                   <ColorField label="Modal" value={tokens.color?.surface?.modal || "#ffffff"} tokenPath={["color", "surface", "modal"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "surface", "modal"], nextValue)} />
                 </TokenGroup>
@@ -428,6 +429,13 @@ export function DesignSystemEditor({
                   <ColorField label="Gradient end" value={actionGradientEnd} tokenPath={["color", "action", "primary_gradient_end"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "primary_gradient_end"], nextValue)} />
                   <ColorField label="Disabled" value={tokens.color?.action?.disabled || "#e5e7eb"} tokenPath={["color", "action", "disabled"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "action", "disabled"], nextValue)} />
                 </TokenGroup>
+                {tokens.color?.accent_tints && Object.keys(tokens.color.accent_tints).length > 0 ? (
+                  <TokenGroup label="Tints" panel={isPanel}>
+                    {Object.keys(tokens.color.accent_tints).map((key) => (
+                      <ColorField key={key} label={`Tint ${key}`} value={tokens.color?.accent_tints?.[key] || "#ffffff"} tokenPath={["color", "accent_tints", key]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["color", "accent_tints", key], nextValue)} />
+                    ))}
+                  </TokenGroup>
+                ) : null}
                 <TokenGroup label="Navigation" panel={isPanel}>
                   <ColorField label="Surface" value={navigationSurface} tokenPath={["navigation", "surface"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["navigation", "surface"], nextValue)} />
                   <ColorField label="Content" value={navigationContent} tokenPath={["navigation", "content"]} panel={isPanel} onChange={(nextValue) => handleUpdateToken(["navigation", "content"], nextValue)} />

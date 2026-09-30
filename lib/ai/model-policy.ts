@@ -36,10 +36,27 @@ const SCREEN_BUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_SCREEN_BUILD_MAX_O
 const FULL_REBUILD_MAX_OUTPUT_TOKENS = envInt("DRAWGLE_GEMINI_FULL_REBUILD_MAX_OUTPUT_TOKENS", 40000);
 
 // Gemini 3 series uses thinkingLevel.
-// minimal — code generation (screen build, repair, edits, nav build): minimal overhead, maximum output budget
-// low     — planning/reasoning (project planning, design tokens): light reasoning without blowing the output cap
+// minimal — repair, edits, nav build: minimal overhead, maximum output budget
+// low     — planning/reasoning (project planning, design tokens) and screen builds: light reasoning without
+//           blowing the output cap
+// medium, high — only through DRAWGLE_GEMINI_SCREEN_BUILD_THINKING, to compare them on the eval set
+type ThinkingLevel = "minimal" | "low" | "medium" | "high";
+const THINKING_LEVELS: readonly ThinkingLevel[] = ["minimal", "low", "medium", "high"];
+
+/** A level from the environment; anything that is not one falls back, so a typo never changes a build. */
+const envThinking = (key: string, fallback: ThinkingLevel): ThinkingLevel => {
+  const value = process.env[key]?.trim().toLowerCase();
+  return THINKING_LEVELS.find((level) => level === value) ?? fallback;
+};
+
+/**
+ * How hard a screen build thinks. It is `low` until an A/B on the eval set says otherwise (scripts/design-eval/ab.ts);
+ * the environment variable is what lets `low` and `high` be compared without a code change.
+ */
+const SCREEN_BUILD_THINKING = envThinking("DRAWGLE_GEMINI_SCREEN_BUILD_THINKING", "low");
+
 const gemini3Config = (
-  thinkingLevel: "minimal" | "low",
+  thinkingLevel: ThinkingLevel,
   maxOutputTokens: number,
 ): GenerateContentConfig => ({
   thinkingConfig: {
@@ -53,7 +70,7 @@ const routerModelConfig = (maxOutputTokens = 2048, thinkingLevel: "minimal" | "l
   gemini3Config(thinkingLevel, maxOutputTokens);
 
 const buildModelConfig = (
-  thinkingLevel: "minimal" | "low",
+  thinkingLevel: ThinkingLevel,
   maxOutputTokens: number,
 ): GenerateContentConfig =>
   gemini3Config(thinkingLevel, maxOutputTokens);
@@ -79,9 +96,11 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
     model: PROJECT_PLANNER_MODEL,
     config: buildModelConfig("low", 12000),
   },
+  // One call per project, and it sets every screen's colours, radii and type: it thinks a little, at
+  // Gemini's own default temperature (no override), instead of running with none.
   design_tokens: {
     model: PROJECT_PLANNER_MODEL,
-    config: buildModelConfig("minimal", 8192),
+    config: buildModelConfig("low", 8192),
   },
   navigation_build: {
     model: FULL_BUILD_MODEL,
@@ -89,7 +108,7 @@ const policyByTask: Record<GeminiTaskType, GeminiModelPolicy> = {
   },
   screen_build: {
     model: FULL_BUILD_MODEL,
-    config: buildModelConfig("low", SCREEN_BUILD_MAX_OUTPUT_TOKENS),
+    config: buildModelConfig(SCREEN_BUILD_THINKING, SCREEN_BUILD_MAX_OUTPUT_TOKENS),
   },
   selected_region_edit: {
     model: SELECTED_EDIT_MODEL,

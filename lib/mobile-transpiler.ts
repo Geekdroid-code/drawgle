@@ -1246,6 +1246,15 @@ export function parseStyles(element: HTMLElement, varMap: Map<string, string>, c
       backgroundColor = varMap.get("--dg-color-surface-card") || "#FFFFFF";
       backgroundColorToken = "surfaceCard";
     }
+    if (c === "dg-surface-inset") {
+      // No theme constant for the inset: the resolved colour is emitted, falling back to the card.
+      backgroundColor = varMap.get("--dg-color-surface-inset") || varMap.get("--dg-color-surface-card") || "#FFFFFF";
+    }
+    const tint = /^dg-tint-([1-4])$/.exec(c);
+    if (tint) {
+      backgroundColor = varMap.get(`--dg-color-accent-tints-${tint[1]}`) || varMap.get("--dg-color-surface-card") || "#FFFFFF";
+      textColor = varMap.get(`--dg-color-accent-tints-text-${tint[1]}`) || varMap.get("--dg-color-text-high-emphasis") || "#111827";
+    }
     if (c === "dg-surface-bottom-sheet") {
       backgroundColor = varMap.get("--dg-color-surface-bottom-sheet") || "#FFFFFF";
       backgroundColorToken = "surfaceCard";

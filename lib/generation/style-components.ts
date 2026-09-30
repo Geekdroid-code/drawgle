@@ -1,0 +1,110 @@
+import { z } from "zod";
+
+import type { ProjectReferenceDna, StyleComponent } from "@/lib/types";
+
+/**
+ * The reference's premium feel is a component vocabulary on a surface ladder.
+ * Prose about it did not carry over to the builder; markup it can copy does.
+ * The components come from an approved curated preset or from a specimen built
+ * out of an uploaded reference, and reach the builder as one bounded block.
+ */
+
+export const MAX_STYLE_COMPONENTS = 10;
+/**
+ * Composed components (a featured card, a search field, a highlighted row) come to about 700 to 1150 characters
+ * once trimmed. They are what a reference's vocabulary is made of, so a limit below them left only chips and
+ * badges. The block budget below is what bounds what a screen build pays.
+ */
+export const MAX_STYLE_COMPONENT_HTML_CHARS = 1200;
+/**
+ * About 2.2k input tokens, paid for on every screen build at the screen builder's price. It was 6000 while a component
+ * was at most 700 characters; with composed components of 400 to 1100, ten of them are about 7000, and the last ones
+ * were left out of every build without anyone saying so.
+ */
+export const MAX_STYLE_COMPONENTS_BLOCK_CHARS = 9000;
+
+export const styleComponentSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+  use: z.string().trim().min(1).max(240),
+  html: z.string().trim().min(1).max(MAX_STYLE_COMPONENT_HTML_CHARS),
+});
+
+export const styleComponentsSchema = z.array(styleComponentSchema).max(MAX_STYLE_COMPONENTS);
+
+const STYLE_COMPONENTS_HEADER = [
+  "STYLE COMPONENTS (this project's reference vocabulary. Each line is: name — when to use it — html).",
+  "Build this screen's content from these components wherever they fit its job. Copy their structure, classes and surface roles.",
+  "A component you need that is not listed must use the same surface ladder, radius roles, type roles and spacing.",
+  "Never reproduce the reference's sections, their order or its content: replace every sample text with this screen's own content.",
+].join("\n");
+
+const oneLine = (value: string) => value.replace(/\s+/g, " ").trim();
+
+/** The field separator is an em dash, so one inside a name or a use would read as a fourth field. */
+const withoutSeparator = (value: string) => oneLine(value).replace(/\s+[—–]\s+/g, " - ");
+
+/** Valid components only, in order and capped; anything malformed or oversized is left out, never trimmed mid-markup. */
+export function usableStyleComponents(components: unknown): StyleComponent[] {
+  if (!Array.isArray(components)) return [];
+  const usable: StyleComponent[] = [];
+  for (const candidate of components) {
+    const parsed = styleComponentSchema.safeParse(candidate);
+    if (!parsed.success) continue;
+    usable.push({
+      name: withoutSeparator(parsed.data.name),
+      use: withoutSeparator(parsed.data.use),
+      html: oneLine(parsed.data.html),
+    });
+    if (usable.length >= MAX_STYLE_COMPONENTS) break;
+  }
+  return usable;
+}
+
+const componentLine = (component: StyleComponent) => `- ${component.name} — ${component.use} — ${component.html}`;
+
+/** Whether all of these components fit in the block a screen build is given. */
+export function styleComponentsFit(components: StyleComponent[]): boolean {
+  const usable = usableStyleComponents(components);
+  if (usable.length !== components.length) return false;
+  return usable.reduce((size, component) => size + componentLine(component).length + 1, STYLE_COMPONENTS_HEADER.length) <= MAX_STYLE_COMPONENTS_BLOCK_CHARS;
+}
+
+/**
+ * The STYLE COMPONENTS block, or null when there is nothing to show. Components are added
+ * whole and in order until the size budget is spent.
+ */
+export function formatStyleComponents(components: unknown): string | null {
+  const lines: string[] = [];
+  let size = STYLE_COMPONENTS_HEADER.length;
+  for (const component of usableStyleComponents(components)) {
+    const line = componentLine(component);
+    if (size + line.length + 1 > MAX_STYLE_COMPONENTS_BLOCK_CHARS) break;
+    lines.push(line);
+    size += line.length + 1;
+  }
+  return lines.length > 0 ? [STYLE_COMPONENTS_HEADER, ...lines].join("\n") : null;
+}
+
+/** The components a project's reference DNA carries, when it carries any. */
+export const styleComponentsOf = (dna: ProjectReferenceDna | null | undefined): StyleComponent[] =>
+  usableStyleComponents(dna?.specimen?.components);
+
+/** The same components as a brief planner reads them: each name with when to use it, and no markup. */
+export const styleComponentSummaries = (dna: ProjectReferenceDna | null | undefined): string[] =>
+  styleComponentsOf(dna).map((component) => `${component.name} (${component.use.slice(0, 100)})`);
+
+/**
+ * The one line added to the recreate build that makes a preset's or an upload's specimen. The components
+ * are read back out of the markup by the markers (see style-component-extraction.ts).
+ */
+export const SPECIMEN_MARKING_INSTRUCTION = [
+  "SPECIMEN: this build becomes the source of the project's reusable components.",
+  'Mark the root element of each reusable component with data-dg-component="<kebab-name>" and data-dg-use="<when to use it, under 12 words>",',
+  'for example data-dg-component="list-row" data-dg-use="one item of a list, with its trailing action".',
+  "Name a component by what it is, never by the content it shows.",
+  "Mark composed units, because they carry the design: a whole card with the content inside it, one list row, a field with its buttons, a header row, a tile.",
+  "Mark each different kind of card, row, tile and field the screen shows, at most eight in all, and never the same look twice.",
+  "Mark a chip, badge or button on its own only when it appears outside every unit you marked. Never mark a whole list, grid or section.",
+  "Keep each marked element's markup under about 900 characters: leave decorative art (illustrations, sparkles, blurred shapes, chart plots) out of it, and style it with the token classes and variables only, never raw hex colours.",
+  "For this specimen do not draw a status bar or the bottom navigation, although the image shows them: the renderer adds the navigation under this screen, so leave clear space at the bottom for it.",
+].join(" ");

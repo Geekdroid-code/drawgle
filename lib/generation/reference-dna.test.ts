@@ -8,6 +8,7 @@ import {
   resolveProjectReferenceDna,
   selectProjectReferenceImagePath,
 } from "@/lib/generation/reference-dna";
+import { styleComponentsOf } from "@/lib/generation/style-components";
 import type { JsonValue, ProjectCharter, ReferenceAnalysis, ScreenFamilyContract } from "@/lib/types";
 
 const analysis: ReferenceAnalysis = {
@@ -109,6 +110,31 @@ describe("project reference DNA", () => {
     expect(dna.sourceImagePath).toBe("owner/prompt-images/reference.webp");
     expect(dna.sourceReferenceId).toBe("crypto-wallet-glowing-dark");
     expect(dna.sourceReferenceCatalogHash).toBe("catalog-hash");
+  });
+
+  it("carries the reference's components as a specimen, and keeps only what a builder can use", () => {
+    const component = { name: "calendar-strip", use: "A week selector", html: '<div class="dg-surface-card">Mon</div>' };
+    const dna = createProjectReferenceDna({
+      analysis,
+      screenFamilyContract: family,
+      referenceMode: "curated_style",
+      specimen: { source: "preset", components: [component, { name: "", use: "broken", html: "" }] },
+      createdAt: "2026-07-14T00:00:00.000Z",
+    });
+    expect(isProjectReferenceDna(dna)).toBe(true);
+    expect(dna.specimen).toEqual({ source: "preset", components: [component] });
+    expect(styleComponentsOf(dna)).toEqual([component]);
+
+    // survives the round trip through the charter's JSON column
+    const stored = JSON.parse(JSON.stringify({ ...legacyCharter, referenceDna: dna }));
+    expect(styleComponentsOf(resolveProjectReferenceDna(stored)?.dna)).toEqual([component]);
+
+    // no specimen, or one with nothing usable, is stored as none
+    for (const specimen of [null, undefined, { source: "upload" as const, components: [] }, { source: "upload" as const, components: [{ name: "x", use: "", html: "" }] }]) {
+      const plain = createProjectReferenceDna({ analysis, screenFamilyContract: family, referenceMode: "curated_style", specimen });
+      expect("specimen" in plain).toBe(false);
+      expect(styleComponentsOf(plain)).toEqual([]);
+    }
   });
 
   it("prefers persisted DNA over reconstructing legacy charter fields", () => {

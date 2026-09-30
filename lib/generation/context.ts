@@ -7,6 +7,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import type { NavigationPlan, ProjectCharter, ProjectMessage } from "@/lib/types";
 
 import { generateEmbedding } from "@/lib/generation/embeddings";
+import { buildTypographyRoleContract } from "@/lib/generation/type-roles";
 import { formatProjectReferenceDnaForPrompt, resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { toPortableCreativeDirection } from "@/lib/generation/reference-transfer";
 import { formatCanonicalVisualSystem, type ScreenStyleMemoryInput } from "@/lib/generation/screen-style-memory";
@@ -78,18 +79,6 @@ const formatNavigationPlan = (navigationPlan: NavigationPlan | null) => {
     `Screen chrome: ${navigationPlan.screenChrome.map((entry) => `${entry.screenName}: ${entry.chrome}${entry.navigationItemId ? `/${entry.navigationItemId}` : ""}`).join(", ")}`,
   ].join("\n");
 };
-
-const formatTypographyRoleContract = () => [
-  "nav_title: top bars, modal headers, compact detail headers",
-  "screen_title: default title for normal app feature screens",
-  "hero_title: onboarding, empty states, splash/editorial hero moments only",
-  "section_title: cards, grouped content, list sections, panel headers",
-  "metric_value: balances, prices, counters, scores, numeric hero data",
-  "body: primary body copy, list item titles, main descriptive text",
-  "supporting: supporting copy, subtitles, secondary descriptions",
-  "caption: metadata, helper text, and micro-labels",
-  "button_label: all buttons, segmented controls, and tappable nav labels",
-].join("\n");
 
 const formatMatches = (matches: MatchedScreen[]) =>
   matches
@@ -570,7 +559,7 @@ ${formatProjectReferenceDnaForPrompt(referenceDna)}`
       : null,
     canonicalVisualSystem,
     `TYPOGRAPHY ROLE CONTRACT
-${formatTypographyRoleContract()}`,
+${buildTypographyRoleContract()}`,
     matches.length > 0
       ? `RELEVANT EXISTING SCREENS
 ${formatMatches(matches)}`

@@ -729,6 +729,11 @@ function compileElement(element: Element, varMap: Map<string, string>) {
       nextClassList.push("bg-muted");
     } else if (cls === "dg-surface-card") {
       nextClassList.push("bg-card");
+    } else if (cls === "dg-surface-inset") {
+      nextClassList.push("bg-inset");
+    } else if (/^dg-tint-[1-4]$/.test(cls)) {
+      const index = cls.slice(-1);
+      nextClassList.push(`bg-tint-${index}`, `text-tint-text-${index}`);
     } else if (cls === "dg-surface-bottom-sheet") {
       nextClassList.push("bg-card");
     } else if (cls === "dg-surface-modal") {

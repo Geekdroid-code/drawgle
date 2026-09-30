@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
+import { resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
 import type { DesignTokens, ReferenceAnalysis } from "@/lib/types";
 import { compileDesignRequirements, designRequirementsKey } from "./design-requirements";
 import { activeFacts, type ProductPlanning } from "./model";
@@ -42,7 +43,11 @@ export function projectDesignPrompt(state: ProductPlanning) {
 
 export function projectDesignPreparationKey(state: ProductPlanning, presetVersion: number | null) {
   const reference = productReferenceExecution(state);
+  // A curated reference with an approved preset is designed from the preset, so a preparation made before
+  // it was approved, or before it was rebuilt, must not be reused.
+  const curatedPreset = reference.mode === "curated_style" ? resolveCuratedStylePreset(reference.referenceId) : null;
   return createHash("sha256").update(JSON.stringify(canonical({
+    curatedPreset: curatedPreset ? createHash("sha256").update(JSON.stringify(canonical(curatedPreset))).digest("hex") : null,
     version, prompt: projectDesignPrompt(state), requirements: designRequirementsKey(state),
     experience: state.experience, reference: {
     mode: reference.mode, path: reference.imagePath,

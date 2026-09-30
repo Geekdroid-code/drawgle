@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { functionalItemSchema, validateFunctionalPlan, type FunctionalItem } from "./functional-plan";
-import { activeFacts, productPatchSchema, productSectionSchema, type ProductFact, type ProductPlanning } from "./model";
+import { MAX_SCOPE_NAVIGATION_DESTINATIONS, activeFacts, productPatchSchema, productSectionSchema,
+  type ProductFact, type ProductPlanning, type ScopeNavigation } from "./model";
 import { outputRendering } from "./output-policy";
 import { quotedByUser, userFactWording } from "./designer-patch";
 
@@ -25,12 +26,21 @@ const output = z.object({
   sequence: z.number().int().nonnegative().optional(),
 });
 
+const navigation = z.object({
+  persistent: z.boolean(),
+  destinations: z.array(z.object({ label: z.string().trim().min(1).max(40), outputRef: z.string().nullable() }))
+    .max(MAX_SCOPE_NAVIGATION_DESTINATIONS),
+  rationale: z.string().trim().max(600),
+});
+
 /** Model-owned meaning, server-owned identities and persistence. */
 export const designFlowCandidateSchema = z.object({
   facts: z.array(fact).max(40), removeFactIds: z.array(z.string()).max(40).default([]),
   outputs: z.array(output).max(40), removeOutputKeys: z.array(z.string()).max(40).default([]),
   scope: z.object({ goal: z.string().trim().min(1).max(2400), rationale: z.string().trim().min(1).max(2400),
     outputRefs: z.array(z.string()).max(40), surfaceRefs: z.array(z.string()).max(40).default([]) }),
+  // Absent when the response did not decide it; the plan then keeps no decision rather than an invented one.
+  navigation: navigation.optional(),
 });
 export type DesignFlowCandidate = z.infer<typeof designFlowCandidateSchema>;
 
@@ -50,6 +60,50 @@ const uniqueRef = (value: string, used: Set<string>, fallback: string) => {
   used.add(candidate);
   return candidate;
 };
+
+const GENERIC_DESTINATION_LABEL = /^(?:tab|item|menu|page|section|destination)(?:\s*\d+)?$/i;
+
+/**
+ * The response's navigation decision as a shape the plan can hold. A bar needs at
+ * least two distinct, named destinations; fewer is no bar. A response that does
+ * not decide it at all leaves the plan undecided (undefined), never invented.
+ */
+function normalizeCandidateNavigation(value: unknown, outputRef: (value: string) => string): DesignFlowCandidate["navigation"] {
+  const raw = record(value);
+  if (typeof raw.persistent !== "boolean") return undefined;
+  const seen = new Set<string>();
+  const destinations = list(raw.destinations).flatMap(entry => {
+    const item = record(entry);
+    const label = clip(item.label, 40);
+    if (!label || GENERIC_DESTINATION_LABEL.test(label) || seen.has(nameKey(label))) return [];
+    seen.add(nameKey(label));
+    const target = clip(item.outputRef, 200);
+    return [{ label, outputRef: target ? outputRef(target) : null }];
+  }).slice(0, MAX_SCOPE_NAVIGATION_DESTINATIONS);
+  const persistent = raw.persistent && destinations.length >= 2;
+  return { persistent, destinations: persistent ? destinations : [],
+    rationale: clip(raw.rationale, 600) || (persistent
+      ? "People move between these areas of the product."
+      : "The product is not organised as peer areas, so no persistent navigation is drawn.") };
+}
+
+/**
+ * Resolve the navigation's screen refs to roadmap keys. A destination keeps a key
+ * only when that screen is part of this flow (selected now or already built) and
+ * no earlier destination has it; every other destination is planned, without a screen.
+ */
+function scopeNavigation(navigation: DesignFlowCandidate["navigation"], resolve: (ref: string) => string | null,
+  inFlow: Set<string>): ScopeNavigation | undefined {
+  if (!navigation) return undefined;
+  const claimed = new Set<string>();
+  return { persistent: navigation.persistent, rationale: navigation.rationale,
+    destinations: navigation.destinations.map(destination => {
+      const key = destination.outputRef ? resolve(destination.outputRef) : null;
+      const screenKey = key && inFlow.has(key) && !claimed.has(key) ? key : null;
+      if (screenKey) claimed.add(screenKey);
+      return { label: destination.label, screenKey };
+    }) };
+}
 
 /**
  * Read a proposal response leniently. Refs, lengths, missing optional fields and
@@ -131,6 +185,7 @@ export function normalizeDesignFlowCandidate(value: unknown): DesignFlowCandidat
     removeOutputKeys: strings(raw.removeOutputKeys, 40),
     scope: { goal, rationale: clip(scope.rationale, 2400) || goal, outputRefs: selected,
       surfaceRefs: strings(scope.surfaceRefs, 40).map(factRef) },
+    navigation: normalizeCandidateNavigation(raw.navigation, outputRef),
   });
 }
 
@@ -430,9 +485,11 @@ export function candidateRoadmap(candidate: DesignFlowCandidate, state: ProductP
   ])].filter(id => selected.some(item => item.surfaceIds.includes(id)));
   const itemsToSave = roadmap.filter(row => row.status === "planned" &&
     JSON.stringify(row.item) !== JSON.stringify(currentByKey.get(row.item.stableKey)?.item)).map(row => row.item);
+  const navigation = scopeNavigation(candidate.navigation, resolveOutput, included);
   return { roadmap: roadmap.map(row => row.item), itemsToSave, removeKeys: [...removeKeys],
     scope: { outputPolicy: "manual_states_v1" as const, goal: candidate.scope.goal,
       rationale: candidate.scope.rationale, surfaceIds: scopeSurfaces, outputKeys: selectedKeys,
       manifest: selected.map(item => ({ ...item, rendering: outputRendering(item, false) })),
-      existingOutputs, boundaries, status: "draft" as const, approvedRevision: null, generationRunId: null } };
+      existingOutputs, boundaries, ...(navigation ? { navigation } : {}),
+      status: "draft" as const, approvedRevision: null, generationRunId: null } };
 }

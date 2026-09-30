@@ -1,3 +1,5 @@
+import { describeSurfaceClasses } from "@/lib/generation/design-classes";
+import { stripDesignValues, stripDesignValuesDeep } from "@/lib/generation/design-value-scrub";
 import {
   buildSemanticTransferPlan,
   classifyScreenCapabilities,
@@ -64,19 +66,25 @@ export function buildPortableReferenceContext(referenceAnalysis: ReferenceAnalys
     10,
   );
 
-  return [
+  const shape = describeSurfaceClasses(analysis);
+
+  // Values never travel in prose: tokens and the reference image carry them, and a number
+  // written here is copied downstream as an order. Stored analyses that predate the
+  // classification fields can still hold px, hex and opacity values, so they are removed.
+  return stripDesignValues([
     "PORTABLE REFERENCE INVARIANTS",
     "The source screenshot's coordinates, section order, object positions, role-specific components, and literal decorative anatomy are excluded. Its design intelligence is preserved below as visual invariants, craft recipes, and function-tested composition principles.",
     `Palette: ${signals.palette}`,
     `Typography: ${signals.typography}`,
     `Surfaces/materials: ${signals.surfaces}`,
+    shape.length ? `Shape and depth: ${shape.join("; ")}` : null,
     `Iconography: ${signals.iconography}`,
     `Density: ${signals.density}`,
     `Motion tone: ${signals.motionTone}`,
     craftCues.length ? `Portable craft recipes: ${craftCues.join("; ")}` : null,
     signals.antiPatterns ? `Avoid: ${signals.antiPatterns}` : null,
     formatSemanticCompositionLibrary(analysis),
-  ].filter(Boolean).join("\n");
+  ].filter(Boolean).join("\n"));
 }
 
 const portableCreativeField = (value: string, fallback: string) =>
@@ -88,6 +96,10 @@ export function toPortableCreativeDirection(
   creativeDirection?: CreativeDirection | null,
 ): CreativeDirection | null {
   if (!creativeDirection) return null;
+  return stripDesignValuesDeep(toPortableCreativeDirectionUnscrubbed(creativeDirection));
+}
+
+function toPortableCreativeDirectionUnscrubbed(creativeDirection: CreativeDirection): CreativeDirection {
   const portablePrinciples = creativeDirection.compositionPrinciples
     .filter((principle) => !SOURCE_ANATOMY_CUE_PATTERN.test(principle) && !STRUCTURAL_COPY_PATTERN.test(principle));
   const portableMoments = creativeDirection.signatureMoments
@@ -175,8 +187,8 @@ export function createReferenceTransferContract({
   if (mode === "style") {
     const accepted = semanticPlan.semanticDecisions.filter((decision) => decision.decision !== "reject");
     const rejected = semanticPlan.semanticDecisions.filter((decision) => decision.decision === "reject");
-    return {
-      layoutSource: "screen-purpose",
+    return stripDesignValuesDeep({
+      layoutSource: "screen-purpose" as const,
       preserve: unique([
         signals?.palette,
         signals?.typography,
@@ -195,7 +207,7 @@ export function createReferenceTransferContract({
       ], 10),
       rationale: "Style-reference mode transfers visual craft and suitable composition logic; the target screen's user job owns layout, geometry, and information architecture.",
       ...semanticPlan,
-    };
+    });
   }
 
   return {
@@ -300,7 +312,7 @@ export function normalizeReferenceTransferContract({
       ], 10)
     : fallback.premiumQualityTargets;
 
-  return {
+  const contract: ReferenceTransferContract = {
     layoutSource: expectedLayoutSource,
     preserve: approvedPreserve.length ? approvedPreserve : fallback.preserve,
     adapt: unique([
@@ -320,9 +332,22 @@ export function normalizeReferenceTransferContract({
     semanticDecisions,
     premiumQualityTargets,
   };
+
+  // Style mode transfers craft by intent, never by value: a number in a decision record is copied as an order.
+  return mode === "style" ? stripDesignValuesDeep(contract) : contract;
 }
 
-export function formatReferenceTransferContract(contract?: ReferenceTransferContract | null) {
+export function formatReferenceTransferContract(
+  contract?: ReferenceTransferContract | null,
+  { qualityDetails = true }: {
+    /**
+     * False when the builder has the reference's components as markup: the premium quality
+     * targets (the semantic primitives' craft details and the analysis's craft cues) then
+     * only restate what the markup and the tokens show.
+     */
+    qualityDetails?: boolean;
+  } = {},
+) {
   if (!contract) return "";
 
   return [
@@ -337,7 +362,7 @@ export function formatReferenceTransferContract(contract?: ReferenceTransferCont
     ].join("\n") : null,
     contract.adapt.length ? `- Approved adaptations: ${contract.adapt.join(" | ")}` : null,
     contract.reject.length ? `- Rejected transfer: ${contract.reject.join(" | ")}` : null,
-    contract.premiumQualityTargets.length ? `- Premium quality targets: ${contract.premiumQualityTargets.join(" | ")}` : null,
+    qualityDetails && contract.premiumQualityTargets.length ? `- Premium quality targets: ${contract.premiumQualityTargets.join(" | ")}` : null,
     `- Rationale: ${contract.rationale}`,
   ].filter(Boolean).join("\n");
 }
