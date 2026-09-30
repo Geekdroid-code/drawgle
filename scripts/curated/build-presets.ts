@@ -96,12 +96,18 @@ const writePresets = (raw: unknown) => writeFile(PRESETS_PATH, serializeCuratedP
 async function realDeps(): Promise<PresetBuildDeps> {
   if (values.model) process.env.DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL = values.model;
   if (values["build-model"]) process.env.DRAWGLE_GEMINI_FULL_BUILD_MODEL = values["build-model"];
-  const [{ analyzeReferenceImageForScope }, { buildScreenCode, generateDesignTokens }, { geminiModelForTask }] = await Promise.all([
+  const [{ analyzeReferenceImageForScope }, { buildScreenCode, generateDesignTokens }, { geminiModelForTask }, { getOpenRouterScreenBuildModel, getScreenBuilderProvider }] = await Promise.all([
     import("@/lib/generation/scope-contract"),
     import("@/lib/generation/service"),
     import("@/lib/ai/model-policy"),
+    import("@/lib/env/server"),
   ]);
-  console.log(`Models: ${geminiModelForTask("project_planning")} for the analysis and tokens, ${geminiModelForTask("screen_build")} for the specimen.`);
+  // The screen builder is routed by DRAWGLE_SCREEN_BUILDER_PROVIDER, so the specimens are built by the model that
+  // route names, whatever the Gemini policy would pick. Only the provider and the model's name are printed.
+  const builder = getScreenBuilderProvider() === "openrouter"
+    ? `${getOpenRouterScreenBuildModel()} through OpenRouter`
+    : geminiModelForTask("screen_build");
+  console.log(`Models: ${geminiModelForTask("project_planning")} for the analysis, the close-ups and the tokens, and ${builder} for the specimens.`);
 
   const askAboutCloseUp = await geminiFocusAsk();
 
