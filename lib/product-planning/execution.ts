@@ -1,4 +1,6 @@
 import type { FunctionalItem } from "./functional-plan";
+import type { ProductPlanning } from "./model";
+import { outputRendering } from "./output-policy";
 
 export type ProductFulfillment = { output_key: string; generation_run_id: string; status: "claimed" | "ready" | "failed" | "blocked"; screen_id: string | null };
 
@@ -21,6 +23,41 @@ export function sourceFramesSeen(runMetadata: ReadonlyArray<unknown>): number | 
  */
 export const mapsBeyondSourceFrames = (manifest: readonly FunctionalItem[], framesSeen: number | null) =>
   framesSeen !== null && manifest.some((item) => item.referenceScreenIndex != null && item.referenceScreenIndex > framesSeen);
+
+export type ImageToUiStep = {
+  /** Whether this batch copies frames from the image (Image to UI) or designs screens in its style. */
+  recreate: boolean;
+  /** The approved plan as this batch's run is given it. */
+  state: ProductPlanning;
+  /** The outputs this batch is chosen from. */
+  manifest: FunctionalItem[];
+};
+
+/**
+ * The next batch of an Image to UI flow once a batch has counted the source image's frames. The steps the image has
+ * are copied from it first; the steps it lacks are then designed in its style, from a plan that is valid in that
+ * mode: no frame indices, any state frame as a state of its screen, and without the approval's output policy, which
+ * would check the plan again as a new style plan. Before the frames are counted, or when the image has every frame,
+ * the flow is copied as approved.
+ *
+ * The first attempt at this switched the whole remaining flow to style with the frame indices still on it, and the
+ * run's own check refused it on the first copied screen ("Library: source frame indices apply only to exact
+ * recreation"): a three-frame image with four approved outputs still stopped after one screen.
+ */
+export function imageToUiStep(state: ProductPlanning, framesSeen: number | null, claims: readonly ProductFulfillment[]): ImageToUiStep {
+  const manifest = state.scope?.manifest ?? [];
+  if (!state.scope || framesSeen === null || !mapsBeyondSourceFrames(manifest, framesSeen)) return { recreate: true, state, manifest };
+  const claimed = new Set(claims.map((claim) => claim.output_key));
+  const framed = manifest.filter((item) => item.referenceScreenIndex != null && item.referenceScreenIndex <= framesSeen);
+  if (framed.some((item) => !claimed.has(item.stableKey))) return { recreate: true, state, manifest: framed };
+  const styled = manifest.map((item) => {
+    const unframed = { ...item, referenceScreenIndex: null };
+    return { ...unframed, rendering: outputRendering(unframed, false) };
+  });
+  const scope = { ...state.scope, manifest: styled };
+  delete scope.outputPolicy;
+  return { recreate: false, state: { ...state, input: { ...state.input, imageReferenceMode: "style" }, scope }, manifest: styled };
+}
 
 // The complete manifest has no batch-size target. This selects only the next
 // bounded execution chunk, prioritizing states whose parent is already ready.

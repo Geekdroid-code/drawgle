@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { adminCreditService } from "@/lib/credits";
 import { insertProjectMessage } from "@/lib/supabase/queries";
 import { readProductPlanning } from "@/lib/product-planning/model";
-import { mapsBeyondSourceFrames, nextProductBatch, productExecutionProgress, sourceFramesSeen, type ProductFulfillment } from "@/lib/product-planning/execution";
+import { imageToUiStep, nextProductBatch, productExecutionProgress, sourceFramesSeen, type ImageToUiStep, type ProductFulfillment } from "@/lib/product-planning/execution";
 import { saveExecutionProgress } from "@/lib/product-planning/execution-progress";
 import { reusableProductOutputs } from "@/lib/product-planning/retry-outputs";
 import { functionalBrief, functionalStateVariant, functionalRoadmapItem } from "@/lib/product-planning/functional-plan";
@@ -59,19 +59,16 @@ export const generateProductFlowTask = task({
       const claims = (data ?? []) as ProductFulfillment[];
       if (!await saveExecutionProgress(admin, rootId, payload.ownerId, attempt, null,
         productExecutionProgress(manifest, claims))) return { superseded: true };
-      // An Image to UI flow whose image has fewer frames than its approved steps cannot be copied frame by frame:
-      // once a batch has counted the frames, the remaining screens are designed in the image's style instead.
-      let recreate = recreateRequested;
-      let executionState = state;
+      // An Image to UI flow whose image has fewer frames than its approved steps: once a batch has counted the frames,
+      // the steps the image has are copied first, and the ones it lacks are then designed in its style.
+      let step: ImageToUiStep = { recreate: recreateRequested, state, manifest };
       const batchRunIds = [...new Set(claims.map((claim) => claim.generation_run_id).filter(Boolean))];
       if (recreateRequested && batchRunIds.length > 0) {
         const { data: batchRuns, error: batchRunsError } = await admin.from("generation_runs").select("metadata").in("id", batchRunIds);
         if (batchRunsError) throw batchRunsError;
-        if (mapsBeyondSourceFrames(manifest, sourceFramesSeen((batchRuns ?? []).map((run) => run.metadata)))) {
-          recreate = false;
-          executionState = { ...state, input: { ...state.input, imageReferenceMode: "style" } };
-        }
+        step = imageToUiStep(state, sourceFramesSeen((batchRuns ?? []).map((run) => run.metadata)), claims);
       }
+      const { recreate, state: executionState, manifest: batchManifest } = step;
       if (claims.length === manifest.length && claims.every(c => c.status === "ready")) {
         await update("completed", `Completed the approved flow: all ${manifest.length} screens and states are on this canvas.`);
         return { completed: true };
@@ -83,7 +80,7 @@ export const generateProductFlowTask = task({
       const { data: navigation, error: navigationError } = await admin.from("project_navigation").select("plan")
         .eq("project_id", payload.projectId).maybeSingle();
       if (navigationError) throw navigationError;
-      const fullBatch = nextProductBatch(manifest, claims, 8, existingOutputs.map(output => output.item.stableKey), recreate);
+      const fullBatch = nextProductBatch(batchManifest, claims, 8, existingOutputs.map(output => output.item.stableKey), recreate);
       const warm = claims.length === 0 && fullBatch.length > 1 && !recreate
         && progressiveGenerationEnabled()
         ? await readScopePreparation(admin, payload.projectId, payload.ownerId,
@@ -95,7 +92,7 @@ export const generateProductFlowTask = task({
       // Prepared briefs accelerate the first screen; they never make its build
       // wait behind the rest of the approved batch.
       const batch = claims.length === 0 && fullBatch.length > 1 && progressiveGenerationEnabled()
-        ? nextProductBatch(manifest, claims, 1, existingOutputs.map(output => output.item.stableKey), recreate)
+        ? nextProductBatch(batchManifest, claims, 1, existingOutputs.map(output => output.item.stableKey), recreate)
         : fullBatch;
       if (!batch.length) {
         await update("failed", "Some approved screens could not be built. Completed screens are kept; resume to retry the failed ones and finish the flow.");
@@ -123,7 +120,7 @@ export const generateProductFlowTask = task({
       const child: GenerateUiFlowPayload = {
         ...payload, referenceScope: state.phase === "canvas" ? "screen" : "project", imageReferenceMode: recreate ? "recreate" : "style", imagePath: reference.imagePath, generationRunId: batchId, productPlanning: executionState, productExecutionKeys: executionKeys,
         ...(warm ? { productScopePreparationKeys: fullBatch.map(item => item.stableKey) } : {}),
-        productLookaheadKeys: nextProductBatch(manifest, [
+        productLookaheadKeys: nextProductBatch(batchManifest, [
           ...claims.filter(claim => !executionKeys.includes(claim.output_key)),
           ...batch.map(item => ({ output_key: item.stableKey, generation_run_id: batchId, status: "ready" as const, screen_id: null })),
         ], 8, existingOutputs.map(output => output.item.stableKey), recreate).filter(item => item.kind === "screen" || recreate).map(item => item.stableKey),
