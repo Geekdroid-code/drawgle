@@ -3,6 +3,8 @@ import { ReferenceAttachment } from "@/components/product-planning/ReferenceAtta
 import { Loader2, Palette, Pencil, Send, Trash, X } from "lucide-react";
 
 import { AgentThinkingIndicator } from "@/components/AgentBall";
+import { AgentMark, LiveText } from "@/components/agent/marks";
+import { Orbit } from "loading-dev";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -28,6 +30,14 @@ export type AgentComposerProps = {
   onClearSelectedElement?: () => void;
   onDeleteSelectedElement?: () => void | Promise<void>;
   variant?: "floating" | "panel";
+  /**
+   * While an approved flow builds: with nothing typed, the send button becomes Stop (the screens in progress still
+   * finish). Typing turns it back into Send.
+   */
+  onStop?: () => void;
+  stopping?: boolean;
+  /** The agent's new marks (Orbit) instead of the previous indicator. */
+  modern?: boolean;
 };
 
 export function AgentComposer({
@@ -50,6 +60,9 @@ export function AgentComposer({
   onClearSelectedElement,
   onDeleteSelectedElement,
   variant = "floating",
+  onStop,
+  stopping = false,
+  modern = false,
 }: AgentComposerProps) {
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState<PromptImagePayload | null>(null);
@@ -231,26 +244,54 @@ export function AgentComposer({
 
       {variant === "panel" && isGenerating ? (
         <div className="pointer-events-none absolute bottom-4 left-4 max-w-[calc(100%-5rem)]">
-          <AgentThinkingIndicator label={agentStatus || submitStatusText} className="text-slate-600" />
+          {modern ? (
+            <span className="flex items-center gap-2 text-[12.5px] font-medium" role="status">
+              <AgentMark state="working" />
+              <LiveText>{(agentStatus || submitStatusText).replace(/\.\.\.$/, "…")}</LiveText>
+            </span>
+          ) : (
+            <AgentThinkingIndicator label={agentStatus || submitStatusText} className="text-slate-600" />
+          )}
         </div>
       ) : null}
 
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              size="icon"
-              className="absolute bottom-3 right-3 h-10 w-10 rounded-full dg-button-primary text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:dg-button-primary"
-              onClick={() => void handleGenerate()}
-              disabled={disabled || isGenerating || (!prompt.trim() && !image)}
-              aria-label="Send"
-            >
-              {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </Button>
-          }
-        />
-        <TooltipContent>Send</TooltipContent>
-      </Tooltip>
+      {onStop && !isGenerating && !prompt.trim() && !image ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon"
+                className="absolute bottom-3 right-3 h-10 w-10 rounded-full dg-button-primary text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:dg-button-primary"
+                onClick={onStop}
+                disabled={stopping}
+                aria-label="Stop after the screens in progress"
+              >
+                <span aria-hidden="true" className={`h-3 w-3 rounded-[3px] bg-current ${stopping ? "opacity-50" : ""}`} />
+              </Button>
+            }
+          />
+          <TooltipContent>{stopping ? "Stopping…" : "Stop after the screens in progress"}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon"
+                className="absolute bottom-3 right-3 h-10 w-10 rounded-full dg-button-primary text-white shadow-[0_12px_28px_rgba(15,23,42,0.28)] hover:dg-button-primary"
+                onClick={() => void handleGenerate()}
+                disabled={disabled || isGenerating || (!prompt.trim() && !image)}
+                aria-label="Send"
+              >
+                {isGenerating
+                  ? modern ? <Orbit size={16} color="currentColor" /> : <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Send className="w-4 h-4" />}
+              </Button>
+            }
+          />
+          <TooltipContent>Send</TooltipContent>
+        </Tooltip>
+      )}
     </div>
   );
 }

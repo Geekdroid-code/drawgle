@@ -27,14 +27,20 @@ import {
   SCREEN_FRAME_HEIGHT,
   SCREEN_FRAME_WIDTH,
   SCREEN_VISUAL_INSETS,
+  effectiveCanvasFrameMode,
+  screenFrameHeight,
+  type CanvasFrameMode,
   type CanvasNavigationMessage,
   type CanvasTool,
   type CanvasViewportInsets,
 } from "@/lib/canvas-interactions";
+import { useCanvasFrameMode } from "@/hooks/use-canvas-frame-mode";
 import { createClient } from "@/lib/supabase/client";
 import { updateScreenPosition } from "@/lib/supabase/queries";
 import type { DesignTokens, GenerationPreviewMetadata, ProjectNavigationData, ScreenData } from "@/lib/types";
 import { CanvasToolDock } from "./CanvasToolDock";
+import { PlaceholderPhone } from "./canvas/PlaceholderPhone";
+import type { FlowPlaceholder } from "@/lib/canvas/flow-placeholders";
 import {
   ScreenNode,
   type ElementSelectionLostReason,
@@ -107,6 +113,7 @@ type ScreenCanvasNodeData = {
   selectedElementPreview?: SelectedElementPreviewPayload | null;
   readOnly?: boolean;
   height?: number;
+  frameMode: CanvasFrameMode;
   onContentHeightChange?: (screenId: string, height: number) => void;
   onScreenSourceNeeded?: (screenId: string) => void;
   onElementSelected?: (info: SelectedElementInfo) => void;
@@ -133,48 +140,23 @@ type ScreenCanvasNodeData = {
 type ScreenCanvasNode = Node<ScreenCanvasNodeData, "screen">;
 
 type PlannedCanvasNodeData = {
-  screen: GenerationPreviewMetadata["screens"][number];
-  stage: GenerationPreviewMetadata["stage"];
+  name: string;
+  designing: boolean;
+  detail: string | null;
 };
 
+/** A screen that isn't on the canvas yet: a batch's planned screen, or any screen of an approved flow still to come. */
 type PlannedCanvasNode = Node<PlannedCanvasNodeData, "planned">;
 type CanvasNode = ScreenCanvasNode | PlannedCanvasNode;
 
 const plannedStageCopy: Record<GenerationPreviewMetadata["stage"], string> = {
-  screen_briefs: "Writing screen brief",
-  asset_resolution: "Preparing project assets",
-  building: "Waiting for screen builder",
+  screen_briefs: "Writing the brief",
+  asset_resolution: "Finding images",
+  building: "Waiting to build",
 };
 
 const PlannedCanvasNodeView = memo(({ data }: NodeProps<PlannedCanvasNode>) => (
-  <div
-    className="pointer-events-none select-none"
-    style={{
-      width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
-      height: SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
-      paddingTop: NODE_TOP_PADDING,
-      paddingRight: SCREEN_VISUAL_INSETS.right,
-      paddingBottom: SCREEN_VISUAL_INSETS.bottom,
-      paddingLeft: SCREEN_VISUAL_INSETS.left,
-    }}
-  >
-    <div className="mb-2 flex items-center justify-between px-1 text-[11px] font-semibold text-slate-500">
-      <span>{data.screen.name}</span>
-      <span className="font-medium text-slate-400">Planned</span>
-    </div>
-    <div className="flex h-[744px] w-[343px] flex-col overflow-hidden rounded-[32px] border border-dashed border-slate-300 bg-white/75 p-5 shadow-[0_18px_50px_rgba(15,23,42,0.08)] backdrop-blur-sm">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-indigo-500">{plannedStageCopy[data.stage]}</div>
-      <div className="mt-3 text-xl font-semibold tracking-tight text-slate-800">{data.screen.name}</div>
-      <div className="mt-1 text-xs capitalize text-slate-400">{data.screen.type} screen</div>
-      <div className="mt-8 h-36 animate-pulse rounded-[22px] bg-slate-100" />
-      <div className="mt-5 h-3 w-3/4 animate-pulse rounded-full bg-slate-100" />
-      <div className="mt-3 h-3 w-1/2 animate-pulse rounded-full bg-slate-100" />
-      <div className="mt-8 grid grid-cols-2 gap-3">
-        <div className="h-28 animate-pulse rounded-[18px] bg-slate-100" />
-        <div className="h-28 animate-pulse rounded-[18px] bg-slate-100" />
-      </div>
-    </div>
-  </div>
+  <PlaceholderPhone name={data.name} designing={data.designing} detail={data.detail} />
 ));
 PlannedCanvasNodeView.displayName = "PlannedCanvasNodeView";
 
@@ -211,6 +193,7 @@ const ScreenCanvasNodeView = memo(({ data, dragging }: NodeProps<ScreenCanvasNod
         selectedDrawgleId={data.selectedDrawgleId}
         selectedElementPreview={data.selectedElementPreview ?? null}
         readOnly={data.readOnly}
+        frameMode={data.frameMode}
         onElementSelected={data.onElementSelected}
         onElementSelectionLost={data.onElementSelectionLost}
         onCanvasNavigation={data.onCanvasNavigation}
@@ -251,6 +234,8 @@ export type CanvasViewportController = {
 type CanvasStageProps = {
   screens: ScreenData[];
   generationPreview?: GenerationPreviewMetadata | null;
+  /** While an approved flow builds: a phone for each of its screens still to come, in its slot. */
+  flowPlaceholders?: FlowPlaceholder[];
   projectNavigation?: ProjectNavigationData | null;
   designTokens?: DesignTokens | null;
   selectedScreen?: ScreenData | null;
@@ -295,6 +280,7 @@ export function CanvasStage(props: CanvasStageProps) {
 function CanvasStageContent({
   screens,
   generationPreview,
+  flowPlaceholders,
   projectNavigation,
   designTokens,
   selectedScreen,
@@ -385,6 +371,15 @@ function CanvasStageContent({
     },
     [onToolChange, readOnly],
   );
+  const [preferredFrameMode, setPreferredFrameMode] = useCanvasFrameMode();
+  const frameMode = effectiveCanvasFrameMode(preferredFrameMode, activeTool);
+  const changeFrameMode = useCallback(
+    (mode: CanvasFrameMode) => {
+      setPreferredFrameMode(mode);
+      if (mode === "phone" && activeTool === "element-select") changeTool("pointer");
+    },
+    [activeTool, changeTool, setPreferredFrameMode],
+  );
 
   useEffect(() => {
     callbackRefs.current = {
@@ -442,6 +437,14 @@ function CanvasStageContent({
     [visibleWorkspace, zoomAt],
   );
 
+  // Fit inside the part of the canvas the person can see: clear of the chat panel and the tool dock.
+  const insetPadding = useCallback((extra: number) => ({
+    top: `${Math.round(workspaceInsets.top + extra)}px`,
+    right: `${Math.round(workspaceInsets.right + extra)}px`,
+    bottom: `${Math.round(workspaceInsets.bottom + extra)}px`,
+    left: `${Math.round(workspaceInsets.left + extra)}px`,
+  } as const), [workspaceInsets]);
+
   const fitAll = useCallback(() => {
     const instance = flowRef.current;
     if (!instance?.viewportInitialized || !nodesInitialized || instance.getNodes().length === 0) {
@@ -450,13 +453,13 @@ function CanvasStageContent({
     return reportCommand("fit all", () =>
       instance.fitView({
         nodes: instance.getNodes(),
-        padding: 0.12,
+        padding: insetPadding(24),
         minZoom: 0.1,
         maxZoom: 4,
         duration: CAMERA_ANIMATION_MS,
       }),
     );
-  }, [nodesInitialized, reportCommand]);
+  }, [insetPadding, nodesInitialized, reportCommand]);
 
   const focusScreen = useCallback(
     (screen: ScreenData | null) => {
@@ -469,14 +472,14 @@ function CanvasStageContent({
       return reportCommand("focus screen", () =>
         instance.fitView({
           nodes: [node],
-          padding: 0.16,
+          padding: insetPadding(48),
           minZoom: 0.1,
           maxZoom: 4,
           duration: CAMERA_ANIMATION_MS,
         }),
       );
     },
-    [nodesInitialized, reportCommand],
+    [insetPadding, nodesInitialized, reportCommand],
   );
 
   const panBy = useCallback(
@@ -585,7 +588,7 @@ function CanvasStageContent({
         const previousPersistedPosition = persistedPositionsRef.current.get(screen.id);
         nextPersistedPositions.set(screen.id, persistedPosition);
 
-        const screenHeight = screenHeights[screen.id] ?? SCREEN_FRAME_HEIGHT;
+        const screenHeight = screenFrameHeight(frameMode, screenHeights[screen.id]);
         const nodeHeight = screenHeight + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom;
 
         const nextData: ScreenCanvasNodeData = {
@@ -601,6 +604,7 @@ function CanvasStageContent({
             selectedElementScreenId === screen.id ? selectedElementPreview ?? null : null,
           readOnly,
           height: screenHeight,
+          frameMode,
           onContentHeightChange: handleContentHeightChange,
           onElementSelected: readOnly ? undefined : handleElementSelected,
           onElementSelectionLost: readOnly ? undefined : handleElementSelectionLost,
@@ -651,30 +655,58 @@ function CanvasStageContent({
         };
       });
       persistedPositionsRef.current = nextPersistedPositions;
-      const previewBaseX = screens.length > 0
-        ? Math.max(...screens.map((screen) => screen.x)) + 450
-        : 4800;
-      const previewBaseY = screens[0]?.y ?? 4600;
-      const previewNodes: PlannedCanvasNode[] = (generationPreview?.screens ?? []).map((screen, index) => ({
-        id: `generation-preview:${screen.stableKey}`,
-        type: "planned",
-        position: {
-          x: previewBaseX + index * 450 - SCREEN_VISUAL_INSETS.left,
-          y: previewBaseY - SCREEN_VISUAL_INSETS.top,
-        },
-        draggable: false,
-        selectable: false,
-        data: { screen, stage: generationPreview?.stage ?? "screen_briefs" },
-        style: {
-          width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
-          height: SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
-        },
-      }));
+      const plannedStyle = {
+        width: SCREEN_FRAME_WIDTH + SCREEN_VISUAL_INSETS.left + SCREEN_VISUAL_INSETS.right,
+        height: SCREEN_FRAME_HEIGHT + SCREEN_VISUAL_INSETS.top + SCREEN_VISUAL_INSETS.bottom,
+      };
+      // A planned node keeps what React Flow measured on it (like a screen node does), and carries its fixed size, so
+      // it is visible and counted as ready from its first frame; otherwise fit and focus wait on it forever.
+      const plannedSize = { width: plannedStyle.width, height: plannedStyle.height };
+      const keptPlanned = (id: string) => {
+        const previous = currentById.get(id);
+        return previous?.type === "planned" ? previous : {};
+      };
+      // While an approved flow builds, every screen still to come has its phone in its slot (the current batch's
+      // planned screens among them); otherwise a batch's own planned screens are shown.
+      const previewNodes: PlannedCanvasNode[] = flowPlaceholders?.length
+        ? flowPlaceholders.map((placeholder) => ({
+          ...keptPlanned(`flow-placeholder:${placeholder.key}`),
+          id: `flow-placeholder:${placeholder.key}`,
+          type: "planned",
+          position: { x: placeholder.x - SCREEN_VISUAL_INSETS.left, y: placeholder.y - SCREEN_VISUAL_INSETS.top },
+          draggable: false,
+          selectable: false,
+          data: { name: placeholder.name, designing: placeholder.status === "designing", detail: placeholder.detail },
+          style: plannedStyle,
+          ...plannedSize,
+        }))
+        : (() => {
+          const previewBaseX = screens.length > 0
+            ? Math.max(...screens.map((screen) => screen.x)) + 450
+            : 4800;
+          const previewBaseY = screens[0]?.y ?? 4600;
+          return (generationPreview?.screens ?? []).map((screen, index) => ({
+            ...keptPlanned(`generation-preview:${screen.stableKey}`),
+            id: `generation-preview:${screen.stableKey}`,
+            type: "planned" as const,
+            position: {
+              x: previewBaseX + index * 450 - SCREEN_VISUAL_INSETS.left,
+              y: previewBaseY - SCREEN_VISUAL_INSETS.top,
+            },
+            draggable: false,
+            selectable: false,
+            data: { name: screen.name, designing: true, detail: plannedStageCopy[generationPreview?.stage ?? "screen_briefs"] },
+            style: plannedStyle,
+            ...plannedSize,
+          }));
+        })();
       return [...nextNodes, ...previewNodes];
     });
   }, [
     designTokens,
     disabled,
+    flowPlaceholders,
+    frameMode,
     generationPreview,
     handleCanvasNavigation,
     handleContentHeightChange,
@@ -740,6 +772,23 @@ function CanvasStageContent({
       if (succeeded) initialFitCompletedRef.current = true;
     });
   }, [controller, flowInstance, nodes.length, nodesInitialized, viewportSize]);
+
+  // When an approved flow's phones first appear, show the whole flow once, unless the person just moved the camera.
+  const controllerRef = useRef(controller);
+  const lastUserCameraMoveRef = useRef(0);
+  const placeholderCountRef = useRef(0);
+  useEffect(() => {
+    controllerRef.current = controller;
+  }, [controller]);
+  const placeholderCount = flowPlaceholders?.length ?? 0;
+  useEffect(() => {
+    const previous = placeholderCountRef.current;
+    placeholderCountRef.current = placeholderCount;
+    if (previous > 0 || placeholderCount === 0) return;
+    if (Date.now() - lastUserCameraMoveRef.current < 5000) return;
+    const timer = window.setTimeout(() => void controllerRef.current.fitAll(), 160);
+    return () => window.clearTimeout(timer);
+  }, [placeholderCount]);
 
   useEffect(() => {
     const currentIds = new Set(screens.map((screen) => screen.id));
@@ -868,7 +917,10 @@ function CanvasStageContent({
           if (activeTool !== "pan" && !isTemporaryPan) onCanvasClick?.();
         }}
         onMove={(_, viewport) => setViewportState(viewport)}
-        onMoveStart={() => setIsPanning(true)}
+        onMoveStart={(event) => {
+          setIsPanning(true);
+          if (event) lastUserCameraMoveRef.current = Date.now();
+        }}
         onMoveEnd={() => setIsPanning(false)}
         minZoom={0.1}
         maxZoom={4}
@@ -902,6 +954,8 @@ function CanvasStageContent({
         disabled={disabled}
         readOnly={readOnly}
         workspaceCenterX={dockCenterX}
+        frameMode={frameMode}
+        onFrameModeChange={changeFrameMode}
         onToolChange={changeTool}
         onZoomOut={() => void controller.zoomOut()}
         onResetZoom={() => void controller.resetZoom()}

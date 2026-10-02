@@ -1142,6 +1142,9 @@ export interface ProjectData {
   publicPreviewToken?: string | null;
   publicPreviewEnabled?: boolean;
   publicPreviewCreatedAt?: string | null;
+  /** Where the next generated screen will land on the canvas (reserve_screen_slots), read-only. */
+  nextScreenX?: number;
+  screenOriginY?: number;
   createdAt: string;
   updatedAt: string;
 }

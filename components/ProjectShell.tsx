@@ -55,6 +55,9 @@ import {
   type DrawgleTokenReferenceLike,
 } from "@/lib/element-style-inspection";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
+import { useProductFulfillments } from "@/hooks/use-product-fulfillments";
+import { isProductApprovalRun, readApprovalFromRun } from "@/lib/agent/flow-build";
+import { flowPlaceholders } from "@/lib/canvas/flow-placeholders";
 import { useProject } from "@/hooks/use-project";
 import { useProjectNavigation } from "@/hooks/use-project-navigation";
 import { useScreens } from "@/hooks/use-screens";
@@ -1638,6 +1641,38 @@ export function ProjectShell({
     generationRun?.id ?? null,
   ), [generationRun?.id, generationRun?.metadata, screens]);
 
+  // The latest approved flow: its per-screen claims feed the chat's build block and the canvas's phones to come.
+  const latestApprovalRun = useMemo(
+    () => generationRuns.filter((run) => isProductApprovalRun(run))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null,
+    [generationRuns],
+  );
+  const latestApproval = useMemo(() => latestApprovalRun ? readApprovalFromRun(latestApprovalRun) : null, [latestApprovalRun]);
+  const approvalBuilding = Boolean(latestApprovalRun && ["queued", "planning", "building", "canceled"].includes(latestApprovalRun.status));
+  const approvalRefreshKey = useMemo(() => {
+    if (!latestApprovalRun) return "";
+    const batches = generationRuns.filter((run) => run.metadata?.productApprovalId === latestApprovalRun.id);
+    const batchIds = new Set(batches.map((run) => run.id));
+    return [
+      latestApprovalRun.status, latestApprovalRun.updatedAt,
+      batches.map((run) => `${run.id}:${run.status}`).join(","),
+      screens.filter((screen) => batchIds.has(screen.generationRunId ?? "")).map((screen) => `${screen.id}:${screen.status}`).join(","),
+    ].join("|");
+  }, [generationRuns, latestApprovalRun, screens]);
+  const approvalFulfillments = useProductFulfillments(
+    latestApprovalRun && latestApprovalRun.status !== "completed" ? latestApprovalRun.id : null,
+    approvalRefreshKey,
+    approvalBuilding,
+  );
+  const flowPlaceholderPhones = useMemo(() => flowPlaceholders({
+    approval: latestApproval,
+    run: latestApprovalRun,
+    fulfillments: approvalFulfillments,
+    screens,
+    preview: generationPreview,
+    nextSlot: { x: project?.nextScreenX, y: project?.screenOriginY },
+  }), [approvalFulfillments, generationPreview, latestApproval, latestApprovalRun, project?.nextScreenX, project?.screenOriginY, screens]);
+
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pointer");
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
@@ -2743,6 +2778,7 @@ export function ProjectShell({
             projectNavigation={projectNavigation}
             designTokens={effectiveDesignTokens}
             generationPreview={generationPreview}
+            flowPlaceholders={flowPlaceholderPhones}
             selectedScreen={selectedScreen}
             mobileBottomReserve={mobilePromptReserve}
             tool={canvasTool}
@@ -2872,6 +2908,7 @@ export function ProjectShell({
             selectedScreen={selectedScreen}
             generationRun={generationRun}
             generationRuns={generationRuns}
+            flowFulfillments={latestApprovalRun ? { approvalId: latestApprovalRun.id, fulfillments: approvalFulfillments } : null}
             projectNavigation={projectNavigation}
             tokenDraft={tokenDraft}
             tokenDirty={tokenDirty}

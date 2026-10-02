@@ -51,6 +51,8 @@ export function mapProjectRow(row: ProjectRow): ProjectData {
     publicPreviewToken: row.public_preview_token,
     publicPreviewEnabled: row.public_preview_enabled,
     publicPreviewCreatedAt: row.public_preview_created_at,
+    nextScreenX: row.next_screen_x,
+    screenOriginY: row.screen_origin_y,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -170,6 +172,7 @@ export const PROJECT_COLUMNS: FieldColumns<ProjectData, ProjectRow> = {
   userId: "owner_id", name: "name", prompt: "prompt", status: "status", charter: "project_charter",
   designTokens: "design_tokens", publicPreviewToken: "public_preview_token",
   publicPreviewEnabled: "public_preview_enabled", publicPreviewCreatedAt: "public_preview_created_at",
+  nextScreenX: "next_screen_x", screenOriginY: "screen_origin_y",
   createdAt: "created_at", updatedAt: "updated_at",
 };
 
