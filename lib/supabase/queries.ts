@@ -211,7 +211,6 @@ export async function updateProjectFields(
     prompt?: string;
     status?: ProjectStatus;
     charter?: ProjectCharter | null;
-    designTokens?: DesignTokens | null;
   },
 ) {
   const update: Database["public"]["Tables"]["projects"]["Update"] = {};
@@ -227,9 +226,6 @@ export async function updateProjectFields(
   }
   if (patch.charter !== undefined) {
     update.project_charter = patch.charter as never;
-  }
-  if (patch.designTokens !== undefined) {
-    update.design_tokens = patch.designTokens as never;
   }
 
   const { error } = await client.from("projects").update(update).eq("id", projectId);

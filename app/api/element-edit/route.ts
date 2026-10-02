@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { tasks } from "@trigger.dev/sdk";
 
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleElementTargetType } from "@/lib/drawgle-dom";
-import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
+import { persistDesignChange, readDesignRequestReplay, readDesignTarget } from "@/lib/design-history/persistence";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { tokenizeStaticDrawgleHtml } from "@/lib/token-runtime";
@@ -68,6 +69,7 @@ export async function POST(req: Request) {
     const operations = Array.isArray(body.operations) ? body.operations.filter(isOperation) : [];
     const expectedRevision = Number.isSafeInteger(body.expectedRevision) ? body.expectedRevision as number : null;
     const requestId = typeof body.requestId === "string" ? body.requestId : "";
+    const origin = `element-edit:${createHash("sha256").update(JSON.stringify({ drawgleId, operations })).digest("hex")}`;
 
     if (!projectId || !drawgleId || operations.length === 0 || expectedRevision === null || !requestId) {
       return NextResponse.json(
@@ -104,7 +106,11 @@ export async function POST(req: Request) {
       if (!saved.ready) {
         return NextResponse.json({ error: "Shared navigation not found." }, { status: 404 });
       }
-      if (saved.revision !== expectedRevision) return NextResponse.json({ error: "Navigation changed. Refresh before saving your edit." }, { status: 409 });
+      if (saved.revision !== expectedRevision) {
+        const replay = await readDesignRequestReplay(admin, target, { expectedRevision, requestId, origin });
+        if (replay?.status === "success") return NextResponse.json({ ok: true, targetType, revision: replay.revision, changed: true, replayed: true });
+        return NextResponse.json({ error: "Navigation changed. Refresh before saving your edit." }, { status: 409 });
+      }
 
       const currentCode = ensureDrawgleIds((saved.payload as { shellCode: string }).shellCode, "dg-nav").code;
       const editedCode = applyDeterministicEdits({
@@ -118,10 +124,10 @@ export async function POST(req: Request) {
       const result = await persistDesignChange(admin, target, { expectedRevision, requestId,
         payload: { ...saved.payload as object, shellCode: nextCode },
         label: operations[0]?.type === "deleteElement" ? "Deleted navigation element" : "Edited shared navigation",
-        origin: "element-edit" });
+        origin });
       if (result.status !== "success") return NextResponse.json({ error: "Navigation changed. Refresh before retrying.", status: result.status }, { status: 409 });
 
-      return NextResponse.json({ ok: true, targetType, changed: nextCode !== currentCode });
+      return NextResponse.json({ ok: true, targetType, revision: result.revision ?? saved.revision, changed: !result.unchanged });
     }
 
     if (!screenId) {
@@ -133,7 +139,11 @@ export async function POST(req: Request) {
     if (!saved.ready) {
       return NextResponse.json({ error: "Screen not found." }, { status: 404 });
     }
-    if (saved.revision !== expectedRevision) return NextResponse.json({ error: "Screen changed. Refresh before saving your edit." }, { status: 409 });
+    if (saved.revision !== expectedRevision) {
+      const replay = await readDesignRequestReplay(admin, target, { expectedRevision, requestId, origin });
+      if (replay?.status === "success") return NextResponse.json({ ok: true, targetType, revision: replay.revision, changed: true, replayed: true });
+      return NextResponse.json({ error: "Screen changed. Refresh before saving your edit." }, { status: 409 });
+    }
 
     const currentCode = ensureDrawgleIds((saved.payload as { code: string }).code).code;
     const editedCode = applyDeterministicEdits({
@@ -145,7 +155,7 @@ export async function POST(req: Request) {
 
     const result = await persistDesignChange(admin, target, { expectedRevision, requestId,
       payload: { code: nextCode }, label: operations[0]?.type === "deleteElement" ? "Deleted element" :
-        operations[0]?.type === "duplicateElement" ? "Duplicated element" : "Edited element", origin: "element-edit" });
+        operations[0]?.type === "duplicateElement" ? "Duplicated element" : "Edited element", origin });
     if (result.status !== "success") return NextResponse.json({ error: "Screen changed. Refresh before retrying.", status: result.status }, { status: 409 });
 
     if (nextCode !== currentCode) {
@@ -156,7 +166,7 @@ export async function POST(req: Request) {
       ).catch(error => console.error("Could not queue screen memory enrichment", error));
     }
 
-    return NextResponse.json({ ok: true, targetType, changed: nextCode !== currentCode });
+    return NextResponse.json({ ok: true, targetType, revision: result.revision ?? saved.revision, changed: !result.unchanged });
   } catch (error: unknown) {
     console.error("Element edit API error:", error);
     const message = error instanceof Error ? error.message : "Internal server error";

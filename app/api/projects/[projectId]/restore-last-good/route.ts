@@ -2,14 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { indexScreenCode } from "@/lib/generation/block-index";
 import { historyResultSchema } from "@/lib/design-history/types";
-import { recoveryEnabled } from "@/lib/design-history/persistence";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 const body = z.object({ screenId: z.string().uuid(), expectedRevision: z.number().int().nonnegative(), requestId: z.string().uuid() });
 export async function POST(request: Request, { params }: { params: Promise<{ projectId: string }> }) {
-  if (!recoveryEnabled()) return NextResponse.json({ error: "Recovery is not enabled." }, { status: 503 });
   const { projectId } = await params;
   const { data: { user }, error } = await (await createClient()).auth.getUser();
   if (error || !user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

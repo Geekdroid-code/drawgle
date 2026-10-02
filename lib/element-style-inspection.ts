@@ -1,3 +1,4 @@
+import { isFunctionalCssColor } from "@/lib/css-color";
 export type DrawgleStyleGroup = "Position" | "Layout" | "Size" | "Spacing" | "Type" | "Surface" | "Effects";
 
 export type DrawgleStyleValueKind =
@@ -98,8 +99,10 @@ const DRAWGLE_STYLE_PROPERTY_CONFIGS_RAW = [
   { property: "width", label: "Width", group: "Size", valueKind: "length", tokenScopes: ["spacing.", "mobile_layout.", "sizing."], classUtilityFamily: "width", previewMode: "number", riskLevel: "safe" },
   { property: "height", label: "Height", group: "Size", valueKind: "length", tokenScopes: ["spacing.", "mobile_layout.", "sizing."], classUtilityFamily: "height", previewMode: "number", riskLevel: "safe" },
   { property: "min-height", label: "Min height", group: "Size", valueKind: "length", tokenScopes: ["spacing.", "mobile_layout.", "sizing."], classUtilityFamily: "min-height", previewMode: "number", riskLevel: "safe" },
+  { property: "max-height", label: "Max height", group: "Size", valueKind: "length", tokenScopes: ["sizing."], previewMode: "number", riskLevel: "safe" },
   { property: "max-width", label: "Max width", group: "Size", valueKind: "length", tokenScopes: ["spacing.", "mobile_layout.", "sizing."], classUtilityFamily: "max-width", previewMode: "number", riskLevel: "safe" },
   { property: "aspect-ratio", label: "Aspect", group: "Size", valueKind: "ratio", classUtilityFamily: "aspect-ratio", previewMode: "text", riskLevel: "safe" },
+  { property: "background-size", label: "Background fit", group: "Surface", valueKind: "keyword", allowedValues: ["cover", "contain", "auto"] },
   { property: "object-fit", label: "Object fit", group: "Size", valueKind: "keyword", allowedValues: ["fill", "contain", "cover", "none", "scale-down"], classUtilityFamily: "object-fit", previewMode: "select", riskLevel: "safe" },
   { property: "padding-top", label: "Top", group: "Spacing", valueKind: "length", tokenScopes: ["spacing.", "mobile_layout."], classUtilityFamily: "padding-top", previewMode: "number", riskLevel: "safe" },
   { property: "padding-right", label: "Right", group: "Spacing", valueKind: "length", tokenScopes: ["spacing.", "mobile_layout."], classUtilityFamily: "padding-right", previewMode: "number", riskLevel: "safe" },
@@ -471,7 +474,7 @@ export const resolveStyleInspection = (rawInspection: DrawgleRawStyleInspection 
     if (inlineValue) {
       source = inlineTokenName ? "inline-token" : "inline-custom";
       status = inlineTokenName ? "linked" : "detached";
-    } else if (classTokenBinding.tokenName || fallbackToken) {
+    } else if (classTokenBinding.tokenName) {
       source = "token";
       status = "linked";
     } else if (classTokenBinding.classBinding) {
@@ -508,7 +511,8 @@ export const resolveStyleInspection = (rawInspection: DrawgleRawStyleInspection 
 const isCssVariable = (value: string) => /^var\(--dg-[^)]+\)$/.test(normalizeCssValue(value));
 const lengthPattern = /^(?:-?\d+(?:\.\d+)?(?:px|rem|em|%|vh|vw|svh|svw|dvh|dvw)|0|auto|normal|fit-content|min-content|max-content|stretch)$/i;
 const lineHeightPattern = /^(?:\d+(?:\.\d+)?|-?\d+(?:\.\d+)?(?:px|rem|em|%)|normal|0)$/i;
-const colorPattern = /^(?:#[0-9a-f]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)|transparent|currentcolor|currentColor)$/i;
+const CSS_NAMED_COLORS = new Set("aliceblue antiquewhite aqua aquamarine azure beige bisque black blanchedalmond blue blueviolet brown burlywood cadetblue chartreuse chocolate coral cornflowerblue cornsilk crimson cyan darkblue darkcyan darkgoldenrod darkgray darkgreen darkgrey darkkhaki darkmagenta darkolivegreen darkorange darkorchid darkred darksalmon darkseagreen darkslateblue darkslategray darkslategrey darkturquoise darkviolet deeppink deepskyblue dimgray dimgrey dodgerblue firebrick floralwhite forestgreen fuchsia gainsboro ghostwhite gold goldenrod gray green greenyellow grey honeydew hotpink indianred indigo ivory khaki lavender lavenderblush lawngreen lemonchiffon lightblue lightcoral lightcyan lightgoldenrodyellow lightgray lightgreen lightgrey lightpink lightsalmon lightseagreen lightskyblue lightslategray lightslategrey lightsteelblue lightyellow lime limegreen linen magenta maroon mediumaquamarine mediumblue mediumorchid mediumpurple mediumseagreen mediumslateblue mediumspringgreen mediumturquoise mediumvioletred midnightblue mintcream mistyrose moccasin navajowhite navy oldlace olive olivedrab orange orangered orchid palegoldenrod palegreen paleturquoise palevioletred papayawhip peachpuff peru pink plum powderblue purple rebeccapurple red rosybrown royalblue saddlebrown salmon sandybrown seagreen seashell sienna silver skyblue slateblue slategray slategrey snow springgreen steelblue tan teal thistle tomato turquoise violet wheat white whitesmoke yellow yellowgreen".split(" "));
+const colorPattern = /^(?:#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})|rgba?\([^)]+\)|hsla?\([^)]+\)|transparent|currentcolor|currentColor)$/i;
 const fontWeightPattern = /^(?:[1-9]00|normal|bold|bolder|lighter|inherit)$/i;
 const integerPattern = /^-?\d+$/;
 const ratioPattern = /^(?:auto|\d+(?:\.\d+)?(?:\s*\/\s*\d+(?:\.\d+)?)?)$/i;
@@ -527,9 +531,9 @@ export const validateStyleValue = (property: DrawgleStyleProperty, value: string
   const config = getStylePropertyConfig(property);
   const kind = config?.valueKind;
   const valid = kind === "color"
-    ? colorPattern.test(normalized)
+    ? (colorPattern.test(normalized) && !/^rgba?\(|^hsla?\(/i.test(normalized)) || isFunctionalCssColor(normalized) || CSS_NAMED_COLORS.has(normalized.toLowerCase())
     : kind === "length"
-      ? lengthPattern.test(normalized) || /^calc\([^)]+\)$/i.test(normalized)
+      ? lengthPattern.test(normalized) || /^calc\([^)]+\)$/i.test(normalized) || (property === "max-height" || property === "max-width") && normalized === "none"
       : kind === "line-height"
         ? lineHeightPattern.test(normalized)
         : kind === "number"

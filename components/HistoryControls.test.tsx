@@ -21,7 +21,7 @@ beforeEach(() => {
   vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
     calls.push({ url, init });
     if (url.includes("/history/") && !url.endsWith("/history")) return { ok: true, json: async () => ({ id: listing.entries[0].id,
-      label: "Edited Profile", payload: { code: "<main>Earlier</main>" } }) };
+      label: "Edited Profile", payload: { code: "<main>Current</main>" }, beforePayload: { code: "<main>Earlier</main>" } }) };
     if (init?.method === "POST") return { ok: true, json: async () => ({ status: "success", revision: 5 }) };
     return { ok: true, json: async () => listing };
   }));
@@ -55,8 +55,54 @@ describe("contextual history controls", () => {
     await user.click(await view.findByLabelText("Recent changes"));
     await user.click(await view.findByText(/Edited Profile/));
     expect(await view.findByTitle("History preview")).toBeTruthy();
-    expect(view.getByText(/current shared tokens and navigation/)).toBeTruthy();
-    await user.click(view.getByText("Restore this change"));
-    await waitFor(() => expect(calls.some(c => c.init?.method === "POST" && JSON.parse(c.init.body as string).action === "restore")).toBe(true));
+    expect(view.getByText(/Shared tokens and navigation stay current/)).toBeTruthy();
+    expect(view.getByTitle("History preview").getAttribute("srcdoc")).toContain("Earlier</main>");
+    await user.click(view.getByText("Restore before this change"));
+    await waitFor(() => expect(calls.some(c => c.init?.method === "POST" && JSON.parse(c.init.body as string).action === "restore" && JSON.parse(c.init.body as string).side === "before")).toBe(true));
+  });
+  it("never falls through into saved undo while a local redo branch exists", async () => {
+    const local = { hasLocalHistory: true, canUndo: false, canRedo: true, undo: vi.fn(), redo: vi.fn(), saving: false, stale: false };
+    const view = renderControls({ local });
+    await waitFor(() => expect(view.getByLabelText("Redo adjustment").hasAttribute("disabled")).toBe(false));
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true });
+    fireEvent.click(view.getByLabelText("Redo adjustment"));
+    expect(local.redo).toHaveBeenCalledOnce(); expect(calls.filter(call => call.init?.method === "POST")).toHaveLength(0);
+  });
+  it("retries a disconnected recovery with the same request ID and revision", async () => {
+    const originalFetch = fetch;
+    let failed = false;
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST" && !failed) { failed = true; calls.push({ url, init }); throw new Error("Connection lost"); }
+      return originalFetch(url, init);
+    }));
+    const view = renderControls();
+    await waitFor(() => expect(view.getByLabelText("Undo change to Profile").hasAttribute("disabled")).toBe(false));
+    fireEvent.click(view.getByLabelText("Undo change to Profile"));
+    await view.findByRole("alert");
+    await waitFor(() => expect(view.getByLabelText("Undo change to Profile").hasAttribute("disabled")).toBe(false));
+    fireEvent.click(view.getByLabelText("Undo change to Profile"));
+    await waitFor(() => expect(calls.filter(call => call.init?.method === "POST")).toHaveLength(2));
+    const bodies = calls.filter(call => call.init?.method === "POST").map(call => JSON.parse(call.init!.body as string));
+    expect(bodies[0].requestId).toBe(bodies[1].requestId); expect(bodies[0].expectedRevision).toBe(bodies[1].expectedRevision);
+  });
+  it("renders history inside its panel slot and returns to properties without a floating sheet", async () => {
+    const host = document.createElement("div"); host.setAttribute("aria-label", "Inspector history area"); document.body.append(host);
+    const view = renderControls({ panelTarget: host });
+    fireEvent.click(view.getByLabelText("Recent changes"));
+    await waitFor(() => expect(host.querySelector('[aria-label="Saved changes"]')).toBeTruthy());
+    expect(view.queryByRole("dialog")).toBeNull();
+    fireEvent.click(view.getByRole("button", { name: "Back to properties" }));
+    expect(host.children).toHaveLength(0);
+    expect(view.getByLabelText("Recent changes").getAttribute("aria-expanded")).toBe("false"); host.remove();
+  });
+  it("switches preview source with Before/After and restores the chosen side", async () => {
+    const user = userEvent.setup(); const view = renderControls();
+    await user.click(view.getByLabelText("Recent changes"));
+    await user.click(await view.findByText("Edited Profile"));
+    expect((await view.findByTitle("History preview")).getAttribute("srcdoc")).toContain("Earlier</main>");
+    await user.click(view.getByRole("button", { name: "After change" }));
+    expect(view.getByTitle("History preview").getAttribute("srcdoc")).toContain("Current</main>");
+    await user.click(view.getByText("Restore after this change"));
+    await waitFor(() => expect(calls.some(call => call.init?.method === "POST" && JSON.parse(call.init.body as string).side === "after")).toBe(true));
   });
 });

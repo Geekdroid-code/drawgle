@@ -19,6 +19,14 @@ export async function readDesignTarget(client: Client, identity: DesignIdentity)
   const result = z.object({ revision: z.number().int().nonnegative(), ready: z.boolean(), payload: z.unknown() }).parse(data);
   return { ...result, payload: snapshotSchemaFor(identity.target).parse(result.payload) };
 }
+export async function readDesignRequestReplay(client: Client, identity: DesignIdentity, request: { expectedRevision: number; requestId: string; origin: string }) {
+  const { data, error } = await client.rpc("read_design_request_replay", {
+    ...identityArgs(identity), input_expected_revision: z.number().int().nonnegative().parse(request.expectedRevision),
+    input_request_id: z.string().uuid().parse(request.requestId), input_origin: request.origin,
+  });
+  if (error) throw new Error("Could not verify the previous save. Your draft is retained.");
+  return data ? historyResultSchema.parse(data) : null;
+}
 export async function persistDesignChange(client: Client, identity: DesignIdentity, change: {
   expectedRevision: number; requestId: string; payload: unknown; label: string; origin: string; generationRunId?: string;
 }) {
@@ -35,8 +43,3 @@ export async function persistDesignChange(client: Client, identity: DesignIdenti
   if (error) throw new Error("Could not save the design and its recovery record. Your draft has not been saved.");
   return historyResultSchema.parse(data);
 }
-
-// Deliberate release interlock. Changing an environment flag cannot bypass unfinished writer coverage.
-// Remove only after the writer inventory and real PostgreSQL concurrency acceptance record pass.
-export const RECOVERY_WRITERS_VERIFIED = false;
-export const recoveryEnabled = () => RECOVERY_WRITERS_VERIFIED && process.env.DRAWGLE_DESIGN_RECOVERY_ENABLED === "true";

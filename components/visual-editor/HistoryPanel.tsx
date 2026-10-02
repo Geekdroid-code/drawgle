@@ -1,0 +1,53 @@
+"use client";
+import { ArrowLeft, Check, History } from "lucide-react";
+
+export type HistoryEntry = { id: string; label: string; createdAt: string; isCurrent: boolean };
+export type HistoryPreview = { id: string; label: string; payload: Record<string, unknown>; beforePayload: Record<string, unknown> };
+
+export function HistoryPanel({ label, entries, preview, visual, error, disabledReason, working, failedScreen,
+  side, scope, onSideChange, onBack, onPreview, onClearPreview, onRestore, onRestoreLastGood }: {
+  label: string; entries: HistoryEntry[]; preview: HistoryPreview | null; visual: string | null;
+  error: string | null; disabledReason?: string | null; working: boolean; failedScreen: boolean;
+  onBack: () => void; onPreview: (entry: HistoryEntry) => void; onClearPreview: () => void;
+  onRestore: () => void; onRestoreLastGood: () => void;
+  side: "before" | "after"; onSideChange: (side: "before" | "after") => void;
+  scope: "screen" | "navigation" | "tokens";
+}) {
+  return <section aria-label="Saved changes" className="ve-history">
+    <div className="ve-section">
+      <button type="button" onClick={preview ? onClearPreview : onBack} className="ve-history-back">
+        <ArrowLeft size={14} />{preview ? "Back to history" : "Back to properties"}
+      </button>
+      <h3 className="mt-3 text-sm font-semibold">{preview ? "Preview change" : "Saved changes"}</h3>
+      <p className="mt-1 truncate text-xs text-[var(--dg-text-muted)]">{label}</p>
+    </div>
+    <div className="ve-history-scroll">
+      {(error || disabledReason) && <p role={error ? "alert" : undefined} className="ve-section text-xs text-[var(--dg-text-muted)]">{error || disabledReason}</p>}
+      {failedScreen && <div className="ve-section"><p className="mb-2 text-xs text-[var(--dg-text-muted)]">The last generation failed. Your last saved design is available.</p>
+        <button type="button" className="ve-discard w-full" disabled={!!disabledReason || working} onClick={onRestoreLastGood}>Restore last good design</button></div>}
+      {preview ? <div className="ve-section">
+        <p className="mb-3 text-xs font-medium">{preview.label}</p>
+        <div className="ve-segments mb-3" aria-label="Preview state">
+          <button type="button" className="ve-segment" aria-pressed={side === "before"} onClick={() => onSideChange("before")}>Before change</button>
+          <button type="button" className="ve-segment" aria-pressed={side === "after"} onClick={() => onSideChange("after")}>After change</button>
+        </div>
+        {visual && <iframe title="History preview" sandbox="allow-scripts" srcDoc={visual} className="h-72 w-full rounded-lg border border-[var(--dg-border)] bg-white" />}
+        <p className="mt-3 text-xs leading-relaxed text-[var(--dg-text-muted)]">{scope === "screen" ? `You are viewing the screen ${side} this change. Restoring replaces this screen with the previewed version. Shared tokens and navigation stay current.` : scope === "navigation" ? `You are viewing shared navigation ${side} this change. Restoring updates navigation and its screen assignments. Screen contents stay current.` : `You are viewing project styles ${side} this change. Restoring replaces the project styles. Screen contents and navigation stay current.`}</p>
+      </div> : entries.length ? <ol className="space-y-1 p-3">{entries.map(entry => <li key={entry.id}>
+        <button type="button" onClick={() => onPreview(entry)} className="ve-history-entry">
+          <span className="flex items-start justify-between gap-2"><span className="min-w-0 text-[13px] font-medium leading-5">{entry.label}</span>
+            {entry.isCurrent && <Check size={14} className="mt-1 shrink-0 text-[#3563ee]" aria-label="Current version" />}</span>
+          <span className="mt-1 block text-[11px] text-[var(--dg-text-muted)]">{new Date(entry.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}{entry.isCurrent ? " · Current" : ""}</span>
+        </button>
+      </li>)}</ol> : <div className="ve-history-empty">
+        <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--dg-surface-muted)]"><History size={18} /></span>
+        <p className="text-sm font-medium text-[var(--dg-text)]">No saved changes yet</p>
+        <p className="mt-2 max-w-52 text-xs leading-5">Apply your first edit and it will appear here. You can revisit saved versions whenever you need.</p>
+      </div>}
+    </div>
+    <footer className="ve-footer">
+      {preview ? <button type="button" className="ve-apply w-full" disabled={!!disabledReason || working} onClick={onRestore}>{working ? "Restoring…" : `Restore ${side} this change`}</button>
+        : <p className="text-[11px] leading-5 text-[var(--dg-text-muted)]">Your unsaved adjustments stay intact while you browse history.</p>}
+    </footer>
+  </section>;
+}

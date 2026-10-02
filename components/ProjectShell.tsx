@@ -1,13 +1,12 @@
 "use client";
 import { HistoryControls } from "@/components/HistoryControls";
-import type { HistoryTarget } from "@/lib/design-history/types";
 import { confirmPermanentScreenDeletion } from "@/lib/confirm-screen-deletion";
 
 import type { ProductAnswers } from "@/lib/product-planning/questions";
 
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Sparkles, Check, ChevronDown, ImageIcon, Loader2, Palette, RotateCcw, Upload, X, HelpCircle, Megaphone, Play, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle, Trash } from "lucide-react";
+import { PanelRight, ArrowLeft, HelpCircle, Share2, LogOut, FolderSync, CircleDollarSign, User, CreditCard, Download, Mail, MessageCircle } from "lucide-react";
 
 import { AnimatedThemeToggle } from "@/components/AnimatedThemeToggle";
 import { CreateStateDialog } from "@/components/CreateStateDialog";
@@ -19,8 +18,10 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { PlanningEmptyCanvas } from "@/components/product-planning/PlanningEmptyCanvas";
 import { notifyProjectChanged } from "@/lib/project-refresh";
 import { saveDesignTokens } from "@/lib/design-history/save-tokens";
-import { ColorPickerButton } from "@/components/DesignSystemEditor";
-import type { ElementSelectionLostReason, SelectedElementInfo, SelectedElementPreviewPayload } from "@/components/ScreenNode";
+import { useDraftNavigationGuard } from "@/components/visual-editor/use-draft-navigation-guard";
+import { VisualEditor } from "@/components/visual-editor/VisualEditor";
+import { useEditorDraft, type EditSaveOptions } from "@/components/visual-editor/use-editor-draft";
+import type { ElementSelectionLostReason, SelectedElementInfo } from "@/components/ScreenNode";
 import { Button } from "@/components/ui/button";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -35,25 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import type { DeterministicEditOperation, DrawgleImageTargetMeta } from "@/lib/drawgle-dom";
-import {
-  getTokenReferencesForStyleProperty,
-  normalizeCssValue,
-  resolveStyleInspection,
-  tokenVariableNameFromValue,
-  type DrawgleResolvedStyleProperty,
-  type DrawgleStyleGroup,
-  type DrawgleStyleProperty,
-  type DrawgleStyleValueMap,
-  type DrawgleTokenReferenceLike,
-} from "@/lib/element-style-inspection";
 import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProductFulfillments } from "@/hooks/use-product-fulfillments";
 import { isProductApprovalRun, readApprovalFromRun } from "@/lib/agent/flow-build";
@@ -102,8 +85,6 @@ class QueueGenerationError extends Error {
 
 type ManualEditMode = "selected" | "design";
 
-const EMPTY_TEXT_NODES: NonNullable<SelectedElementInfo["editableMetadata"]>["textNodes"] = [];
-const EMPTY_INSPECTED_PROPERTIES: DrawgleResolvedStyleProperty[] = [];
 const MAX_REPLACEMENT_UPLOAD_BYTES = 2.8 * 1024 * 1024;
 const MAX_REPLACEMENT_IMAGE_EDGE = 2400;
 
@@ -170,415 +151,6 @@ const prepareReplacementImageFile = async (file: File) => {
   return file;
 };
 
-const labelForImageTargetKind = (kind: DrawgleImageTargetMeta["kind"]) => {
-  if (kind === "img") return "Image element";
-  if (kind === "background") return "Background image";
-  if (kind === "inline_svg") return "SVG placeholder";
-  return "Visual placeholder";
-};
-
-const replaceModeForImageTarget = (kind: DrawgleImageTargetMeta["kind"]): Extract<DeterministicEditOperation, { type: "replaceImage" }>["mode"] => {
-  if (kind === "background") return "background";
-  if (kind === "inline_svg") return "inline_svg";
-  if (kind === "visual_placeholder") return "visual_placeholder";
-  return "src";
-};
-
-const cssColorToHex = (value: string | undefined | null) => {
-  const color = normalizeCssValue(value);
-  if (/^#[0-9a-f]{6}$/i.test(color)) {
-    return color;
-  }
-
-  const shortHex = color.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
-  if (shortHex) {
-    return `#${shortHex[1]}${shortHex[1]}${shortHex[2]}${shortHex[2]}${shortHex[3]}${shortHex[3]}`;
-  }
-
-  const match = color.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
-  if (!match) {
-    return "#000000";
-  }
-
-  return `#${[match[1], match[2], match[3]]
-    .map((part) => Math.max(0, Math.min(255, Number(part))).toString(16).padStart(2, "0"))
-    .join("")}`;
-};
-
-const GRADIENT_COLOR_PATTERN = /#[0-9a-f]{3,8}|rgba?\([^)]+\)|hsla?\([^)]+\)/gi;
-
-const getGradientAngle = (value: string) => normalizeCssValue(value).match(/linear-gradient\(\s*([^,]+),/i)?.[1]?.trim() || "135deg";
-
-const getGradientColorStops = (value: string) => {
-  const colors = normalizeCssValue(value).match(GRADIENT_COLOR_PATTERN) ?? [];
-  const from = cssColorToHex(colors[0] ?? "#14f195");
-  const to = cssColorToHex(colors[1] ?? colors[0] ?? "#38bdf8");
-  return { from, to };
-};
-
-const buildLinearGradientValue = (from: string, to: string, angle = "135deg") => `linear-gradient(${angle}, ${from} 0%, ${to} 100%)`;
-
-const getTokenPickerLabel = (property: DrawgleStyleProperty) => {
-  if (property === "color") {
-    return "Link text token";
-  }
-
-  if (property === "background-color") {
-    return "Link fill token";
-  }
-
-  if (property === "background-image") {
-    return "Link gradient token";
-  }
-
-  if (property === "border-color") {
-    return "Link border token";
-  }
-
-  if (property === "border-radius") {
-    return "Link radius token";
-  }
-
-  if (property === "box-shadow") {
-    return "Link shadow token";
-  }
-
-  return "Link token";
-};
-
-const getTokenPickerDescription = (property: DrawgleStyleProperty) => {
-  if (property === "color") {
-    return "Choose a text color token for this element.";
-  }
-
-  if (property === "background-color") {
-    return "Choose a surface, background, or action fill token.";
-  }
-
-  if (property === "background-image") {
-    return "Choose a project gradient token for this fill.";
-  }
-
-  if (property === "border-color") {
-    return "Choose a border or accent token.";
-  }
-
-  if (property === "border-radius") {
-    return "Choose a project radius token.";
-  }
-
-  if (property === "box-shadow") {
-    return "Choose a project shadow token.";
-  }
-
-  return "Choose a live token for this property.";
-};
-
-const styleGroupMeta: Record<DrawgleStyleGroup, { title: string; description: string }> = {
-  Position: {
-    title: "Position",
-    description: "Placement, stacking, and overflow.",
-  },
-  Layout: {
-    title: "Layout",
-    description: "Display mode and child alignment.",
-  },
-  Size: {
-    title: "Size",
-    description: "Fill, hug, fixed dimensions, and media fitting.",
-  },
-  Spacing: {
-    title: "Spacing",
-    description: "Padding and margin around the element.",
-  },
-  Type: {
-    title: "Type",
-    description: "Text styling for this selected element.",
-  },
-  Surface: {
-    title: "Surface",
-    description: "Fill, border, and corner styling.",
-  },
-  Effects: {
-    title: "Effects",
-    description: "Shadow, opacity, transforms, and filters.",
-  },
-};
-type StyleDraft =
-  | { mode: "inherit"; value: "" }
-  | { mode: "token"; value: string }
-  | { mode: "custom"; value: string };
-
-const initialDraftForProperty = (property: DrawgleResolvedStyleProperty): StyleDraft => {
-  const inlineToken = tokenVariableNameFromValue(property.inlineValue);
-  if (inlineToken) {
-    return { mode: "token", value: inlineToken };
-  }
-  if (property.inlineValue) {
-    return { mode: "custom", value: property.inlineValue };
-  }
-  return { mode: "inherit", value: "" };
-};
-
-const buildInitialStyleDrafts = (properties: DrawgleResolvedStyleProperty[]) =>
-  Object.fromEntries(properties.map((property) => [property.property, initialDraftForProperty(property)])) as Partial<Record<DrawgleStyleProperty, StyleDraft>>;
-
-const draftDisplayValue = (draft: StyleDraft | undefined, property: DrawgleResolvedStyleProperty) => {
-  if (!draft || draft.mode === "inherit") {
-    return property.computedValue || "not set";
-  }
-  if (draft.mode === "token") {
-    return `var(${draft.value})`;
-  }
-  return draft.value;
-};
-
-const CSS_LENGTH_UNITS = ["px", "rem", "em", "%", "vh", "vw"] as const;
-const LINE_HEIGHT_UNITS = ["", "px", "rem", "em", "%"] as const;
-
-const parseNumericCssValue = (value: string, fallbackUnit = "px") => {
-  const normalized = normalizeCssValue(value);
-  if (!normalized || normalized === "normal" || normalized === "auto") {
-    return { amount: "", unit: fallbackUnit };
-  }
-
-  const match = normalized.match(/^(-?\d+(?:\.\d+)?)(px|rem|em|%|vh|vw)?$/i);
-  if (!match) {
-    return { amount: "", unit: fallbackUnit };
-  }
-
-  return {
-    amount: match[1] ?? "",
-    unit: match[2] ?? fallbackUnit,
-  };
-};
-
-function NumericCssControl({
-  property,
-  value,
-  onChange,
-}: {
-  property: DrawgleResolvedStyleProperty;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  const isLineHeight = property.property === "line-height";
-  const units = isLineHeight ? LINE_HEIGHT_UNITS : CSS_LENGTH_UNITS;
-  const fallbackUnit = isLineHeight ? "" : "px";
-  const parsed = parseNumericCssValue(value, fallbackUnit);
-  const step = isLineHeight && parsed.unit === "" ? 0.05 : 1;
-  const amount = Number(parsed.amount || 0);
-
-  const commit = (nextAmount: string, nextUnit = parsed.unit) => {
-    const trimmed = nextAmount.trim();
-    onChange(trimmed ? `${trimmed}${nextUnit}` : "");
-  };
-
-  return (
-    <div className="flex min-w-0 w-full items-center overflow-hidden rounded-[10px] border border-slate-950/[0.08] bg-white shadow-none focus-within:ring-2 focus-within:ring-ring/40">
-      <button
-        type="button"
-        className="flex h-9 w-8 shrink-0 items-center justify-center rounded-l-[10px] text-slate-500 hover:bg-slate-50 hover:text-slate-950"
-        onClick={() => commit(String(Math.max(0, Number((amount - step).toFixed(2)))), parsed.unit)}
-      >
-        -
-      </button>
-      <input
-        type="number"
-        step={step}
-        value={parsed.amount}
-        onChange={(event) => commit(event.target.value)}
-        className="h-9 min-w-0 flex-1 border-x border-slate-950/[0.06] bg-transparent px-2 text-sm outline-none"
-      />
-      <select
-        value={parsed.unit}
-        onChange={(event) => commit(parsed.amount, event.target.value)}
-        className="h-9 w-14 shrink-0 bg-transparent px-1.5 text-xs font-medium text-slate-500 outline-none"
-      >
-        {units.map((unit) => (
-          <option key={unit || "unitless"} value={unit}>
-            {unit || "unit"}
-          </option>
-        ))}
-      </select>
-      <button
-        type="button"
-        className="flex h-9 w-8 shrink-0 items-center justify-center rounded-r-[10px] text-slate-500 hover:bg-slate-50 hover:text-slate-950"
-        onClick={() => commit(String(Number((amount + step).toFixed(2))), parsed.unit)}
-      >
-        +
-      </button>
-    </div>
-  );
-}
-
-function CustomStyleControl({
-  property,
-  value,
-  onChange,
-}: {
-  property: DrawgleResolvedStyleProperty;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  if (property.valueKind === "length" || property.valueKind === "line-height") {
-    return <NumericCssControl property={property} value={value} onChange={onChange} />;
-  }
-
-  if (property.valueKind === "font-weight") {
-    return (
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-9 min-w-0 w-full rounded-[10px] border border-slate-950/[0.08] bg-white px-3 text-sm shadow-none outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
-      >
-        {["300", "400", "500", "600", "700", "800", "900"].map((weight) => (
-          <option key={weight} value={weight}>
-            {weight}
-          </option>
-        ))}
-      </select>
-    );
-  }
-
-  if (property.property === "opacity") {
-    const numericValue = Number(value || property.computedValue || 1);
-    const clamped = Number.isFinite(numericValue) ? Math.max(0, Math.min(1, numericValue)) : 1;
-    return (
-      <div className="grid gap-2 rounded-[10px] border border-slate-950/[0.08] bg-white px-3 py-2">
-        <div className="flex items-center justify-between gap-3">
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={clamped}
-            onChange={(event) => onChange(Number(event.target.value).toFixed(2).replace(/\.?0+$/, ""))}
-            className="min-w-0 flex-1 accent-slate-950"
-          />
-          <Input
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            className="h-8 w-16 rounded-[10px] text-center text-xs"
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <Input
-      value={value}
-      placeholder={property.property === "box-shadow" ? "none" : "Custom value"}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-9 min-w-0 w-full rounded-[10px] border-slate-950/[0.08] bg-white px-3 text-sm shadow-none focus-visible:bg-white"
-    />
-  );
-}
-
-function TokenValuePicker({
-  tokens,
-  property,
-  value,
-  onSelect,
-}: {
-  tokens: DrawgleTokenReferenceLike[];
-  property: DrawgleStyleProperty;
-  value: string | null;
-  onSelect: (tokenName: string) => void;
-}) {
-  const pickerTokens = getTokenReferencesForStyleProperty(property, tokens);
-  const activeTokenName = value;
-  const activeToken = pickerTokens.find((token) => token.name === activeTokenName) ?? null;
-  const isColorTokenProperty = property === "color" || property === "background-color" || property === "border-color";
-  const isGradientTokenProperty = property === "background-image";
-
-  if (pickerTokens.length === 0) {
-    return null;
-  }
-
-  return (
-    <Popover>
-      <PopoverTrigger
-        render={(
-          <button
-            type="button"
-            className="flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-[10px] border border-[var(--dg-border)] bg-[var(--dg-surface-muted)] px-2.5 text-left text-xs font-medium text-[var(--dg-text)] transition hover:border-[var(--dg-border-strong)] hover:bg-[var(--dg-surface)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:text-[#e8eaf0] dark:hover:bg-[#2a2a2a]"
-          />
-        )}
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          {isColorTokenProperty ? (
-            <span
-              className="h-4 w-4 shrink-0 rounded-[5px] border border-[var(--dg-border-strong)] dark:border-white/[0.16]"
-              style={{ backgroundColor: activeToken?.value ?? "#ffffff" }}
-            />
-          ) : isGradientTokenProperty ? (
-            <span
-              className="h-4 w-5 shrink-0 rounded-[5px] border border-[var(--dg-border-strong)] dark:border-white/[0.16]"
-              style={{ backgroundImage: activeToken?.value ?? "linear-gradient(135deg,#e2e8f0,#94a3b8)" }}
-            />
-          ) : (
-            <span className="flex h-4 w-5 shrink-0 items-center justify-center rounded-[5px] border border-[var(--dg-border-strong)] bg-white text-[8px] font-bold uppercase text-[var(--dg-text-muted)] dark:border-white/[0.16] dark:bg-white/[0.06]">
-              T
-            </span>
-          )}
-          <span className="truncate">
-            {activeToken ? activeToken.label : getTokenPickerLabel(property)}
-          </span>
-        </span>
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-[var(--dg-text-muted)]" />
-      </PopoverTrigger>
-      <PopoverContent
-        align="end"
-        side="bottom"
-        sideOffset={8}
-        className="dg-token-popover w-[min(280px,calc(100vw-2rem))] rounded-[14px] border border-[var(--dg-border)] bg-[var(--dg-surface)] p-2 text-[var(--dg-text)] shadow-[0_20px_70px_rgba(15,23,42,0.2)] dark:border-white/[0.08] dark:bg-[#1b1b1b] dark:shadow-[0_20px_70px_rgba(0,0,0,0.58)]"
-      >
-        <div className="px-2 pb-1 pt-1">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Project Tokens</div>
-          <div className="mt-0.5 text-xs leading-5 text-[var(--dg-text-muted)]">{getTokenPickerDescription(property)}</div>
-        </div>
-        <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
-          {pickerTokens.map((token) => (
-            <button
-              key={token.name}
-              type="button"
-              className="flex w-full items-center gap-3 rounded-[14px] px-2 py-2 text-left text-[var(--dg-text)] transition hover:bg-[var(--dg-surface-muted)] dark:hover:bg-white/[0.06]"
-              onClick={() => onSelect(token.name)}
-            >
-              {isColorTokenProperty ? (
-                <span
-                  className="h-7 w-7 shrink-0 rounded-[7px] border border-[var(--dg-border-strong)] dark:border-white/[0.12]"
-                  style={{ backgroundColor: token.value }}
-                />
-              ) : isGradientTokenProperty ? (
-                <span
-                  className="h-7 w-7 shrink-0 rounded-[7px] border border-[var(--dg-border-strong)] dark:border-white/[0.12]"
-                  style={{ backgroundImage: token.value }}
-                />
-              ) : (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] border border-[var(--dg-border-strong)] bg-[var(--dg-surface-muted)] font-mono text-[9px] font-bold text-[var(--dg-text-muted)] dark:border-white/[0.12] dark:bg-white/[0.06]">
-                  var
-                </span>
-              )}
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-[var(--dg-text)]">{token.label}</span>
-                <span className="block truncate text-[11px] text-[var(--dg-text-muted)]">{token.value}</span>
-              </span>
-              {activeTokenName === token.name ? (
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[7px] bg-slate-950 text-white">
-                  <Check className="h-3.5 w-3.5" />
-                </span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 type ElementEditSession = {
   screenId: string | null;
   element: SelectedElementInfo;
@@ -587,991 +159,6 @@ type ElementEditSession = {
   selectionVersion: number;
   freshness: "fresh" | "stale";
 };
-
-type PendingElementSelection = {
-  info: SelectedElementInfo;
-};
-
-function SelectedElementInspectorSidebar({
-  project,
-  selectedScreen,
-  selectedElementInfo,
-  disabled,
-  onClose,
-  onApplyOperations,
-  onPreviewChange,
-  onAskAiRefine,
-  onReplaceImage,
-  onDelete,
-  onDirtyChange,
-}: {
-  project: ProjectData;
-  selectedScreen: ScreenData | null;
-  selectedElementInfo: SelectedElementInfo | null;
-  disabled: boolean;
-  onClose: () => void;
-  onApplyOperations: (operations: DeterministicEditOperation[]) => Promise<boolean>;
-  onPreviewChange?: (preview: SelectedElementPreviewPayload | null) => void;
-  onAskAiRefine?: (intent: string) => void | Promise<void>;
-  onReplaceImage: (target: DrawgleImageTargetMeta, file: File) => Promise<boolean>;
-  onDelete?: () => void | Promise<void>;
-  onDirtyChange?: (dirty: boolean) => void;
-}) {
-  const [isSaving, setIsSaving] = useState(false);
-  const [imageUploadError, setImageUploadError] = useState<string | null>(null);
-  const [uploadingImageTargetId, setUploadingImageTargetId] = useState<string | null>(null);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const pendingImageTargetRef = useRef<DrawgleImageTargetMeta | null>(null);
-
-  const textNodes = selectedElementInfo?.editableMetadata?.textNodes ?? EMPTY_TEXT_NODES;
-  const imageTargets = selectedElementInfo?.editableMetadata?.imageTargets ?? [];
-  const layoutContext = selectedElementInfo?.editableMetadata?.layoutContext ?? null;
-  const riskFlags = selectedElementInfo?.editableMetadata?.riskFlags ?? null;
-  const tokenRefs = useMemo(
-    () => getDrawgleTokenReferences(project.designTokens),
-    [project.designTokens],
-  );
-  const styleInspection = useMemo(
-    () => resolveStyleInspection(selectedElementInfo?.editableMetadata?.styleInspection ?? null, tokenRefs),
-    [selectedElementInfo?.editableMetadata?.styleInspection, tokenRefs],
-  );
-  const inspectedProperties = styleInspection?.properties ?? EMPTY_INSPECTED_PROPERTIES;
-  const classListKey = styleInspection?.classList.join(" ") ?? "";
-  const originalTextById = useMemo(
-    () => Object.fromEntries(textNodes.map((node) => [node.drawgleId, node.text])),
-    [textNodes],
-  );
-
-  const [textDrafts, setTextDrafts] = useState<Record<string, string>>(() => originalTextById);
-  const [styleDrafts, setStyleDrafts] = useState<Partial<Record<DrawgleStyleProperty, StyleDraft>>>(() =>
-    buildInitialStyleDrafts(inspectedProperties),
-  );
-  const [classDraft, setClassDraft] = useState(classListKey);
-  const [classDraftTouched, setClassDraftTouched] = useState(false);
-  const [advancedDetailsOpen, setAdvancedDetailsOpen] = useState(false);
-
-  const normalizeClassNames = useCallback((className: string) => className.trim().replace(/\s+/g, " "), []);
-  const handleClassDraftChange = (value: string) => {
-    setClassDraft(value);
-    setClassDraftTouched(true);
-  };
-
-
-  useEffect(() => {
-    if (!onPreviewChange) return;
-    if (!selectedElementInfo?.drawgleId) {
-      onPreviewChange(null);
-      return;
-    }
-
-    const styles: DrawgleStyleValueMap = {};
-    let hasStylePreview = false;
-
-    inspectedProperties.forEach((property) => {
-      const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-      const initialDraft = initialDraftForProperty(property);
-      const draftValue = normalizeCssValue(draft.value);
-      const initialValue = normalizeCssValue(initialDraft.value);
-      if (draft.mode === initialDraft.mode && draftValue === initialValue) {
-        return;
-      }
-
-      if (draft.mode === "inherit") {
-        if (normalizeCssValue(property.inlineValue)) {
-          styles[property.property] = "";
-          hasStylePreview = true;
-        }
-        return;
-      }
-
-      const nextValue = draft.mode === "token" ? `var(${draft.value})` : normalizeCssValue(draft.value);
-      if (!nextValue) return;
-      styles[property.property] = nextValue;
-      hasStylePreview = true;
-    });
-
-    const normalizedClassDraft = normalizeClassNames(classDraft);
-    const normalizedOriginalClass = normalizeClassNames(classListKey);
-    const classChanged = classDraftTouched && normalizedClassDraft !== normalizedOriginalClass;
-
-    if (!hasStylePreview && !classChanged) {
-      onPreviewChange(null);
-      return;
-    }
-
-    onPreviewChange({
-      drawgleId: selectedElementInfo.drawgleId,
-      styles,
-      className: classChanged ? normalizedClassDraft : null,
-      allowClassNamePreview: classChanged,
-    });
-  }, [classDraft, classDraftTouched, classListKey, inspectedProperties, normalizeClassNames, onPreviewChange, selectedElementInfo?.drawgleId, styleDrafts]);
-
-  useEffect(() => () => onPreviewChange?.(null), [onPreviewChange]);
-
-  const applyOperations = async (operations: DeterministicEditOperation[]) => {
-    if (operations.length === 0) {
-      return false;
-    }
-
-    setIsSaving(true);
-    try {
-      const saved = await onApplyOperations(operations);
-      if (saved) {
-        setClassDraftTouched(false);
-        onPreviewChange?.(null);
-      }
-      return saved;
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const buildTextOperations = () =>
-    textNodes
-      .filter((node) => textDrafts[node.drawgleId] !== undefined && textDrafts[node.drawgleId] !== node.text)
-      .map((node): DeterministicEditOperation => ({
-        type: "replaceText",
-        drawgleId: node.drawgleId,
-        text: textDrafts[node.drawgleId] ?? "",
-      }));
-
-  const buildStyleOperations = () => {
-    const operations: DeterministicEditOperation[] = [];
-    const normalizedClassDraft = normalizeClassNames(classDraft);
-    const normalizedOriginalClass = normalizeClassNames(classListKey);
-
-    if (classDraftTouched && normalizedClassDraft !== normalizedOriginalClass) {
-      operations.push({ type: "replaceClassList", className: normalizedClassDraft });
-    }
-
-    inspectedProperties.forEach((property) => {
-      const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-      const initialDraft = initialDraftForProperty(property);
-      const draftValue = normalizeCssValue(draft.value);
-      const initialValue = normalizeCssValue(initialDraft.value);
-      const currentInlineValue = normalizeCssValue(property.inlineValue);
-
-      if (draft.mode === initialDraft.mode && draftValue === initialValue) {
-        return;
-      }
-
-      if (draft.mode === "inherit") {
-        if (currentInlineValue) {
-          operations.push({ type: "clearStyle", property: property.property });
-        }
-        return;
-      }
-
-      const nextValue = draft.mode === "token"
-        ? `var(${draft.value})`
-        : normalizeCssValue(draft.value);
-      if (!nextValue || currentInlineValue === nextValue) {
-        return;
-      }
-
-      operations.push({ type: "setStyle", property: property.property, value: nextValue });
-    });
-
-    return operations;
-  };
-
-  const saveDesign = async () => {
-    await applyOperations([...buildTextOperations(), ...buildStyleOperations()]);
-  };
-
-  const resetAllLocalOverrides = async () => {
-    setStyleDrafts(buildInitialStyleDrafts(inspectedProperties));
-    setClassDraft(classListKey);
-    setClassDraftTouched(false);
-
-    const operations = inspectedProperties
-      .filter((property) => normalizeCssValue(property.inlineValue))
-      .map((property): DeterministicEditOperation => ({
-        type: "clearStyle",
-        property: property.property,
-      }));
-
-    await applyOperations(operations);
-  };
-
-  const hasDraftChanges = useMemo(() => {
-    const classChanged = classDraftTouched && normalizeClassNames(classDraft) !== normalizeClassNames(classListKey);
-    const textChanged = textNodes.some((node) => textDrafts[node.drawgleId] !== undefined && textDrafts[node.drawgleId] !== node.text);
-    const styleChanged = inspectedProperties.some((property) => {
-      const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-      const initialDraft = initialDraftForProperty(property);
-      return draft.mode !== initialDraft.mode || normalizeCssValue(draft.value) !== normalizeCssValue(initialDraft.value);
-    });
-    return classChanged || textChanged || styleChanged;
-  }, [classDraft, classDraftTouched, classListKey, inspectedProperties, normalizeClassNames, styleDrafts, textDrafts, textNodes]);
-  useEffect(() => { onDirtyChange?.(hasDraftChanges); }, [hasDraftChanges, onDirtyChange]);
-  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange]);
-
-  const targetLabel = selectedElementInfo?.targetType === "navigation" ? "Navigation" : selectedScreen?.name ?? "Screen";
-  const riskMessages = [
-    riskFlags?.isNavigationRoot ? "Navigation root" : null,
-    riskFlags?.isRootLike ? "Root layout" : null,
-    riskFlags?.affectsManyChildren ? "Many children" : null,
-    riskFlags?.absolutePositioned ? "Positioned element" : null,
-  ].filter(Boolean);
-
-  const chooseImageFile = (target: DrawgleImageTargetMeta) => {
-    pendingImageTargetRef.current = target;
-    setImageUploadError(null);
-    imageInputRef.current?.click();
-  };
-
-  const handleImageFileChange = async (file: File | null) => {
-    const target = pendingImageTargetRef.current;
-    if (!target || !file) {
-      return;
-    }
-
-    setUploadingImageTargetId(target.drawgleId);
-    setImageUploadError(null);
-    try {
-      await onReplaceImage(target, file);
-    } catch (error) {
-      setImageUploadError(error instanceof Error ? error.message : "Image upload failed.");
-    } finally {
-      setUploadingImageTargetId(null);
-      pendingImageTargetRef.current = null;
-      if (imageInputRef.current) {
-        imageInputRef.current.value = "";
-      }
-    }
-  };
-
-  const updateStyleDraft = (property: DrawgleResolvedStyleProperty, draft: StyleDraft) => {
-    setStyleDrafts((current) => ({ ...current, [property.property]: draft }));
-  };
-
-  const resetPropertyDraft = (property: DrawgleResolvedStyleProperty) => {
-    setStyleDrafts((current) => ({ ...current, [property.property]: { mode: "inherit", value: "" } }));
-  };
-
-  const propertyByName = (propertyName: DrawgleStyleProperty) =>
-    inspectedProperties.find((property) => property.property === propertyName) ?? null;
-
-  const getPropertyDraftValue = (property: DrawgleResolvedStyleProperty) => {
-    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-    const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
-    const activeToken = activeTokenName
-      ? getTokenReferencesForStyleProperty(property.property, tokenRefs)
-          .find((token) => token.name === activeTokenName)
-      : null;
-    if (draft.mode === "token") return activeToken?.value || property.computedValue || `var(${draft.value})`;
-    if (draft.mode === "inherit" && property.status === "linked" && activeToken) return activeToken.value;
-    if (draft.mode === "custom") return draft.value;
-    return property.inlineValue || property.computedValue || "";
-  };
-
-  const renderSourceBadges = (property: DrawgleResolvedStyleProperty) => {
-    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-    const isTokenLinked = draft.mode === "token" || property.status === "linked";
-    const isLocal = draft.mode === "custom" || property.source === "inline-custom";
-
-    return (
-      <div className="flex shrink-0 items-center gap-1">
-        {isTokenLinked ? <span className="rounded-full bg-teal-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-teal-700">Token</span> : null}
-        {isLocal ? <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-amber-700">Local</span> : null}
-      </div>
-    );
-  };
-
-  const renderResetButton = (property: DrawgleResolvedStyleProperty) => (
-    <button
-      type="button"
-      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[7px] text-slate-400 hover:bg-slate-100 hover:text-slate-900"
-      onClick={() => resetPropertyDraft(property)}
-      title={`Reset ${property.label}`}
-    >
-      <RotateCcw className="h-3.5 w-3.5" />
-    </button>
-  );
-
-  const renderSegmentControl = (
-    propertyName: DrawgleStyleProperty,
-    values: string[],
-    labels?: Record<string, string>,
-    columns = Math.min(values.length, 4),
-  ) => {
-    const property = propertyByName(propertyName);
-    if (!property) return null;
-    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-    const currentValue = normalizeCssValue(draft.mode === "custom" ? draft.value : property.computedValue);
-
-    return (
-      <div className="grid min-w-0 gap-1.5 rounded-[10px] border border-slate-950/[0.07] bg-white p-2 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-[11px] font-semibold text-slate-600">{property.label}</span>
-          <div className="flex items-center gap-1">
-            {renderSourceBadges(property)}
-            {renderResetButton(property)}
-          </div>
-        </div>
-        <div className="grid min-w-0 rounded-[9px] bg-slate-100 p-1" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-          {values.map((value) => {
-            const active = currentValue === value;
-            return (
-              <button
-                key={value}
-                type="button"
-                className={`min-h-8 truncate rounded-[7px] px-2 text-[11px] font-semibold transition ${active ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:bg-white/70 hover:text-slate-900"}`}
-                onClick={() => updateStyleDraft(property, { mode: "custom", value })}
-              >
-                {labels?.[value] ?? value}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-
-  const renderValueRow = (
-    propertyName: DrawgleStyleProperty,
-    options: { label?: string; token?: boolean; color?: boolean } = {},
-  ) => {
-    const property = propertyByName(propertyName);
-    if (!property) return null;
-    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-    const value = getPropertyDraftValue(property);
-    const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
-    const allowTokenPicker = options.token !== false && tokenOptions.length > 0;
-    const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
-    const colorPickerValue = tokenOptions.find((token) => token.name === activeTokenName)?.value ?? cssColorToHex(value);
-
-    return (
-      <div key={property.property} className="min-w-0 overflow-hidden rounded-[10px] border border-slate-950/[0.07] bg-white p-2 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
-        <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-[11px] font-semibold text-slate-700">{options.label ?? property.label}</span>
-          <div className="flex shrink-0 items-center gap-1">
-            {renderSourceBadges(property)}
-            {renderResetButton(property)}
-          </div>
-        </div>
-        <div className="grid min-w-0 gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            {property.valueKind === "color" ? (
-              <ColorPickerButton
-                label={property.label}
-                value={colorPickerValue}
-                className="h-9 w-10 shrink-0 cursor-pointer rounded-[9px] border border-slate-950/[0.08] bg-white p-1"
-                onChange={(nextColor) => updateStyleDraft(property, { mode: "custom", value: nextColor })}
-              />
-            ) : null}
-            <CustomStyleControl
-              property={property}
-              value={value}
-              onChange={(nextValue) => updateStyleDraft(property, { mode: "custom", value: nextValue })}
-            />
-          </div>
-          {allowTokenPicker ? (
-            <div className="min-w-0">
-              <TokenValuePicker
-                tokens={tokenRefs}
-                property={property.property}
-                value={activeTokenName ?? null}
-                onSelect={(tokenName) => updateStyleDraft(property, { mode: "token", value: tokenName })}
-              />
-            </div>
-          ) : null}
-        </div>
-        <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 text-[10px] text-slate-400">
-          <span className="min-w-0 truncate">{draftDisplayValue(draft, property)}</span>
-          {property.classBinding ? <span className="min-w-0 truncate font-mono">{property.classBinding}</span> : null}
-        </div>
-      </div>
-    );
-  };
-
-  const renderCompactBoxInput = (propertyName: DrawgleStyleProperty, label: string) => {
-    const property = propertyByName(propertyName);
-    if (!property) return <div />;
-    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-    const value = getPropertyDraftValue(property);
-    const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
-    const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
-
-    return (
-      <div key={property.property} className="grid min-w-0 gap-1 rounded-[8px] border border-slate-950/[0.07] bg-white px-2 py-1.5">
-        <span className="truncate text-[9px] font-semibold uppercase text-slate-400">{label}</span>
-        <Input
-          value={value}
-          onChange={(event) => updateStyleDraft(property, { mode: "custom", value: event.target.value })}
-          className="h-8 min-w-0 rounded-[7px] border-0 bg-slate-50 px-1.5 text-center text-[11px] font-semibold shadow-none focus-visible:ring-1"
-        />
-        {tokenOptions.length > 0 ? (
-          <TokenValuePicker
-            tokens={tokenRefs}
-            property={property.property}
-            value={activeTokenName ?? null}
-            onSelect={(tokenName) => updateStyleDraft(property, { mode: "token", value: tokenName })}
-          />
-        ) : null}
-      </div>
-    );
-  };
-
-  const renderBoxGroup = (
-    title: string,
-    top: DrawgleStyleProperty,
-    right: DrawgleStyleProperty,
-    bottom: DrawgleStyleProperty,
-    left: DrawgleStyleProperty,
-  ) => (
-    <div className="min-w-0 overflow-hidden rounded-[10px] border border-slate-950/[0.07] bg-slate-50 p-2">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="text-[11px] font-bold text-slate-700">{title}</div>
-        <div className="text-[10px] font-medium text-slate-400">Top / Right / Bottom / Left</div>
-      </div>
-      <div className="grid min-w-0 grid-cols-2 gap-2">
-        {renderCompactBoxInput(top, "Top")}
-        {renderCompactBoxInput(right, "Right")}
-        {renderCompactBoxInput(bottom, "Bottom")}
-        {renderCompactBoxInput(left, "Left")}
-      </div>
-    </div>
-  );
-  const renderSizeControl = (propertyName: DrawgleStyleProperty, label: string) => {
-    const property = propertyByName(propertyName);
-    if (!property) return null;
-    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-    const value = getPropertyDraftValue(property);
-    const normalizedValue = normalizeCssValue(value);
-    const sizeMode = normalizedValue === "100%" ? "fill" : normalizedValue === "auto" ? "hug" : "fixed";
-    const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
-    const activeTokenName = draft.mode === "token" ? draft.value : property.tokenName;
-
-    return (
-      <div className="rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[11px] font-bold text-slate-700">{label}</span>
-          <div className="flex items-center gap-1">
-            {renderSourceBadges(property)}
-            {renderResetButton(property)}
-          </div>
-        </div>
-        <div className="grid grid-cols-3 gap-1 rounded-[9px] bg-slate-100 p-1">
-          {[
-            ["fill", "Fill", "100%"],
-            ["hug", "Hug", "auto"],
-            ["fixed", "Fixed", normalizedValue && normalizedValue !== "auto" && normalizedValue !== "100%" ? normalizedValue : property.computedValue || "0px"],
-          ].map(([mode, modeLabel, nextValue]) => (
-            <button
-              key={mode}
-              type="button"
-              className={`h-7 rounded-[7px] text-[10px] font-semibold ${sizeMode === mode ? "bg-white text-slate-950 shadow-sm" : "text-slate-500 hover:bg-white/70"}`}
-              onClick={() => updateStyleDraft(property, { mode: "custom", value: nextValue })}
-            >
-              {modeLabel}
-            </button>
-          ))}
-        </div>
-        <Input
-          value={value}
-          onChange={(event) => updateStyleDraft(property, { mode: "custom", value: event.target.value })}
-          className="mt-2 h-8 rounded-[8px] border-slate-950/[0.08] bg-slate-50 px-2 text-center text-xs font-semibold"
-        />
-        {tokenOptions.length > 0 ? (
-          <div className="mt-2 min-w-0">
-            <TokenValuePicker
-              tokens={tokenRefs}
-              property={property.property}
-              value={activeTokenName ?? null}
-              onSelect={(tokenName) => updateStyleDraft(property, { mode: "token", value: tokenName })}
-            />
-          </div>
-        ) : null}
-      </div>
-    );
-  };
-
-  const renderSectionShell = (group: DrawgleStyleGroup, children: ReactNode, trailing?: ReactNode) => {
-    if (!children) return null;
-    return (
-      <section key={group} className="border-b border-slate-950/[0.06] bg-white px-3 py-3">
-        <div className="mb-2.5 flex items-center justify-between gap-3">
-          <div className="text-[13px] font-bold text-slate-950">{styleGroupMeta[group].title}</div>
-          {trailing}
-        </div>
-        {children}
-      </section>
-    );
-  };
-
-  const renderPositionSection = () => renderSectionShell(
-    "Position",
-    <div className="grid gap-2">
-      {renderSegmentControl("position", ["static", "relative", "absolute", "fixed"], { static: "Static", relative: "Rel", absolute: "Abs", fixed: "Fixed" }, 4)}
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("top")}
-        {renderValueRow("right")}
-        {renderValueRow("bottom")}
-        {renderValueRow("left")}
-      </div>
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("z-index", { label: "Layer" })}
-        {renderSegmentControl("overflow", ["visible", "hidden", "auto", "scroll"], { visible: "Show", hidden: "Hide", auto: "Auto", scroll: "Scroll" }, 4)}
-      </div>
-    </div>,
-    riskMessages.length ? <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Guarded</span> : null,
-  );
-
-  const renderLayoutSection = () => renderSectionShell(
-    "Layout",
-    <div className="grid gap-2">
-      {renderSegmentControl("display", ["block", "flex", "grid", "inline-flex", "none"], { block: "Block", flex: "Flex", grid: "Grid", "inline-flex": "Inline", none: "None" }, 5)}
-      <div className="grid grid-cols-1 gap-2">
-        {renderSegmentControl("flex-direction", ["row", "column", "row-reverse", "column-reverse"], { row: "Row", column: "Col", "row-reverse": "Row R", "column-reverse": "Col R" }, 2)}
-        {renderSegmentControl("flex-wrap", ["nowrap", "wrap", "wrap-reverse"], { nowrap: "No", wrap: "Wrap", "wrap-reverse": "Rev" }, 3)}
-      </div>
-      <div className="grid grid-cols-1 gap-2">
-        {renderSegmentControl("justify-content", ["flex-start", "center", "flex-end", "space-between"], { "flex-start": "Start", center: "Center", "flex-end": "End", "space-between": "Between" }, 4)}
-        {renderSegmentControl("align-items", ["stretch", "flex-start", "center", "flex-end"], { stretch: "Stretch", "flex-start": "Start", center: "Center", "flex-end": "End" }, 4)}
-      </div>
-      {renderSegmentControl("align-self", ["auto", "stretch", "flex-start", "center", "flex-end"], { auto: "Auto", stretch: "Stretch", "flex-start": "Start", center: "Center", "flex-end": "End" }, 5)}
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("gap")}
-        {renderValueRow("grid-template-columns", { label: "Columns" })}
-      </div>
-      {renderValueRow("flex")}
-    </div>,
-  );
-
-  const renderSizeSection = () => renderSectionShell(
-    "Size",
-    <div className="grid gap-2">
-      <div className="grid grid-cols-1 gap-2">
-        {renderSizeControl("width", "Width")}
-        {renderSizeControl("height", "Height")}
-      </div>
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("min-height", { label: "Min H" })}
-        {renderValueRow("max-width", { label: "Max W" })}
-      </div>
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("aspect-ratio", { label: "Aspect" })}
-        {renderSegmentControl("object-fit", ["cover", "contain", "fill", "none"], { cover: "Cover", contain: "Contain", fill: "Fill", none: "None" }, 4)}
-      </div>
-    </div>,
-  );
-
-  const renderSpacingSection = () => renderSectionShell(
-    "Spacing",
-    <div className="grid gap-2">
-      {renderBoxGroup("Padding", "padding-top", "padding-right", "padding-bottom", "padding-left")}
-      {renderBoxGroup("Margin", "margin-top", "margin-right", "margin-bottom", "margin-left")}
-    </div>,
-  );
-
-  const renderTypeSection = () => renderSectionShell(
-    "Type",
-    <div className="grid gap-2">
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("font-size")}
-        {renderValueRow("font-weight")}
-      </div>
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("line-height")}
-        {renderValueRow("letter-spacing", { label: "Tracking" })}
-      </div>
-      {renderValueRow("font-family")}
-      <div className="grid grid-cols-1 gap-2">
-        {renderSegmentControl("text-align", ["left", "center", "right", "justify"], { left: "Left", center: "Center", right: "Right", justify: "Justify" }, 4)}
-        {renderValueRow("color", { color: true, label: "Text" })}
-      </div>
-    </div>,
-  );
-
-  const renderGradientFillControl = () => {
-    const property = propertyByName("background-image");
-    if (!property) return null;
-
-    const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-    const value = getPropertyDraftValue(property);
-    const tokenOptions = getTokenReferencesForStyleProperty(property.property, tokenRefs);
-    const activeTokenName = draft.mode === "token" ? draft.value : draft.mode === "custom" ? undefined : property.tokenName;
-    const activeToken = tokenOptions.find((token) => token.name === activeTokenName) ?? null;
-    const gradientTokens = tokenOptions.filter((token) => token.path.startsWith("gradients."));
-    const editableGradientValue = activeToken?.value && draft.mode !== "custom" ? activeToken.value : value;
-    const gradientStops = getGradientColorStops(editableGradientValue);
-    const gradientAngle = getGradientAngle(editableGradientValue);
-    const previewGradient = buildLinearGradientValue(gradientStops.from, gradientStops.to, gradientAngle);
-    const setGradientStop = (stop: "from" | "to", nextColor: string) => {
-      updateStyleDraft(property, {
-        mode: "custom",
-        value: buildLinearGradientValue(
-          stop === "from" ? nextColor : gradientStops.from,
-          stop === "to" ? nextColor : gradientStops.to,
-          gradientAngle,
-        ),
-      });
-    };
-
-    return (
-      <div key={property.property} className="min-w-0 overflow-hidden rounded-[10px] border border-slate-950/[0.07] bg-white p-2 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
-        <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-[11px] font-semibold text-slate-700">Gradient Fill</div>
-            <div className="mt-0.5 truncate text-[10px] text-slate-400">Preset or custom editable gradient</div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1">
-            {renderSourceBadges(property)}
-            {renderResetButton(property)}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-1.5">
-          <button
-            type="button"
-            className={`flex min-h-10 items-center gap-2 rounded-[9px] border px-2 text-left text-[11px] font-semibold transition ${draft.mode === "custom" && normalizeCssValue(draft.value) === "none" ? "border-slate-950/[0.18] bg-slate-950 text-white" : "border-slate-950/[0.07] bg-slate-50 text-slate-600 hover:bg-slate-100"}`}
-            onClick={() => updateStyleDraft(property, { mode: "custom", value: "none" })}
-          >
-            <span className="h-5 w-7 shrink-0 rounded-[6px] border border-slate-950/[0.08] bg-white" />
-            None
-          </button>
-          {gradientTokens.map((token) => (
-            <button
-              key={token.name}
-              type="button"
-              className={`flex min-h-10 min-w-0 items-center gap-2 rounded-[9px] border px-2 text-left text-[11px] font-semibold transition ${activeTokenName === token.name ? "border-teal-500 bg-teal-50 text-teal-800" : "border-slate-950/[0.07] bg-slate-50 text-slate-700 hover:bg-slate-100"}`}
-              onClick={() => updateStyleDraft(property, { mode: "token", value: token.name })}
-            >
-              <span
-                className="h-5 w-7 shrink-0 rounded-[6px] border border-slate-950/[0.08]"
-                style={{ backgroundImage: token.value }}
-              />
-              <span className="min-w-0 truncate">{token.label.replace(/^Gradients \/ /, "")}</span>
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-2 h-8 rounded-[9px] border border-slate-950/[0.08] shadow-inner" style={{ backgroundImage: previewGradient }} />
-
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          <label className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[9px] border border-slate-950/[0.07] bg-slate-50 px-2 py-2">
-            <ColorPickerButton
-              label="Gradient start"
-              value={gradientStops.from}
-              className="h-8 w-9 shrink-0 cursor-pointer rounded-[8px] border border-slate-950/[0.08] bg-white p-1"
-              onChange={(nextColor) => setGradientStop("from", nextColor)}
-            />
-            <span className="min-w-0">
-              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">From</span>
-              <span className="block truncate font-mono text-[11px] text-slate-700">{gradientStops.from}</span>
-            </span>
-          </label>
-          <label className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[9px] border border-slate-950/[0.07] bg-slate-50 px-2 py-2">
-            <ColorPickerButton
-              label="Gradient end"
-              value={gradientStops.to}
-              className="h-8 w-9 shrink-0 cursor-pointer rounded-[8px] border border-slate-950/[0.08] bg-white p-1"
-              onChange={(nextColor) => setGradientStop("to", nextColor)}
-            />
-            <span className="min-w-0">
-              <span className="block truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">To</span>
-              <span className="block truncate font-mono text-[11px] text-slate-700">{gradientStops.to}</span>
-            </span>
-          </label>
-        </div>
-
-        <div className="mt-2 flex min-w-0 items-center gap-2">
-          <CustomStyleControl
-            property={property}
-            value={value}
-            onChange={(nextValue) => updateStyleDraft(property, { mode: "custom", value: nextValue })}
-          />
-        </div>
-
-        <div className="mt-2 min-w-0">
-          <TokenValuePicker
-            tokens={tokenRefs}
-            property={property.property}
-            value={activeTokenName ?? null}
-            onSelect={(tokenName) => updateStyleDraft(property, { mode: "token", value: tokenName })}
-          />
-        </div>
-      </div>
-    );
-  };
-  const renderSurfaceSection = () => renderSectionShell(
-    "Surface",
-    <div className="grid gap-2">
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("background-color", { color: true, label: "Fill" })}
-        {renderGradientFillControl()}
-        {renderValueRow("border-color", { color: true, label: "Border" })}
-      </div>
-      <div className="grid grid-cols-1 gap-2">
-        {renderSegmentControl("border-style", ["none", "solid", "dashed", "dotted"], { none: "None", solid: "Solid", dashed: "Dash", dotted: "Dot" }, 4)}
-        {renderValueRow("border-width", { label: "Border W" })}
-      </div>
-      {renderBoxGroup("Border", "border-top-width", "border-right-width", "border-bottom-width", "border-left-width")}
-      {renderValueRow("border-radius", { label: "Radius" })}
-      {renderBoxGroup("Radius", "border-top-left-radius", "border-top-right-radius", "border-bottom-right-radius", "border-bottom-left-radius")}
-    </div>,
-  );
-
-  const renderEffectsSection = () => renderSectionShell(
-    "Effects",
-    <div className="grid gap-2">
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("opacity")}
-        {renderValueRow("box-shadow", { label: "Shadow" })}
-      </div>
-      {renderValueRow("transform")}
-      <div className="grid grid-cols-1 gap-2">
-        {renderValueRow("filter")}
-        {renderValueRow("backdrop-filter", { label: "Backdrop" })}
-      </div>
-    </div>,
-  );
-
-  const buildAiRefinePrompt = () => {
-    const normalizedClassDraft = normalizeClassNames(classDraft);
-    const changedStyles = inspectedProperties
-      .map((property) => {
-        const draft = styleDrafts[property.property] ?? initialDraftForProperty(property);
-        const initialDraft = initialDraftForProperty(property);
-        const changed = draft.mode !== initialDraft.mode || normalizeCssValue(draft.value) !== normalizeCssValue(initialDraft.value);
-        if (!changed) return null;
-        return `${property.property}: ${draft.mode === "inherit" ? "reset" : draftDisplayValue(draft, property)}`;
-      })
-      .filter(Boolean)
-      .join("; ");
-
-    return [
-      `Refine the selected ${selectedElementInfo?.editableMetadata?.tagName ?? "element"} using the current visual editor draft.`,
-      `Target: ${targetLabel} / ${selectedElementInfo?.breadcrumb || selectedElementInfo?.editableMetadata?.tagName || "element"}.`,
-      `Parent layout: ${layoutContext?.parentDisplay ?? "unknown"}; children: ${layoutContext?.childrenCount ?? 0}; risk flags: ${riskMessages.join(", ") || "none"}.`,
-      `Current classes: ${classListKey || "none"}.`,
-      classDraftTouched && normalizedClassDraft !== normalizeClassNames(classListKey) ? `Draft classes: ${normalizedClassDraft || "none"}.` : null,
-      changedStyles ? `Draft styles: ${changedStyles}.` : null,
-      "Preserve project tokens, prefer Tailwind-compatible utilities, avoid unnecessary inline styles, and keep exported HTML production-safe.",
-    ].filter(Boolean).join("\n");
-  };
-
-  if (!selectedElementInfo) {
-    return (
-      <aside
-        data-canvas-obstacle="right"
-        className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[18px] border border-slate-950/[0.08] bg-white/96 md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(420px,calc(100%-1rem))]"
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-950/[0.06] px-4 pb-3 pt-4">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Visual Editor</div>
-            <div className="mt-0.5 truncate text-sm font-medium text-slate-900">No Element Selected</div>
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" onClick={onClose}>
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-        <div className="flex flex-1 flex-col items-center justify-center bg-slate-50/40 p-8 text-center">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full border border-slate-100 bg-white text-slate-400 shadow-sm">
-            <Palette className="h-5 w-5 text-slate-400" />
-          </div>
-          <h3 className="text-sm font-semibold text-slate-900">Select an Element</h3>
-          <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-slate-500">
-            Click a canvas element to inspect tokens, classes, layout, spacing, and code.
-          </p>
-        </div>
-      </aside>
-    );
-  }
-
-  return (
-    <aside
-      data-canvas-obstacle="right"
-      className="dg-visual-editor fixed bottom-[calc(var(--dg-mobile-prompt-bottom)+8.75rem)] left-3 right-3 top-auto z-[80] flex max-h-[min(72vh,660px)] flex-col overflow-hidden rounded-[18px] border border-slate-950/[0.08] bg-white/96 shadow-[0_24px_90px_rgba(15,23,42,0.18)] backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:top-[calc(env(safe-area-inset-top,0px)+4.25rem)] md:max-h-none md:w-[min(440px,calc(100%-1rem))]"
-    >
-      <div className="border-b border-slate-950/[0.06] bg-white px-3 pb-3 pt-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#667894]">Visual Editor</div>
-            <div className="mt-0.5 truncate text-sm font-bold text-slate-950">
-              {selectedElementInfo.textPreview || selectedElementInfo.editableMetadata?.tagName || "Element"}
-            </div>
-            <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 text-[11px] font-medium text-slate-500">
-              <span>{targetLabel}</span>
-              <span>/</span>
-              <span className="truncate">{selectedElementInfo.breadcrumb || selectedElementInfo.editableMetadata?.tagName}</span>
-            </div>
-          </div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-950" onClick={onClose}>
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-
-        <div className="mt-3 flex min-w-0 flex-wrap items-center gap-1.5 text-[10px] font-semibold text-slate-500">
-          <span className="rounded-[7px] border border-slate-950/[0.06] bg-slate-50 px-2 py-1">{styleInspection?.tagName ?? selectedElementInfo.editableMetadata?.tagName ?? "node"}</span>
-          <span className="rounded-[7px] border border-slate-950/[0.06] bg-slate-50 px-2 py-1">{layoutContext ? `${layoutContext.childrenCount} children` : "context"}</span>
-          <span className={riskMessages.length ? "rounded-[7px] border border-amber-200 bg-amber-50 px-2 py-1 text-amber-700" : "rounded-[7px] border border-teal-200 bg-teal-50 px-2 py-1 text-teal-700"}>{riskMessages.length ? "guarded" : "safe"}</span>
-        </div>
-
-        {riskMessages.length > 0 ? (
-          <div className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-medium leading-4 text-amber-800">
-            Guardrails: {riskMessages.join(" / ")}. Apply is allowed, but layout changes may affect nearby UI.
-          </div>
-        ) : null}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/50">
-        {imageTargets.length > 0 ? (
-          <section className="border-b border-slate-950/[0.06] px-3 py-4">
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/gif"
-              className="hidden"
-              onChange={(event) => void handleImageFileChange(event.target.files?.[0] ?? null)}
-            />
-            <div className="mb-3 flex items-center gap-2 text-[13px] font-bold text-slate-950">
-              <ImageIcon className="h-3.5 w-3.5 text-slate-500" />
-              Media
-            </div>
-            <div className="grid gap-2">
-              {imageTargets.map((target) => (
-                <div key={`${target.kind}-${target.drawgleId}-${target.targetIndex ?? 0}`} className="flex items-center gap-3 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-slate-950/[0.08] bg-slate-50">
-                    {target.src ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={target.src} alt={target.alt || target.label} className="h-full w-full object-cover" />
-                    ) : (
-                      <ImageIcon className="h-4 w-4 text-slate-400" />
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-xs font-semibold text-slate-900">{target.label}</div>
-                    <div className="mt-0.5 truncate text-[11px] text-slate-500">{labelForImageTargetKind(target.kind)}</div>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-8 shrink-0 rounded-[10px] px-2 text-[11px]"
-                    disabled={disabled || Boolean(uploadingImageTargetId)}
-                    onClick={() => chooseImageFile(target)}
-                  >
-                    {uploadingImageTargetId === target.drawgleId ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  </Button>
-                </div>
-              ))}
-            </div>
-            {imageUploadError ? (
-              <div className="mt-2 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{imageUploadError}</div>
-            ) : null}
-          </section>
-        ) : null}
-
-        {textNodes.length > 0 ? (
-          <section className="border-b border-slate-950/[0.06] px-3 py-4">
-            <div className="mb-3 text-[13px] font-bold text-slate-950">Content</div>
-            <div className="grid gap-2">
-              {textNodes.map((node) => (
-                <label key={node.drawgleId} className="grid gap-1.5 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">{node.tagName}</span>
-                  <Textarea
-                    value={textDrafts[node.drawgleId] ?? ""}
-                    onChange={(event) => setTextDrafts((current) => ({ ...current, [node.drawgleId]: event.target.value }))}
-                    className="min-h-12 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 text-xs focus-visible:bg-white"
-                  />
-                </label>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-
-        {renderPositionSection()}
-        {renderLayoutSection()}
-        {renderSizeSection()}
-        {renderSpacingSection()}
-        {renderTypeSection()}
-        {renderSurfaceSection()}
-        {renderEffectsSection()}
-
-        <section className="border-b border-slate-950/[0.06] px-3 py-4">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between gap-3 rounded-[12px] border border-slate-950/[0.07] bg-white px-3 py-2.5 text-left transition hover:bg-slate-50"
-            onClick={() => setAdvancedDetailsOpen((open) => !open)}
-            aria-expanded={advancedDetailsOpen}
-          >
-            <div className="min-w-0">
-              <div className="text-[13px] font-bold text-slate-950">Advanced details</div>
-              <div className="mt-0.5 text-[11px] text-slate-500">Raw classes, HTML, and element context</div>
-            </div>
-            <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${advancedDetailsOpen ? "rotate-180" : ""}`} />
-          </button>
-
-          {advancedDetailsOpen ? (
-            <div className="mt-3 grid gap-2">
-              <label className="grid gap-1.5 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Classes</span>
-                <Textarea
-                  value={classDraft}
-                  disabled={disabled || isSaving}
-                  onChange={(event) => handleClassDraftChange(event.target.value)}
-                  className="min-h-20 resize-y rounded-[10px] border-slate-950/[0.08] bg-slate-50/80 px-3 py-2 font-mono text-[11px] leading-5 text-slate-700 focus-visible:bg-slate-50"
-                />
-              </label>
-              {layoutContext ? (
-                <div className="grid grid-cols-3 gap-2 text-[11px]">
-                  <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
-                    <div className="text-slate-400">Parent</div>
-                    <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.parentDisplay ?? "none"}</div>
-                  </div>
-                  <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
-                    <div className="text-slate-400">Index</div>
-                    <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.childIndex + 1}/{layoutContext.siblingCount}</div>
-                  </div>
-                  <div className="rounded-[10px] border border-slate-950/[0.07] bg-white p-2">
-                    <div className="text-slate-400">Children</div>
-                    <div className="mt-0.5 truncate font-semibold text-slate-900">{layoutContext.childrenCount}</div>
-                  </div>
-                </div>
-              ) : null}
-              <div className="grid gap-1.5 rounded-[12px] border border-slate-950/[0.07] bg-white p-2">
-                <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Code</span>
-                <pre className="max-h-48 overflow-auto rounded-[10px] bg-slate-950 p-3 text-[11px] leading-5 text-slate-100">
-                  <code>{selectedElementInfo.outerHTML}</code>
-                </pre>
-              </div>
-            </div>
-          ) : null}
-        </section>
-        {inspectedProperties.length === 0 ? (
-          <div className="mx-3 mb-4 rounded-[14px] border border-slate-950/[0.08] bg-white px-4 py-6 text-center text-sm text-slate-500">
-            Reselect the element to inspect its live CSS sources.
-          </div>
-        ) : null}
-      </div>
-
-      <div className="flex items-center justify-between gap-3 border-t border-slate-950/[0.06] bg-white/95 px-3 py-3">
-        {onDelete && selectedElementInfo.targetType !== "navigation" ? (
-          <Button
-            variant="outline"
-            className="h-10 rounded-[12px] border-red-200 px-3 text-red-600 hover:bg-red-50 hover:text-red-700"
-            disabled={disabled || isSaving}
-            onClick={() => void onDelete()}
-          >
-            <Trash className="h-3.5 w-3.5" />
-          </Button>
-        ) : <div />}
-        <Button
-          className="h-10 rounded-[12px] dg-button-primary hover:dg-button-primary px-4 text-white gap-2"
-          disabled={disabled || isSaving || !hasDraftChanges}
-          onClick={() => void saveDesign()}
-        >
-          {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-          Apply Changes
-        </Button>
-      </div>
-    </aside>
-  );
-}
 
 async function enqueueGeneration(input: {
   clientRequestId?: string;
@@ -1621,14 +208,12 @@ export function ProjectShell({
   initialScreens,
   initialGenerationRuns,
   initialProjectNavigation,
-  historyEnabled = false,
 }: {
   user: AuthenticatedUser;
   initialProject: ProjectData;
   initialScreens: ScreenData[];
   initialGenerationRuns: GenerationRunData[];
   initialProjectNavigation: ProjectNavigationData | null;
-  historyEnabled?: boolean;
 }) {
   const router = useRouter();
   const { project, isLoading: isProjectLoading } = useProject(initialProject.id, initialProject);
@@ -1677,7 +262,16 @@ export function ProjectShell({
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
   const [workspaceTab, setWorkspaceTab] = useState<"chat" | "design">("chat");
-  const [inspectorDirty, setInspectorDirty] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [elementSaving, setElementSaving] = useState(false);
+  const [inspectorSaving, setInspectorSaving] = useState(false);
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historySelection, setHistorySelection] = useState("");
+  const [historyPanelTarget, setHistoryPanelTarget] = useState<HTMLDivElement | null>(null);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
+  const mobileChatWasCollapsed = useRef<boolean | null>(null);
 
   const [isMobile, setIsMobile] = useState(false);
 
@@ -1701,8 +295,6 @@ export function ProjectShell({
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [pricingReason, setPricingReason] = useState<"upgrade" | "insufficient_credits">("upgrade");
   const [editSession, setEditSession] = useState<ElementEditSession | null>(null);
-  const [selectedElementPreview, setSelectedElementPreview] = useState<SelectedElementPreviewPayload | null>(null);
-  const [pendingElementSelection, setPendingElementSelection] = useState<PendingElementSelection | null>(null);
   const [tokenDraft, setTokenDraft] = useState<DesignTokens | null>(() =>
     hasApprovedDesignTokens(initialProject.designTokens)
       ? normalizeDesignTokens(initialProject.designTokens)
@@ -1747,12 +339,14 @@ export function ProjectShell({
   const addScreenRefreshAttemptedRunIdRef = useRef<string | null>(null);
   const selectionMode = canvasTool === "element-select";
   const isGenerationBusy = Boolean(generationRun) || isQueueingGeneration || Boolean(pendingQueuedRunId);
-  const isCanvasInteractionLocked = isGenerationBusy;
+  const isCanvasInteractionLocked = isGenerationBusy || elementSaving || inspectorSaving || tokenSaving || recoveryBusy;
   const isGenerationActive = Boolean(
     generationRun &&
     (generationRun.status === "queued" || generationRun.status === "planning" || generationRun.status === "building"),
   );
   const selectedElementInfo = editSession?.element ?? null;
+  const nextHistorySelection = `${editSession?.screenId}:${editSession?.element.drawgleId}:${workspaceTab}`;
+  if (historySelection !== nextHistorySelection) { setHistorySelection(nextHistorySelection); setHistoryOpen(false); }
   const selectedElementScreen = editSession?.screenId
     ? screens.find((screen) => screen.id === editSession.screenId) ?? null
     : null;
@@ -1802,8 +396,7 @@ export function ProjectShell({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedScreen(null);
       if (editSession?.screenId === selectedScreen.id) {
-        setSelectedElementPreview(null);
-        setEditSession(null);
+          setEditSession(null);
       }
       return;
     }
@@ -2045,7 +638,6 @@ export function ProjectShell({
       const supabase = createClient();
       await deleteScreen(supabase, selectedScreen.id);
       setSelectedScreen(null);
-      setSelectedElementPreview(null);
       setEditSession(null);
     } catch (error) {
       console.error("Error deleting screen:", error);
@@ -2083,7 +675,6 @@ export function ProjectShell({
 
     if (activeEditElement && !activeEditElement.drawgleId) {
       setSelectionNotice("I lost the selected element identity. Please reselect the exact element and try again.");
-      setSelectedElementPreview(null);
       setEditSession(null);
       return false;
     }
@@ -2265,6 +856,7 @@ export function ProjectShell({
     operations: DeterministicEditOperation[],
     overrideScreenId?: string,
     overrideDrawgleId?: string,
+    saveOptions?: EditSaveOptions,
   ) => {
     if (!project || operations.length === 0) {
       return false;
@@ -2278,6 +870,7 @@ export function ProjectShell({
       return false;
     }
 
+    setElementSaving(true);
     try {
       const editRes = await fetch("/api/element-edit", {
         method: "POST",
@@ -2288,8 +881,8 @@ export function ProjectShell({
           targetType,
           drawgleId,
           operations,
-          expectedRevision: targetType === "navigation" ? projectNavigation?.designRevision : screens.find(screen => screen.id === screenId)?.designRevision,
-          requestId: crypto.randomUUID(),
+          expectedRevision: saveOptions?.expectedRevision ?? (targetType === "navigation" ? projectNavigation?.designRevision : screens.find(screen => screen.id === screenId)?.designRevision),
+          requestId: saveOptions?.requestId ?? crypto.randomUUID(),
         }),
       });
 
@@ -2298,25 +891,22 @@ export function ProjectShell({
         throw new Error(payload?.error ?? "Failed to edit selected element.");
       }
 
-      setSelectedElementPreview(null);
+      const committed = await editRes.json() as { revision: number; changed: boolean };
       await refreshScreens();
+      if (targetType === "screen") await loadScreenSource(screenId);
       notifyProjectChanged(project.id);
-      clearEditSession();
-      return true;
-    } catch (error: any) {
-      console.error("Deterministic element edit error:", error);
-      setAlertModalState({
-        isOpen: true,
-        title: "Action Restricted",
-        description: error.message || "Failed to edit selected element.",
-      });
+      setHistoryRefresh(value => value + 1);
+      return committed;
+    } catch (error: unknown) {
+      if (saveOptions) throw error;
+      setAlertModalState({ isOpen: true, title: "Could not save change", description: error instanceof Error ? error.message : "The change could not be saved." });
       return false;
-    }
+    } finally { setElementSaving(false); }
   };
 
   const handleReplaceSelectedImage = async (target: DrawgleImageTargetMeta, file: File) => {
     if (!project || !editSession?.element.drawgleId) {
-      return false;
+      throw new Error("Select an image before replacing it.");
     }
 
     const formData = new FormData();
@@ -2338,14 +928,7 @@ export function ProjectShell({
       throw new Error(payload.error ?? "Failed to upload replacement image.");
     }
 
-    return await handleDeterministicElementEdit([{
-      type: "replaceImage",
-      drawgleId: target.drawgleId,
-      mode: replaceModeForImageTarget(target.kind),
-      src: payload.url,
-      alt: target.alt || target.label || "Project image",
-      targetIndex: target.targetIndex ?? null,
-    }]);
+    return payload.url as string;
   };
 
   const handleDeleteSelectedElement = async (overrideScreenId?: string, overrideDrawgleId?: string) => {
@@ -2411,7 +994,7 @@ export function ProjectShell({
   };
 
   const handleSaveTokenDraft = async () => {
-    if (!project || !tokenDraft || !hasApprovedDesignTokens(tokenDraft) || isGenerationActive) {
+    if (!project || !tokenDraft || !hasApprovedDesignTokens(tokenDraft) || isCanvasInteractionLocked) {
       return;
     }
 
@@ -2422,37 +1005,32 @@ export function ProjectShell({
       setTokenDraft(normalized);
       setTokenDirty(false);
       notifyProjectChanged(project.id);
+      setHistoryRefresh(value => value + 1);
+      return true;
     } catch (error) {
-      console.error("Failed to save design tokens", error);
+      setQueueError(error instanceof Error ? error.message : "Could not save design tokens.");
+      return false;
     } finally {
       setTokenSaving(false);
     }
   };
 
   const clearEditSession = () => {
-    setSelectedElementPreview(null);
+    editor.discard();
     setEditSession(null);
-    setPendingElementSelection(null);
     setSelectionNotice(null);
   };
 
   const handleToggleSelectionMode = () => {
-    setSelectionNotice(null);
-    setPendingElementSelection(null);
-    setCanvasTool((currentTool) => {
-      const nextTool = currentTool === "element-select" ? "pointer" : "element-select";
-      if (nextTool === "pointer") {
-        clearEditSession();
-      }
-      return nextTool;
-    });
+    if (editor.saving || recoveryBusy) return;
+    if (selectionMode) { closeInspector(); setCanvasTool("pointer"); }
+    else setCanvasTool("element-select");
   };
 
   const commitElementSelection = (info: SelectedElementInfo) => {
     const ownerScreen = screens.find((screen) => screen.id === info.screenId) ?? null;
     const nextSelectionVersion = selectionVersion + 1;
 
-    setSelectedElementPreview(null);
     setSelectionNotice(null);
     setSelectionVersion(nextSelectionVersion);
     setSelectedScreen(ownerScreen);
@@ -2500,10 +1078,10 @@ export function ProjectShell({
 
     if (
       editSession &&
-      editSession.mode !== "selected" &&
+      inspectorDirty &&
       (editSession.screenId !== info.screenId || editSession.element.drawgleId !== info.drawgleId)
     ) {
-      setPendingElementSelection({ info });
+      setPendingAction(() => () => commitElementSelection(info));
       return;
     }
 
@@ -2517,6 +1095,11 @@ export function ProjectShell({
       editSession.element.drawgleId === info.drawgleId
     ) {
       if (info.reason === "rehydrate_failed") {
+        if (!inspectorDirty) {
+          setEditSession(null);
+          setSelectionNotice("The selected element is no longer in the saved design.");
+          return;
+        }
         setSelectionNotice("The selected element is being verified from the saved screen before the next edit.");
         setEditSession((currentSession) =>
           currentSession &&
@@ -2528,8 +1111,13 @@ export function ProjectShell({
         return;
       }
 
+      if (inspectorDirty) {
+        if (info.reason === "click_miss") { setPendingAction(() => clearEditSession); return; }
+        setSelectionNotice("The selected element changed. Your draft is retained; discard it before reselecting.");
+        setEditSession(current => current ? { ...current, freshness: "stale" } : current);
+        return;
+      }
       setSelectionNotice("The selected element changed after the canvas refreshed. Please reselect it before asking for another selected edit.");
-      setSelectedElementPreview(null);
       setEditSession(null);
     }
   };
@@ -2539,6 +1127,7 @@ export function ProjectShell({
       return;
     }
 
+    if (inspectorDirty && screen && editSession?.screenId !== screen.id) { setPendingAction(() => () => { clearEditSession(); setSelectedScreen(screen); }); return; }
     setSelectedScreen(screen);
 
     if (!screen) {
@@ -2546,18 +1135,82 @@ export function ProjectShell({
     }
 
     if (editSession?.screenId && editSession.screenId !== screen.id) {
-      setSelectedElementPreview(null);
+      if (inspectorDirty) { setPendingAction(() => () => { clearEditSession(); setSelectedScreen(screen); }); return; }
       setEditSession(null);
     }
   };
 
   const handleOpenVisualEditor = () => {
+    if (!editSession) return;
     setCanvasTool("element-select");
+    if (isMobile && mobileChatWasCollapsed.current === null) {
+      mobileChatWasCollapsed.current = isChatCollapsed;
+      setIsChatCollapsed(true);
+    }
+    setInspectorOpen(true);
   };
+
+  const editor = useEditorDraft({ info: selectedElementInfo,
+    onWorkingChange: setInspectorSaving,
+    unavailable: editSession?.freshness === "stale",
+    revision: selectedElementInfo?.targetType === "navigation" ? projectNavigation?.designRevision ?? 0 : selectedElementScreen?.designRevision ?? 0,
+    save: (operations, options) => handleDeterministicElementEdit(operations, undefined, undefined, options),
+    upload: handleReplaceSelectedImage,
+  });
+  const inspectorDirty = editor.dirty;
+  useDraftNavigationGuard(inspectorDirty || tokenDirty, action => setPendingAction(() => action));
+  const selectedElementPreview = editor.preview;
+  const guardAction = (action: () => void) => {
+    if (editor.saving || recoveryBusy) return;
+    if (editor.dirty || tokenDirty) setPendingAction(() => action);
+    else { editor.discard(); action(); }
+  };
+  const closeInspector = () => {
+    setInspectorOpen(false);
+    if (!isMobile) setCanvasTool("pointer");
+    if (mobileChatWasCollapsed.current !== null) {
+      setIsChatCollapsed(mobileChatWasCollapsed.current);
+      mobileChatWasCollapsed.current = null;
+    }
+  };
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => { if (inspectorDirty || tokenDirty) { event.preventDefault(); event.returnValue = ""; } };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [inspectorDirty, tokenDirty]);
+  useEffect(() => {
+    const click = (event: MouseEvent) => {
+      const anchor = (event.target as HTMLElement)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!anchor || !(inspectorDirty || tokenDirty) || event.ctrlKey || event.metaKey || anchor.target === "_blank" || anchor.href === location.href) return;
+      event.preventDefault(); event.stopPropagation();
+      setPendingAction(() => () => router.push(anchor.href));
+    };
+    document.addEventListener("click", click, true);
+    return () => document.removeEventListener("click", click, true);
+  }, [inspectorDirty, tokenDirty, router]);
 
   if (isProjectLoading || !project) {
     return <ProjectCanvasLoading />;
   }
+
+  const historyControls = (<HistoryControls
+              key={editSession?.element.targetType === "navigation" ? "navigation" : editSession?.screenId ??
+                (workspaceTab === "design" ? "tokens" : selectedScreen?.id ?? "none")}
+              projectId={project.id}
+              refreshVersion={historyRefresh}
+              viewOpen={historyOpen} onViewOpenChange={setHistoryOpen} panelTarget={historyPanelTarget}
+              local={editor}
+              onWorkingChange={setRecoveryBusy}
+              target={editSession?.element.targetType === "navigation" ? { context: "navigation" } :
+                editSession?.screenId ? { context: "screen", screenId: editSession.screenId } :
+                workspaceTab === "design" ? { context: "tokens" } :
+                selectedScreen ? { context: "screen", screenId: selectedScreen.id } : null}
+              screenName={screens.find(screen => screen.id === (editSession?.screenId ?? selectedScreen?.id))?.name}
+              screens={screens} navigation={projectNavigation ?? null} tokens={effectiveDesignTokens ?? null}
+              disabledReason={tokenDirty && !editor.hasLocalHistory ? "Save or discard the current draft before using saved history." :
+                isCanvasInteractionLocked ? "Wait for the active design job to finish." : null}
+              onApplied={async () => { editor.discard(); setExportMenuOpen(false); notifyProjectChanged(project.id); await refreshScreens(); const recoveredScreenId = editSession?.screenId ?? selectedScreen?.id; if (recoveredScreenId) await loadScreenSource(recoveredScreenId); }}
+/>);
 
   return (
     <div className="h-full min-h-0 overflow-hidden bg-[var(--dg-bg)] text-[var(--dg-text)]" style={shellLayoutVars}>
@@ -2566,8 +1219,8 @@ export function ProjectShell({
           data-canvas-obstacle="top"
           className="absolute left-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-2"
         >
-          <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3">
-            <Button variant="ghost" size="sm" onClick={() => router.push("/project/new")} className="h-8 rounded-full text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] focus-visible:bg-[var(--dg-surface-muted)] data-[state=open]:bg-[var(--dg-surface-muted)] px-2 sm:px-3 flex items-center justify-center">
+          <div className="flex h-8 items-center rounded-full dg-panel px-2 backdrop-blur-xl lg:px-3 max-sm:px-0 max-sm:h-11 max-sm:w-11">
+            <Button variant="ghost" size="sm" onClick={() => guardAction(() => router.push("/project/new"))} className="h-8 rounded-full max-sm:h-11 max-sm:w-11 text-[var(--dg-text)] hover:bg-[var(--dg-surface-muted)] focus-visible:bg-[var(--dg-surface-muted)] data-[state=open]:bg-[var(--dg-surface-muted)] px-2 sm:px-3 flex items-center justify-center">
               <ArrowLeft className="h-4 w-4 sm:mr-2" />
               <span className="hidden sm:inline">Workspace</span>
             </Button>
@@ -2580,10 +1233,10 @@ export function ProjectShell({
 
         <div
           data-canvas-obstacle="top"
-          className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-1.5 sm:gap-3"
+          className="absolute right-4 top-[calc(env(safe-area-inset-top,0px)+1rem)] z-50 flex items-center gap-0.5 sm:gap-3"
         >
           {/* Group 1 (Utilities): Sun/Moon theme toggle + Help contact dropdown */}
-          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5">
+          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 max-sm:px-1">
             <Tooltip>
               <TooltipTrigger
                 render={
@@ -2605,7 +1258,7 @@ export function ProjectShell({
               trigger={
                 <button
                   type="button"
-                  className="flex h-6 w-6 items-center justify-center rounded-full text-neutral-600 dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus:outline-none transition-colors cursor-pointer"
+                  className="hidden h-6 w-6 items-center justify-center rounded-full text-neutral-600 sm:flex dark:text-neutral-300 hover:bg-[#f7f7f8] dark:hover:bg-white/10 focus:outline-none transition-colors cursor-pointer"
                   aria-label="Help"
                 >
                   <HelpCircle className="h-3.5 w-3.5" />
@@ -2636,7 +1289,7 @@ export function ProjectShell({
           </div>
 
           {/* Group 2 (Actions): Preview, Share, Export */}
-          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 shadow-sm">
+          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 max-sm:px-1 shadow-sm">
             <PreviewShareDialog
               projectId={project.id}
               projectName={project.name}
@@ -2655,7 +1308,7 @@ export function ProjectShell({
             />
             <ExportMenu
               open={exportMenuOpen}
-              onOpenChange={setExportMenuOpen}
+              onOpenChange={open => open ? guardAction(() => setExportMenuOpen(true)) : setExportMenuOpen(false)}
               project={project}
               screens={screens}
               initialScreenId={exportInitialScreenId}
@@ -2663,7 +1316,7 @@ export function ProjectShell({
               designTokens={effectiveDesignTokens}
               tokenCss={exportTokenCss}
               googleFontAssetLinks={exportGoogleFontLinks}
-              tokenDirty={tokenDirty}
+              tokenDirty={tokenDirty || inspectorDirty}
               generationActive={isGenerationActive}
               trigger={
                 <Button
@@ -2676,28 +1329,14 @@ export function ProjectShell({
                 </Button>
               }
             />
-            {historyEnabled ? <HistoryControls
-              key={editSession?.element.targetType === "navigation" ? "navigation" : editSession?.screenId ??
-                (workspaceTab === "design" ? "tokens" : selectedScreen?.id ?? "none")}
-              projectId={project.id}
-              target={editSession?.element.targetType === "navigation" ? { context: "navigation" } :
-                editSession?.screenId ? { context: "screen", screenId: editSession.screenId } :
-                workspaceTab === "design" ? { context: "tokens" } :
-                selectedScreen ? { context: "screen", screenId: selectedScreen.id } : null}
-              screenName={screens.find(screen => screen.id === (editSession?.screenId ?? selectedScreen?.id))?.name}
-              screens={screens} navigation={projectNavigation ?? null} tokens={effectiveDesignTokens ?? null}
-              disabledReason={tokenDirty || inspectorDirty ? "Save or discard the current draft before using saved history." :
-                isCanvasInteractionLocked ? "Wait for the active design job to finish." : null}
-              onApplied={async () => { clearEditSession(); setExportMenuOpen(false); notifyProjectChanged(project.id); await refreshScreens(); }}
-            /> : null}
           </div>
 
           {/* Credits & Upgrade pill */}
-          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 border border-[#1b7fcccc]/50 pl-2 shadow-[0_1px_2px_rgba(99,102,241,0.03)]">
+          <div className="flex h-8 shrink-0 items-center rounded-full dg-panel px-1.5 backdrop-blur-xl gap-0.5 max-sm:px-1 border border-[#1b7fcccc]/50 pl-2 shadow-[0_1px_2px_rgba(99,102,241,0.03)]">
             <span className="flex items-center gap-1.5 text-[12px] font-extrabold text-[#1b7fcccc] tracking-tight select-none mr-1">
               {loadingCredits ? "..." : (
                 <>
-                  <CircleDollarSign className="h-4 w-4 stroke-[2.5]" />
+                  <CircleDollarSign className="hidden h-4 w-4 stroke-[2.5] sm:block" />
                   {balance}
                 </>
               )}
@@ -2741,29 +1380,39 @@ export function ProjectShell({
                 id: "switch",
                 label: "Switch Projects",
                 icon: FolderSync,
-                onClick: () => router.push("/project/new"),
+                onClick: () => guardAction(() => router.push("/project/new")),
               },
               {
                 id: "account",
                 label: "Account Settings",
                 icon: User,
-                onClick: () => router.push("/account"),
+                onClick: () => guardAction(() => router.push("/account")),
               },
               {
                 id: "billing",
                 label: "Billing & Subscription",
                 icon: CreditCard,
-                onClick: () => router.push("/billing"),
+                onClick: () => guardAction(() => router.push("/billing")),
               },
+              ...(isMobile ? [
+                { id: "support-x", label: "Send message on X", icon: MessageCircle, onClick: () => window.open("https://x.com/9to5_Dad", "_blank") },
+                { id: "support-email", label: "Send us an email", icon: Mail, onClick: () => { window.location.href = "mailto:support@drawgle.com"; } },
+              ] : []),
               {
                 id: "logout",
                 label: "Log Out",
                 icon: LogOut,
                 variant: "destructive" as const,
-                onClick: handleSignOut,
+                onClick: () => guardAction(() => { void handleSignOut(); }),
               },
             ]}
           />
+          {isMobile && <button type="button" aria-label="Toggle visual editor sidebar" aria-expanded={inspectorOpen} disabled={!selectedElementInfo || isCanvasInteractionLocked}
+            onClick={() => inspectorOpen ? closeInspector() : handleOpenVisualEditor()}
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full dg-panel text-[var(--dg-text-muted)] disabled:opacity-40">
+              <PanelRight size={16} />{inspectorDirty && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-blue-500" />}
+          </button>}
+
         </div>
 
         <div className="relative h-full min-w-0 flex-1">
@@ -2774,6 +1423,7 @@ export function ProjectShell({
               await refreshGenerationRuns();
             }} />}
           <CanvasStage
+            hasEditorDraft={inspectorDirty}
             screens={screens}
             projectNavigation={projectNavigation}
             designTokens={effectiveDesignTokens}
@@ -2783,12 +1433,12 @@ export function ProjectShell({
             mobileBottomReserve={mobilePromptReserve}
             tool={canvasTool}
             disabled={isCanvasInteractionLocked}
-            onToolChange={setCanvasTool}
+            onToolChange={tool => { if (editor.saving || recoveryBusy) return; if (tool !== "element-select") closeInspector(); setCanvasTool(tool); }}
             onSelectScreen={handleCanvasSelectScreen}
-            onCanvasClick={() => {
+            onCanvasClick={() => guardAction(() => {
               setSelectedScreen(null);
               clearEditSession();
-            }}
+            })}
             selectedElementScreenId={editSession?.screenId ?? null}
             selectedElementDrawgleId={editSession?.element.drawgleId ?? null}
             selectedElementPreview={selectedElementPreview}
@@ -2799,13 +1449,13 @@ export function ProjectShell({
             onElementSelectionLost={handleElementSelectionLost}
             onEditSelectedText={handleOpenVisualEditor}
             onEditSelectedDesign={handleOpenVisualEditor}
-            onClearSelectedElement={clearEditSession}
-            onDeleteSelectedElement={handleDeleteSelectedElement}
-            onDuplicateSelectedElement={handleDuplicateSelectedElement}
+            onClearSelectedElement={() => guardAction(clearEditSession)}
+            onDeleteSelectedElement={(screenId, drawgleId) => guardAction(() => { void handleDeleteSelectedElement(screenId, drawgleId); })}
+            onDuplicateSelectedElement={(screenId, drawgleId) => guardAction(() => { void handleDuplicateSelectedElement(screenId, drawgleId); })}
             onScreenSourceNeeded={loadScreenSource}
-            onRetryScreen={handleRetryScreen}
-            onCreateState={setStateParent}
-            onExportCode={(...exportArgs) => {
+            onRetryScreen={screen => guardAction(() => { void handleRetryScreen(screen); })}
+            onCreateState={screen => guardAction(() => setStateParent(screen))}
+            onExportCode={(...exportArgs) => guardAction(() => {
               const screenName = exportArgs[2];
               const matchedScreen = screens.find((s) => s.name === screenName);
               if (matchedScreen) {
@@ -2813,62 +1463,16 @@ export function ProjectShell({
                 setExportInitialScreenId(matchedScreen.id);
               }
               setExportMenuOpen(true);
-            }}
+            })}
           />
 
-          <Dialog
-            open={Boolean(pendingElementSelection)}
-            onOpenChange={(open) => {
-              if (!open) {
-                setPendingElementSelection(null);
-              }
-            }}
-          >
-            <DialogContent
-              showCloseButton={false}
-              className="w-[min(420px,calc(100vw-2rem))] gap-0 overflow-hidden rounded-[24px] border border-slate-950/[0.08] bg-white p-0 shadow-[0_24px_90px_rgba(15,23,42,0.22)]"
-            >
-              <DialogHeader className="gap-2 px-5 pb-3 pt-5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-50 text-amber-700">
-                  <Palette className="h-4 w-4" />
-                </div>
-                <DialogTitle className="text-lg font-semibold tracking-[-0.01em] text-slate-950">
-                  Discard Element Overrides?
-                </DialogTitle>
-                <DialogDescription className="text-sm leading-6 text-slate-600">
-                  You have an open manual editing panel. Discard those unsaved changes and retarget the new selected element?
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter className="mx-0 mb-0 flex-row justify-end gap-2 rounded-none border-t border-slate-950/[0.08] bg-slate-50/80 px-5 py-4">
-                <Button
-                  variant="outline"
-                  className="h-10 rounded-full px-4"
-                  onClick={() => setPendingElementSelection(null)}
-                >
-                  Keep Editing
-                </Button>
-                <Button
-                  className="h-10 rounded-full bg-slate-950 px-4 text-white hover:bg-slate-800"
-                  onClick={() => {
-                    const nextSelection = pendingElementSelection?.info;
-                    setPendingElementSelection(null);
-                    if (nextSelection) {
-                      commitElementSelection(nextSelection);
-                    }
-                  }}
-                >
-                  Discard & Select
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
 
           <ConfirmationDialog
             isOpen={Boolean(deleteConfirmState?.isOpen)}
             onClose={() => setDeleteConfirmState(null)}
             onConfirm={executeDeleteSelectedElement}
             title="Delete Element"
-            description="Are you sure you want to delete this element? This action cannot be undone."
+            description="Delete this element? You can restore it using Undo after the change is saved."
             confirmText="Delete"
             cancelText="Cancel"
             variant="destructive"
@@ -2901,8 +1505,9 @@ export function ProjectShell({
             </DialogContent>
           </Dialog>
 
+          <div className={isMobile && inspectorOpen && selectionMode ? "hidden" : "contents"}>
           <ChatPanel
-            onWorkspaceTabChange={setWorkspaceTab}
+            onWorkspaceTabChange={tab => guardAction(() => setWorkspaceTab(tab))}
             project={project}
             screens={screens}
             selectedScreen={selectedScreen}
@@ -2915,16 +1520,16 @@ export function ProjectShell({
             tokenSaving={tokenSaving}
             generationActive={isGenerationActive}
             onTokenDraftChange={handleTokenDraftChange}
-            onSaveTokens={handleSaveTokenDraft}
+            onSaveTokens={async () => { await handleSaveTokenDraft(); }}
             onDiscardTokens={handleDiscardTokenDraft}
             isQueueing={isQueueingGeneration || Boolean(pendingQueuedRunId)}
             queueError={queueError ?? selectionNotice}
             retryDisabled={isCanvasInteractionLocked}
             isBuilding={isQueueingGeneration}
-            onRetryGeneration={handleRetryGeneration}
-            onApproveScreenPlan={handleApproveScreenPlan}
-            onApproveScreenState={handleApproveScreenState}
-            onBuildRoadmapRecommendation={handleBuildRoadmapRecommendation}
+            onRetryGeneration={(run, options) => guardAction(() => { void handleRetryGeneration(run, options); })}
+            onApproveScreenPlan={(messageId, states) => guardAction(() => { void handleApproveScreenPlan(messageId, states); })}
+            onApproveScreenState={messageId => guardAction(() => { void handleApproveScreenState(messageId); })}
+            onBuildRoadmapRecommendation={(recommendation, ids) => guardAction(() => { void handleBuildRoadmapRecommendation(recommendation, ids); })}
             contextualSuggestionsEnabled={
               project?.charter?.projectOrigin
                 ? project.charter.projectOrigin !== "image_to_ui"
@@ -2932,50 +1537,43 @@ export function ProjectShell({
             }
             isCollapsed={isChatCollapsed}
             onCollapseChange={setIsChatCollapsed}
-            onSubmit={handlePromptAction}
+            onSubmit={async options => { if (inspectorDirty || tokenDirty) { guardAction(() => { void handlePromptAction(options); }); return false; } return handlePromptAction(options); }}
             disabled={isCanvasInteractionLocked}
             selectionMode={selectionMode}
             onToggleSelectionMode={handleToggleSelectionMode}
-            onClearSelectedScreen={() => {
+            onClearSelectedScreen={() => guardAction(() => {
               setSelectedScreen(null);
-              setSelectedElementPreview(null);
               setEditSession(null);
               setSelectionNotice(null);
-            }}
-            onDeleteSelectedScreen={handleDeleteSelectedScreen}
+            })}
+            onDeleteSelectedScreen={() => guardAction(() => { void handleDeleteSelectedScreen(); })}
             selectedElementPreview={selectedElementInfo?.editableMetadata?.tagName ?? null}
             selectedElementTargetLabel={selectedElementTargetLabel}
             selectedElementCanEditText={selectedElementCanEditText}
             selectedElementCanEditDesign={selectedElementCanEditDesign}
             onEditSelectedText={handleOpenVisualEditor}
             onEditSelectedDesign={handleOpenVisualEditor}
-            onClearSelectedElement={clearEditSession}
-            onDeleteSelectedElement={handleDeleteSelectedElement}
+            onClearSelectedElement={() => guardAction(clearEditSession)}
+            onDeleteSelectedElement={() => guardAction(() => { void handleDeleteSelectedElement(); })}
           />
+
+          </div>
 
           {project.productPlanning?.phase === "discovery" && screens.length === 0 && !isGenerationActive ? <PlanningEmptyCanvas /> : null}
 
-          {canvasTool === "element-select" && (!isMobile || Boolean(editSession)) ? (
-            <SelectedElementInspectorSidebar
-              key={editSession ? `${editSession.element.targetType}:${editSession.element.drawgleId ?? editSession.element.breadcrumb}:${editSession.selectionVersion}` : "empty-inspector"}
-              project={project}
-              selectedScreen={selectedElementScreen ?? selectedScreen}
-              selectedElementInfo={editSession?.element ?? null}
-              disabled={isCanvasInteractionLocked}
-              onClose={() => {
-                clearEditSession();
-                if (!isMobile) {
-                  setCanvasTool("pointer");
-                }
-              }}
-              onApplyOperations={handleDeterministicElementEdit}
-              onPreviewChange={setSelectedElementPreview}
-              onAskAiRefine={(intent) => void handlePromptAction({ prompt: intent })}
-              onReplaceImage={handleReplaceSelectedImage}
-              onDelete={handleDeleteSelectedElement}
-              onDirtyChange={setInspectorDirty}
-            />
-          ) : null}
+          <VisualEditor key={`${editSession?.screenId}:${editSession?.element.drawgleId}`} historyControls={historyControls} historyOpen={historyOpen} historyPanelRef={setHistoryPanelTarget} info={selectedElementInfo} editor={editor} open={isMobile ? inspectorOpen && selectionMode : selectionMode} disabled={isCanvasInteractionLocked}
+            tokens={getDrawgleTokenReferences(effectiveDesignTokens)} onClose={closeInspector}
+            onDiscard={() => { if (editSession?.freshness === "stale") clearEditSession(); else editor.discard(); }}
+            onDelete={() => guardAction(() => void handleDeleteSelectedElement())} />
+          <Dialog open={!!pendingAction} onOpenChange={open => { if (!open && !editor.saving) setPendingAction(null); }}>
+            <DialogContent><DialogHeader><DialogTitle>Keep your changes?</DialogTitle><DialogDescription>Apply or discard your pending changes before continuing.</DialogDescription></DialogHeader>
+              <DialogFooter>
+                <Button variant="ghost" disabled={editor.saving || tokenSaving} onClick={() => setPendingAction(null)}>Cancel</Button>
+                <Button variant="outline" disabled={editor.saving || tokenSaving} onClick={() => { const action = pendingAction; editor.discard(); handleDiscardTokenDraft(); setPendingAction(null); action?.(); }}>Discard</Button>
+                <Button disabled={editor.saving || tokenSaving || editor.stale} onClick={async () => { if (!await editor.apply()) return; if (tokenDirty && !await handleSaveTokenDraft()) return; const action = pendingAction; setPendingAction(null); action?.(); }}>Apply changes</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
         </div>
       </main>

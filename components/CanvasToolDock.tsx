@@ -90,6 +90,7 @@ function CameraAction({
 }
 
 export function CanvasToolDock({
+  hasEditorDraft,
   tool,
   zoomPercent,
   canFocus,
@@ -105,6 +106,7 @@ export function CanvasToolDock({
   onFocusSelection,
   onZoomIn,
 }: {
+  hasEditorDraft?: boolean;
   tool: CanvasTool;
   zoomPercent: number;
   canFocus: boolean;
@@ -144,12 +146,12 @@ export function CanvasToolDock({
           </DockButton>
           {!readOnly ? (
             <DockButton
-              label="Select element"
+              label="Edit"
               active={tool === "element-select"}
               disabled={disabled}
               onClick={() => onToolChange?.("element-select")}
             >
-              <LassoSelect className="h-4 w-4 md:h-5 md:w-5" />
+              <span className="relative"><LassoSelect className="h-4 w-4 md:h-5 md:w-5" />{hasEditorDraft && <span aria-label="Unsaved visual changes" className="absolute -right-1 -top-1 h-1.5 w-1.5 rounded-full bg-blue-500 ring-1 ring-[var(--dg-surface)]" />}</span>
             </DockButton>
           ) : null}
           <DockButton

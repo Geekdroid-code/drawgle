@@ -872,6 +872,11 @@ export interface Database {
         Args: { input_project_id: string; input_owner_id: string; input_context: string; input_target_id: string };
         Returns: Json;
       };
+      read_design_request_replay: {
+        Args: { input_project_id: string; input_owner_id: string; input_context: string; input_target_id: string;
+          input_expected_revision: number; input_request_id: string; input_origin: string };
+        Returns: Json;
+      };
       apply_design_history: {
         Args: { input_project_id: string; input_owner_id: string; input_context: string; input_target_id: string;
           input_expected_revision: number; input_request_id: string; input_action: string; input_payload?: Json;

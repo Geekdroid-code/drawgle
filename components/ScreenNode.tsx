@@ -55,6 +55,8 @@ export interface SelectedElementInfo {
 export type SelectedElementPreviewPayload = {
   drawgleId: string | null;
   styles: DrawgleStyleValueMap;
+  text?: Record<string, string>;
+  image?: { target: import("@/lib/drawgle-dom").DrawgleImageTargetMeta; src: string } | null;
   className?: string | null;
   allowClassNamePreview?: boolean;
 };
@@ -904,12 +906,24 @@ export function ScreenNode({
         type: 'previewSelectedElement',
         drawgleId: selectedElementPreview.drawgleId,
         styles: selectedElementPreview.styles,
+        text: selectedElementPreview.text,
+        image: selectedElementPreview.image,
         className: selectedElementPreview.className ?? null,
         allowClassNamePreview: selectedElementPreview.allowClassNamePreview === true,
       },
       '*',
     );
   }, [selectedElementPreview]);
+
+  useEffect(() => {
+    const handleEditorSelection = (event: Event) => {
+      const detail = (event as CustomEvent<{ screenId: string; drawgleId: string }>).detail;
+      if (detail?.screenId !== screen.id || !detail.drawgleId) return;
+      iframeRef.current?.contentWindow?.postMessage({ type: "selectEditorElement", drawgleId: detail.drawgleId }, "*");
+    };
+    window.addEventListener("drawgle-select-child", handleEditorSelection);
+    return () => window.removeEventListener("drawgle-select-child", handleEditorSelection);
+  }, [screen.id]);
 
   // ── Listen for elementSelected messages from the iframe
   useEffect(() => {
@@ -1714,35 +1728,48 @@ export function ScreenNode({
 
             function restorePreview() {
               if (!activePreview || !activePreview.el) return;
-              if (activePreview.originalStyle === null) activePreview.el.removeAttribute('style');
-              else activePreview.el.setAttribute('style', activePreview.originalStyle);
+              (activePreview.nodes || []).forEach(function(snapshot) {
+                if (snapshot.style === null) snapshot.el.removeAttribute('style'); else snapshot.el.setAttribute('style', snapshot.style);
+                if (snapshot.src === null) snapshot.el.removeAttribute('src'); else snapshot.el.setAttribute('src', snapshot.src);
+                if (snapshot.srcset === null) snapshot.el.removeAttribute('srcset'); else snapshot.el.setAttribute('srcset', snapshot.srcset);
+                while (snapshot.el.firstChild) snapshot.el.removeChild(snapshot.el.firstChild);
+                snapshot.children.forEach(function(child) { snapshot.el.appendChild(child); });
+              });
+              if (activePreview.originalStyle === null) activePreview.el.removeAttribute('style'); else activePreview.el.setAttribute('style', activePreview.originalStyle);
               setClassPreservingSelectionState(activePreview.el, activePreview.originalClass);
               activePreview = null;
             }
-
             function applyElementPreview(payload) {
               restorePreview();
-              var drawgleId = payload && payload.drawgleId;
-              if (!drawgleId) return;
-              var target = document.querySelector('[data-drawgle-id="' + String(drawgleId).replace(/"/g, '\\"') + '"]');
+              if (!payload || !payload.drawgleId) return;
+              var target = document.querySelector('[data-drawgle-id="' + String(payload.drawgleId) + '"]');
               if (!target) return;
-
-              activePreview = {
-                el: target,
-                originalStyle: target.getAttribute('style'),
-                originalClass: classListWithoutSelectionState(target.getAttribute('class')),
-              };
-
-              if (payload.allowClassNamePreview === true && typeof payload.className === 'string') {
-                setClassPreservingSelectionState(target, payload.className.trim());
-              }
-
-              var styles = payload.styles || {};
-              Object.keys(styles).forEach(function(property) {
-                var value = styles[property];
-                if (value === null || value === undefined || value === '') target.style.removeProperty(property);
-                else target.style.setProperty(property, String(value));
+              activePreview = { el: target, originalStyle: target.getAttribute('style'), originalClass: classListWithoutSelectionState(target.getAttribute('class')), nodes: [] };
+              if (payload.allowClassNamePreview === true && typeof payload.className === 'string') setClassPreservingSelectionState(target, payload.className.trim());
+              Object.keys(payload.styles || {}).forEach(function(property) {
+                var value = payload.styles[property];
+                if (value === null || value === undefined || value === '') target.style.removeProperty(property); else target.style.setProperty(property, String(value));
               });
+              function remember(el) {
+                activePreview.nodes.push({ el: el, style: el.getAttribute('style'), src: el.getAttribute('src'), srcset: el.getAttribute('srcset'), children: Array.from(el.childNodes) });
+              }
+              Object.keys(payload.text || {}).forEach(function(id) {
+                var el = document.querySelector('[data-drawgle-id="' + String(id) + '"]');
+                if (!el || el.children.length || !(el === target || target.contains(el))) return;
+                remember(el); el.textContent = String(payload.text[id]);
+              });
+              if (payload.image && payload.image.target) {
+                var imageTarget = payload.image.target;
+                var imageEl = document.querySelector('[data-drawgle-id="' + String(imageTarget.drawgleId) + '"]');
+                if (imageEl && (imageEl === target || target.contains(imageEl))) {
+                  remember(imageEl);
+                  if (imageTarget.kind === 'img' && imageEl.tagName === 'IMG') { imageEl.src = payload.image.src; imageEl.removeAttribute('srcset'); }
+                  else if (imageTarget.kind === 'background') imageEl.style.backgroundImage = 'url("' + payload.image.src + '")';
+                  else if (imageTarget.kind === 'visual_placeholder' && imageEl.hasAttribute('data-drawgle-image-placeholder') && !imageEl.children.length && !imageEl.textContent.trim()) {
+                    var replacement = document.createElement('img'); replacement.src = payload.image.src; replacement.className = 'h-full w-full object-contain'; replacement.style.borderRadius = 'inherit'; imageEl.appendChild(replacement);
+                  }
+                }
+              }
             }
 
             /* Tags that should bubble to a useful owner instead of becoming edit targets */
@@ -2040,30 +2067,8 @@ export function ScreenNode({
                 });
               });
 
-              if (imageTargets.length === 0) {
-                var targetStyle = window.getComputedStyle(target);
-                var targetRect = target.getBoundingClientRect();
-                var text = (target.textContent || '').replace(/\\s+/g, ' ').trim();
-                var looksVisual =
-                  targetRect.width >= 56 &&
-                  targetRect.height >= 56 &&
-                  text.length <= 80 &&
-                  (
-                    targetStyle.backgroundImage && targetStyle.backgroundImage !== 'none' ||
-                    targetStyle.borderRadius && targetStyle.borderRadius !== '0px' ||
-                    /absolute|relative|rounded|shadow|gradient|object|image|media|visual/i.test(target.className || '')
-                  );
-                if (looksVisual) {
-                  pushTarget({
-                    drawgleId: target.getAttribute('data-drawgle-id'),
-                    kind: 'visual_placeholder',
-                    tagName: target.tagName.toLowerCase(),
-                    src: '',
-                    alt: '',
-                    label: 'Visual placeholder',
-                    targetIndex: 0,
-                  });
-                }
+              if (imageTargets.length === 0 && target.hasAttribute('data-drawgle-image-placeholder') && !target.children.length && !target.textContent.trim()) {
+                pushTarget({ drawgleId: target.getAttribute('data-drawgle-id'), kind: 'visual_placeholder', tagName: target.tagName.toLowerCase(), src: '', label: 'Image placeholder', targetIndex: 0 });
               }
 
               return imageTargets.slice(0, 6);
@@ -2096,9 +2101,22 @@ export function ScreenNode({
                 absolutePositioned: ['absolute', 'fixed', 'sticky'].indexOf(targetStyle.position) >= 0,
               };
             }
+            function collectEditorAncestors(target) {
+              var result = [], parent = target.parentElement;
+              var navigation = target.closest('[data-drawgle-primary-nav]');
+              while (parent && parent.id !== 'root' && parent.id !== 'drawgle-root' && result.length < 4) {
+                if (navigation && !navigation.contains(parent)) break;
+                var id = parent.getAttribute('data-drawgle-id');
+                if (id) result.push({ drawgleId: id, label: parent.tagName.toLowerCase() === 'button' ? 'Button' : 'Container' });
+                parent = parent.parentElement;
+              }
+              return result;
+            }
+
             function buildEditableMetadata(target) {
               return {
                 tagName: target.tagName.toLowerCase(),
+                ancestors: collectEditorAncestors(target),
                 textNodes: collectTextNodes(target),
                 imageTargets: collectImageTargets(target),
                 style: buildStylePayload(target),
@@ -2227,7 +2245,7 @@ export function ScreenNode({
               }
               selectedEl = nextSelected;
               selectedEl.classList.add('__drawgle-selected-outline');
-              if (options.notifySelected) postElementSelected(nextSelected, 'rehydrated');
+              if (options.notifySelected) postElementSelected(nextSelected, options.selectionReason || 'rehydrated');
               return true;
             }
 
@@ -2270,6 +2288,9 @@ export function ScreenNode({
                 enableSelection();
               } else if (event.data.type === 'disableSelectionMode') {
                 disableSelection();
+              } else if (event.data.type === 'selectEditorElement') {
+                restorePreview();
+                selectByDrawgleId(event.data.drawgleId || null, { notifySelected: true, selectionReason: 'click' });
               } else if (event.data.type === 'setSelectedDrawgleId') {
                 selectByDrawgleId(event.data.drawgleId || null);
               } else if (event.data.type === 'enterInteractMode') {

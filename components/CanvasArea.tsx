@@ -232,6 +232,7 @@ export type CanvasViewportController = {
 };
 
 type CanvasStageProps = {
+  hasEditorDraft?: boolean;
   screens: ScreenData[];
   generationPreview?: GenerationPreviewMetadata | null;
   /** While an approved flow builds: a phone for each of its screens still to come, in its slot. */
@@ -278,6 +279,7 @@ export function CanvasStage(props: CanvasStageProps) {
 }
 
 function CanvasStageContent({
+  hasEditorDraft,
   screens,
   generationPreview,
   flowPlaceholders,
@@ -948,12 +950,13 @@ function CanvasStageContent({
       </ReactFlow>
 
       <CanvasToolDock
+        hasEditorDraft={hasEditorDraft}
         tool={activeTool}
         zoomPercent={Math.round(viewportState.zoom * 100)}
         canFocus={Boolean(selectedScreen)}
         disabled={disabled}
         readOnly={readOnly}
-        workspaceCenterX={dockCenterX}
+        workspaceCenterX={viewportSize && viewportSize.width < 768 ? viewportSize.width / 2 : dockCenterX}
         frameMode={frameMode}
         onFrameModeChange={changeFrameMode}
         onToolChange={changeTool}

@@ -81,6 +81,7 @@ export type DrawgleEditableRiskFlags = {
 
 export type DrawgleEditableMetadata = {
   tagName: string;
+  ancestors?: { drawgleId: string; label: string }[];
   textNodes: DrawgleTextNodeMeta[];
   imageTargets?: DrawgleImageTargetMeta[];
   style: DrawgleStyleMeta;
@@ -554,7 +555,7 @@ const normalizeImageUrl = (value: string) => {
 };
 
 const buildReplacementImageMarkup = (src: string, alt?: string | null) =>
-  `<img src="${escapeAttribute(src)}" alt="${escapeAttribute((alt?.trim() || "Replacement image").slice(0, 160))}" class="h-full w-full object-contain" />`;
+  `<img src="${escapeAttribute(src)}" alt="${escapeAttribute((alt?.trim() || "Replacement image").slice(0, 160))}" class="h-full w-full object-contain" style="border-radius: inherit" />`;
 
 const assertStyleProperty = (property: string): DrawgleStyleProperty => {
   if (!DRAWGLE_STYLE_PROPERTY_SET.has(property as DrawgleStyleProperty)) {
@@ -647,6 +648,7 @@ function applyReplaceImage(
     }
 
     let nextOpeningTag = setOpeningTagAttribute(openingTag, "src", nextSrc);
+    nextOpeningTag = removeOpeningTagAttribute(nextOpeningTag, "srcset");
     if (typeof alt === "string" && alt.trim()) {
       nextOpeningTag = setOpeningTagAttribute(nextOpeningTag, "alt", alt.trim().slice(0, 160));
     }
@@ -661,10 +663,19 @@ function applyReplaceImage(
   }
 
   if (mode === "visual_placeholder") {
+    const inner = code.slice(element.innerStartOffset, element.innerEndOffset);
+    if (!/\bdata-drawgle-image-placeholder(?:\s|=|>)/i.test(openingTag) || inner.trim()) {
+      throw new Error("Only an explicitly marked empty image placeholder can be replaced.");
+    }
     const replacement = buildReplacementImageMarkup(nextSrc, alt);
     return `${code.slice(0, element.innerStartOffset)}${replacement}${code.slice(element.innerEndOffset)}`;
   }
 
+  if (mode !== "background") throw new Error("Unsupported image replacement mode.");
+  if (!/background(?:-image)?\s*:[^;]*(?:url\()/i.test(openingTag) &&
+      !/\b(?:bg-\[url|data-drawgle-image-background)/i.test(openingTag)) {
+    throw new Error("This target has no verified image background.");
+  }
   const style = parseStyle(getAttributeValue(openingTag, "style"));
   style.set("background-image", `url('${nextSrc.replaceAll("'", "%27")}')`);
   const nextOpeningTag = setOpeningTagStyle(openingTag, style);
@@ -679,9 +690,9 @@ export function applyDeleteElement(code: string, drawgleId: string): string {
   }
 
   const hasParent = elements.some(
-    (el) => el.startOffset < element.startOffset && el.endOffset > element.endOffset
+    (el) => shouldReceiveDrawgleId(el.tagName) && el.startOffset < element.startOffset && el.endOffset > element.endOffset
   );
-  if (!hasParent) {
+  if (!hasParent || Object.hasOwn(element.attributes, "data-drawgle-primary-nav")) {
     throw new Error("Deleting the root-level screen container is not allowed.");
   }
 

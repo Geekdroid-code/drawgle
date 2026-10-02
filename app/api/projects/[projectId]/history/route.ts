@@ -2,19 +2,17 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { historyTargetSchema } from "@/lib/design-history/types";
 import { listHistory, recoverDesign } from "@/lib/design-history/server";
-import { recoveryEnabled } from "@/lib/design-history/persistence";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
 const input = z.object({ target: historyTargetSchema, action: z.enum(["undo","redo","restore"]),
-  expectedRevision: z.number().int().nonnegative(), requestId: z.string().uuid(), entryId: z.string().uuid().optional() })
+  expectedRevision: z.number().int().nonnegative(), requestId: z.string().uuid(), entryId: z.string().uuid().optional(), side: z.enum(["before", "after"]).optional() })
   .refine(value => value.action !== "restore" || !!value.entryId);
 async function identity(projectId: string) {
   const { data: { user }, error } = await (await createClient()).auth.getUser();
   return error || !user || !z.string().uuid().safeParse(projectId).success ? null : user.id;
 }
 export async function GET(request: Request, { params }: { params: Promise<{ projectId: string }> }) {
-  if (!recoveryEnabled()) return NextResponse.json({ error: "Recovery is not enabled." }, { status: 503 });
   const { projectId } = await params;
   const ownerId = await identity(projectId);
   if (!ownerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,7 +25,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
   catch { return NextResponse.json({ error: "History target is unavailable." }, { status: 404 }); }
 }
 export async function POST(request: Request, { params }: { params: Promise<{ projectId: string }> }) {
-  if (!recoveryEnabled()) return NextResponse.json({ error: "Recovery is not enabled." }, { status: 503 });
   const { projectId } = await params;
   const ownerId = await identity(projectId);
   if (!ownerId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
