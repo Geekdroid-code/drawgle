@@ -38,6 +38,7 @@ How to write the plan
 - surfaceRefs, journeyRefs and decisionRefs name fact refs from this plan or active fact ids.
 - dependencyRefs are rare build prerequisites, never navigation order.
 - scope.outputRefs lists the screens to design now, in order. scope.goal says in one sentence what these screens let people do.
+- The person reads scope.goal, scope.rationale, fact labels and details, screen names, descriptions, outcomes and action labels. Write them about their product in your own words; never mention a visual reference, a style source or another app in them.
 - navigation decides whether the app has one persistent bottom bar. The person approves it with the screens. persistent is true only when the product has peer areas that people move between (the things people go back and forth between all day, such as Home, Orders and Messages in one product, or Library and Search in another). Then destinations lists 2 to 5 of them in order, each with a short label and the outputRef of the screen that opens it (null when no screen in this plan does). A linear flow, a single task, or a hierarchy of detail screens has no bar: persistent false and no destinations. Decide from the product and its screens, never from how a visual reference looks. Keep currentNavigation unless the conversation changed it.
 Return JSON only.`;
 
@@ -184,7 +185,7 @@ export async function runProposalPlanner(input: {
     // The visual direction is the premium-quality input. It is established once
     // and reused until the reference or the user's explicit design requirements change.
     if (!experienceReady(state)) {
-      await input.progress("Analyzing design direction", "Checking the saved visual requirements and reference...");
+      await input.progress("Analyzing design direction", "Formulating design decisions for the UI direction...");
       const started = Date.now();
       const inspected = await inspectProductReference(admin, ownerId, state,
         [input.originalRequest, input.request.kind === "continue" ? "" : input.request.text].filter(Boolean).join("\n\n"),

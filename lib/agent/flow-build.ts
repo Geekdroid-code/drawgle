@@ -171,7 +171,7 @@ const JOURNAL_SCREEN_DETAIL: Record<string, string> = {
 };
 const JOURNAL_PHASE_DETAIL: Record<string, string> = {
   brief: "Reading the brief",
-  reference: "Reading the reference",
+  reference: "Formulating design decisions for the UI direction",
   design: "Setting up the design system",
   blueprint: "Planning navigation",
   screens: "Writing the brief",
@@ -189,16 +189,21 @@ function activeDetail(name: string, journal: GenerationJournalMetadata | undefin
   return (phase && JOURNAL_PHASE_DETAIL[phase]) || "Building the screen";
 }
 
-/** "Using curated visual evidence for style direction: travel-tracker-airy-light." → what the agent read, in its words. */
+/** The design decisions behind the UI, said the way the person sees it. A catalogue reference is never named. */
+export const UI_DIRECTION_LINE = "Formulated design decisions for the UI direction";
+
+/**
+ * What the agent based the look on, in the person's words: their own image, their existing screens, or (for anything
+ * from Drawgle's own catalogue, which is never named or shown) the design decisions it formulated.
+ */
 export function referenceLine(journals: GenerationJournalMetadata[]): string | null {
   for (const journal of journals) {
     const detail = journal.phases.find((phase) => phase.id === "reference")?.detail?.trim();
     if (!detail) continue;
-    const curated = detail.match(/style direction:\s*([a-z0-9-]+)\.?$/i);
-    if (curated) return `Read reference "${curated[1]}"`;
+    if (/curated/i.test(detail)) return UI_DIRECTION_LINE;
     if (/uploaded image as structural/i.test(detail)) return "Read your image to copy its screens";
     if (/uploaded image as style/i.test(detail)) return "Read your image for its style";
-    if (/persisted user reference/i.test(detail)) return "Read your saved reference";
+    if (/persisted user reference/i.test(detail)) return "Read your saved image";
     if (/existing project's screens/i.test(detail)) return "Matched your existing screens";
   }
   return null;

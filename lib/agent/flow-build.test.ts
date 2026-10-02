@@ -101,7 +101,10 @@ describe("approved-flow builds in chat", () => {
     expect(view.title).toBe("Generation complete");
     expect(view.summary).toBe("All 5 screens are on the canvas.");
     expect(view.rows.every((row) => row.status === "done")).toBe(true);
-    expect(view.reference).toBe('Read reference "travel-tracker-airy-light"');
+    // a catalogue reference is never named: the person sees the design decisions, not their source
+    expect(view.reference).toBe("Formulated design decisions for the UI direction");
+    const shown = [view.title, view.summary, view.reference, view.goal, ...view.rows.flatMap((row) => [row.name, row.detail])].join(" ");
+    expect(shown).not.toMatch(/travel-tracker|curated|reference/i);
     expect(view.styleDefined).toBe(true);
     expect(view.canResume).toBe(false);
   });
@@ -243,6 +246,10 @@ describe("approved-flow builds in chat", () => {
     expect(referenceLine(readingOf("Using the uploaded image as style direction."))).toBe("Read your image for its style");
     expect(referenceLine(readingOf("Using the uploaded image as structural UI evidence."))).toBe("Read your image to copy its screens");
     expect(referenceLine(readingOf("Using the existing project's screens, charter, and design tokens as visual direction."))).toBe("Matched your existing screens");
+    expect(referenceLine(readingOf("Using the project's persisted user reference as visual style direction."))).toBe("Read your saved image");
+    expect(referenceLine(readingOf("Using curated visual evidence for style direction: crypto-dark-exchange-payment."))).toBe("Formulated design decisions for the UI direction");
+    // a detail it doesn't know is never shown as written
+    expect(referenceLine(readingOf("Using reference catalogue entry 12 for direction."))).toBeNull();
     expect(referenceLine([])).toBeNull();
   });
 });

@@ -8,7 +8,7 @@ describe("the composer while an approved flow builds", () => {
 
   it("offers Stop while nothing is typed, and Send again as soon as the person types", () => {
     const onStop = vi.fn();
-    render(<AgentComposer variant="panel" onSubmit={vi.fn(async () => true)} onStop={onStop} modern />);
+    render(<AgentComposer variant="panel" onSubmit={vi.fn(async () => true)} onStop={onStop} />);
     fireEvent.click(screen.getByRole("button", { name: "Stop after the screens in progress" }));
     expect(onStop).toHaveBeenCalledOnce();
 

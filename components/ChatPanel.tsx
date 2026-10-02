@@ -6,9 +6,6 @@ import { PlanningModeRecovery } from "@/components/product-planning/PlanningMode
 import { ProductQuestionCard } from "@/components/product-planning/ProductQuestionCard";
 import { isObsoleteModeQuestion, isScreenDesignQuestionCard, readProductQuestions, type ProductQuestions, type ProductAnswers } from "@/lib/product-planning/questions";
 import { PlanningConversation } from "@/components/product-planning/PlanningConversation";
-import { ProductExecutionCard } from "@/components/product-planning/ProductExecutionCard";
-import { WorkTraceCard } from "@/components/chat/WorkTraceCard";
-import { GenerationJournalCard } from "@/components/chat/GenerationJournalCard";
 import { usePlanningLease } from "@/hooks/use-planning-lease";
 
 import Image from "next/image";
@@ -19,7 +16,6 @@ import {
   Check,
   ChevronDown,
   Copy,
-  FileText,
   Loader2,
   MessageCircle,
   Minimize2,
@@ -30,8 +26,6 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
-import { AgentBall, AgentThinkingIndicator } from "@/components/AgentBall";
-import { DesignMdTab } from "@/components/DesignMdTab";
 import { DesignSystemEditor } from "@/components/DesignSystemEditor";
 import { AgentComposer } from "@/components/PromptBar";
 import { Button } from "@/components/ui/button";
@@ -44,11 +38,10 @@ import { readWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
 import { readGenerationJournal } from "@/lib/agent/generation-journal";
 import { isProductApprovalRun, productApprovalIdOf, type FlowFulfillment } from "@/lib/agent/flow-build";
 import { groupFlowBuilds, type FlowBuildGroups } from "@/lib/agent/flow-messages";
-import { AgentMark as AgentStateMark, DoneMark, FailedMark, LiveText } from "@/components/agent/marks";
+import { AgentMark, DoneMark, FailedMark, LiveText } from "@/components/agent/marks";
 import { FlowBuildBlock } from "@/components/agent/FlowBuildBlock";
 import { JournalBlock } from "@/components/agent/JournalBlock";
 import { PlanningTraceBlock } from "@/components/agent/PlanningTraceBlock";
-import { useLegacyChatUi } from "@/hooks/use-legacy-chat-ui";
 import { useProductGenerationControl } from "@/hooks/use-product-generation-control";
 import {
   readAgentStep,
@@ -120,12 +113,11 @@ type ConversationItem =
   | { id: string; kind: "screen_suggestions"; recommendation: RoadmapBuildRecommendation; messageId: string; timestamp?: string }
   | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; stateProposal?: ScreenStateProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
 
-type ChatWorkspaceTab = "chat" | "design" | "design-md";
+type ChatWorkspaceTab = "chat" | "design";
 
 const CHAT_WORKSPACE_TABS: Array<{ id: ChatWorkspaceTab; label: string; icon: typeof MessageCircle }> = [
   { id: "chat", label: "Chat", icon: MessageCircle },
   { id: "design", label: "Design", icon: Palette },
-  { id: "design-md", label: "Design.md", icon: FileText },
 ];
 
 const isActiveGenerationRun = (run: GenerationRunData | null) =>
@@ -454,7 +446,7 @@ function buildConversationItems({
   screenPlan,
   pendingTurn,
   contextualSuggestionsEnabled,
-  flowGroups = null,
+  flowGroups,
 }: {
   messages: ProjectMessage[];
   screens: ScreenData[];
@@ -464,8 +456,8 @@ function buildConversationItems({
   screenPlan?: ScreenPlanState | null;
   pendingTurn: PendingTurn | null;
   contextualSuggestionsEnabled: boolean;
-  /** Approved-flow builds, each shown as one block; null keeps the previous cards (`?ui=legacy`). */
-  flowGroups?: FlowBuildGroups | null;
+  /** Approved-flow builds, each shown as one block. */
+  flowGroups: FlowBuildGroups;
 }): ConversationItem[] {
   const items: ConversationItem[] = [];
   const placedFlowBuilds = new Set<string>();
@@ -476,7 +468,7 @@ function buildConversationItems({
   };
   // A run that belongs to an approved flow is shown by that flow's block, never by its own card.
   const isFlowRun = (run: GenerationRunData | null | undefined) =>
-    Boolean(flowGroups && run && (isProductApprovalRun(run) || productApprovalIdOf(run)));
+    Boolean(run && (isProductApprovalRun(run) || productApprovalIdOf(run)));
   const generationRunById = new Map(generationRuns.map((run) => [run.id, run]));
   if (generationRun) {
     generationRunById.set(generationRun.id, generationRun);
@@ -554,19 +546,17 @@ function buildConversationItems({
   for (const message of messages) {
     const action = getMetadataString(message.metadata, "action");
     const cleanContent = message.content.trim().toLowerCase();
-    if (flowGroups) {
-      // The approval becomes its build's block; the build's own progress lines and batch cards fold into it.
-      const anchoredApprovalId = flowGroups.anchors.get(message.id);
-      if (anchoredApprovalId) {
-        latestUserMessageId = message.id;
-        pushFlowBuild(anchoredApprovalId, message.timestamp);
-        continue;
-      }
-      if (flowGroups.consumed.has(message.id)) {
-        const owner = flowGroups.owners.get(message.id);
-        if (owner && flowGroups.unanchored.includes(owner)) pushFlowBuild(owner, message.timestamp);
-        continue;
-      }
+    // The approval becomes its build's block; the build's own progress lines and batch cards fold into it.
+    const anchoredApprovalId = flowGroups.anchors.get(message.id);
+    if (anchoredApprovalId) {
+      latestUserMessageId = message.id;
+      pushFlowBuild(anchoredApprovalId, message.timestamp);
+      continue;
+    }
+    if (flowGroups.consumed.has(message.id)) {
+      const owner = flowGroups.owners.get(message.id);
+      if (owner && flowGroups.unanchored.includes(owner)) pushFlowBuild(owner, message.timestamp);
+      continue;
     }
     if (
       action === "pre_action_response" ||
@@ -863,7 +853,7 @@ function buildConversationItems({
 
     if (message.content.trim()) {
       // The planner's flow preview is that turn's thought process, inside its block.
-      if (flowGroups && action === "product_flow_preview") {
+      if (action === "product_flow_preview") {
         const turnId = getMessageClientTurnId(message);
         const turnTrace = [...items].reverse().find((item): item is typeof item & { kind: "trace" } =>
           item.kind === "trace" && Boolean(turnId) && item.trace.turnId === turnId);
@@ -889,9 +879,7 @@ function buildConversationItems({
   }
 
   // The latest flow keeps its block (progress, resume and stop) even when none of its messages are loaded.
-  if (flowGroups) {
-    for (const approvalId of flowGroups.unanchored) pushFlowBuild(approvalId);
-  }
+  for (const approvalId of flowGroups.unanchored) pushFlowBuild(approvalId);
 
   if (pendingTurn && !hasPersistedPending) {
     items.push({
@@ -1096,19 +1084,7 @@ function statusCopy(status: AgentStepMetadata["status"]) {
   return "Needs review";
 }
 
-function AgentMark({ busy, failed }: { busy?: boolean; failed?: boolean }) {
-  if (failed) {
-    return <AlertCircle className="h-3.5 w-3.5 text-rose-600" />;
-  }
-
-  if (busy) {
-    return <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-700" />;
-  }
-
-  return <Check className="h-3.5 w-3.5 text-slate-700" />;
-}
-
-function ThinkingRow({ summary, id, live = false, modern = false }: { summary: ThinkingSummaryMetadata; id: string; live?: boolean; modern?: boolean }) {
+function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMetadata; id: string; live?: boolean }) {
   const [expanded, setExpanded] = useState(Boolean(summary.expandedByDefault));
   const isLive = summary.label.toLowerCase().includes("analyzing");
   const seconds = summary.durationMs && summary.durationMs > 0
@@ -1119,18 +1095,10 @@ function ThinkingRow({ summary, id, live = false, modern = false }: { summary: T
     return (
       <div className="px-5 py-2">
         <div className="flex items-center gap-2">
-          {modern ? (
-            <span className="flex items-center gap-2.5 text-[13px] font-medium" role="status">
-              <AgentStateMark state="working" />
-              <LiveText>{summary.label}…</LiveText>
-            </span>
-          ) : (
-            <AgentThinkingIndicator
-              label={`${summary.label}...`}
-              className="text-black/40"
-              hideBall={true}
-            />
-          )}
+          <span className="flex items-center gap-2.5 text-[13px] font-medium" role="status">
+            <AgentMark state="working" />
+            <LiveText>{summary.label}…</LiveText>
+          </span>
           {seconds ? (
             <span className="text-[11px] font-normal italic text-black/30">{seconds}</span>
           ) : null}
@@ -1159,11 +1127,7 @@ function ThinkingRow({ summary, id, live = false, modern = false }: { summary: T
       >
         {summary.text}
       </div>
-      {isLive ? (
-        modern
-          ? <div className="mt-2 pl-3 text-[12px]"><LiveText>Thinking…</LiveText></div>
-          : <AgentThinkingIndicator label="Thinking..." className="mt-2 pl-3 text-slate-500" hideBall={true} />
-      ) : null}
+      {isLive ? <div className="mt-2 pl-3 text-[12px]"><LiveText>Thinking…</LiveText></div> : null}
     </div>
   );
 }
@@ -1209,10 +1173,10 @@ function AssistantMessage({ content, isError }: { content: string; isError?: boo
   );
 }
 
-function UserBubble({ content, image, clamp = false }: { content: string; image?: PromptImagePayload | null; clamp?: boolean }) {
+function UserBubble({ content, image }: { content: string; image?: PromptImagePayload | null }) {
   const [expanded, setExpanded] = useState(false);
   // A long brief folds to five lines; the whole brief is one click away.
-  const long = clamp && (content.length > 320 || content.split("\n").length > 5);
+  const long = content.length > 320 || content.split("\n").length > 5;
   return (
     <div className="flex justify-end px-3 py-3">
       <div className="max-w-[78%] rounded-[18px] bg-[#f0f0f1] px-4 py-3 text-[15px] leading-6 text-slate-950">
@@ -1375,9 +1339,7 @@ function ActionCard({
   onApproveScreenState,
   onDismissScreenState,
   screens,
-  modern = false,
 }: {
-  modern?: boolean;
   step: AgentStepMetadata;
   retryRun?: GenerationRunData;
   retryDisabled?: boolean;
@@ -1493,35 +1455,19 @@ function ActionCard({
 
   return (
     <div className={cn("min-w-0 overflow-hidden", pendingProposal || pendingStateProposal
-      ? "mx-4 my-2 w-[calc(100%-2rem)] rounded-[18px] bg-white p-4 shadow-[0_8px_28px_-20px_rgba(15,23,42,0.28)] ring-1 ring-slate-950/[0.08]"
+      ? "mx-4 my-2 w-[calc(100%-2rem)] rounded-2xl border border-[var(--dg-border-strong)] bg-[var(--dg-surface)] p-4"
       : "w-full px-5 py-2.5")}>
       <div className="flex flex-col font-ui leading-normal min-w-0 w-full">
         <div className="flex flex-row items-center transition-colors rounded-lg duration-150 min-w-0 w-full">
           <div className="w-[20px] flex justify-center shrink-0">
             <div className="pt-0.5">
-              {modern ? (
-                failed ? <FailedMark /> : busy ? <AgentStateMark state="working" /> : <DoneMark />
-              ) : failed ? (
-                <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
-              ) : busy ? (
-                <AgentBall className="h-4 w-4 shrink-0" active />
-              ) : (
-                <Check className="h-4 w-4 text-emerald-500 shrink-0" />
-              )}
+              {failed ? <FailedMark /> : busy ? <AgentMark state="working" /> : <DoneMark />}
             </div>
           </div>
           <div className="flex-1 min-w-0 pl-2.5">
             {busy ? (
               <div className="min-w-0 py-0.5">
-                {modern ? (
-                  <span className="block min-w-0 truncate text-[13px] font-medium" role="status"><LiveText>{liveTitle}…</LiveText></span>
-                ) : (
-                  <AgentThinkingIndicator
-                    label={`${liveTitle}...`}
-                    className="min-w-0 text-slate-700 font-medium"
-                    hideBall
-                  />
-                )}
+                <span className="block min-w-0 truncate text-[13px] font-medium" role="status"><LiveText>{liveTitle}…</LiveText></span>
                 {hasDistinctDetail ? (
                   <p className="min-w-0 break-words pt-0.5 text-[11.5px] leading-5 text-slate-500">{step.detail}</p>
                 ) : null}
@@ -1839,14 +1785,12 @@ export function CollapsedChatTrigger({
   isBusy,
   hasAlert,
   onExpand,
-  modern = false,
 }: {
   eyebrow: string;
   title: string;
   isBusy: boolean;
   hasAlert: boolean;
   onExpand: () => void;
-  modern?: boolean;
 }) {
   const statusToneClass = hasAlert
     ? "bg-rose-500"
@@ -1865,10 +1809,8 @@ export function CollapsedChatTrigger({
     >
       {hasAlert ? (
         <AlertCircle className="h-5 w-5" />
-      ) : isBusy ? (
-        modern ? <AgentStateMark state="working" size={20} /> : <AgentBall className="h-5 w-5" active />
       ) : (
-        <AgentBall className="h-5 w-5" />
+        <AgentMark state={isBusy ? "working" : "idle"} size={20} />
       )}
       <span className={`absolute right-0.5 top-0.5 h-2.5 w-2.5 rounded-full border border-white/80 ${statusToneClass} ${isBusy && !hasAlert ? "animate-pulse" : ""}`} />
       <span className="sr-only">{accessibilityLabel}</span>
@@ -1949,7 +1891,7 @@ export function ChatPanel({
   onApproveScreenState?: (proposalMessageId: string) => void;
   onBuildRoadmapRecommendation?: (recommendation: RoadmapBuildRecommendation, selectedItemIds: string[]) => void;
   contextualSuggestionsEnabled?: boolean;
-  onWorkspaceTabChange?: (tab: "chat" | "design" | "design-md") => void;
+  onWorkspaceTabChange?: (tab: "chat" | "design") => void;
   onBuildPlannedScreen?: () => void;
   onCancelPlan?: () => void;
   isCollapsed: boolean;
@@ -1983,14 +1925,10 @@ export function ChatPanel({
   const isGenerationActive = isActiveGenerationRun(generationRun);
   const hasAlert = Boolean(queueError || screenPlan?.status === "error");
   const isBusy = isGenerationActive || isQueueing || screenPlan?.status === "planning" || Boolean(pendingTurn);
-  const legacyUi = useLegacyChatUi();
   const flowControl = useProductGenerationControl(project.id);
 
   // Approved-flow builds: each one becomes a single block in the conversation.
-  const flowGroups = useMemo(
-    () => (legacyUi ? null : groupFlowBuilds(messages, generationRuns)),
-    [generationRuns, legacyUi, messages],
-  );
+  const flowGroups = useMemo(() => groupFlowBuilds(messages, generationRuns), [generationRuns, messages]);
   const latestApprovalRun = useMemo(
     () => generationRuns.filter((run) => isProductApprovalRun(run))
       .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null,
@@ -2021,7 +1959,7 @@ export function ChatPanel({
     [contextualSuggestionsEnabled, flowGroups, generationRun, generationRuns, messages, pendingTick, pendingTurn, queueError, screenPlan, screens],
   );
   // While the person still has to approve, the planning turn above the card stays open.
-  const openTraceId = !legacyUi && project.productPlanning?.scope?.status === "proposed"
+  const openTraceId = project.productPlanning?.scope?.status === "proposed"
     ? [...conversationItems].reverse().find((item) => item.kind === "trace")?.id ?? null
     : null;
 
@@ -2190,7 +2128,6 @@ export function ChatPanel({
         isBusy={isBusy}
         hasAlert={hasAlert}
         onExpand={() => onCollapseChange(false)}
-        modern={!legacyUi}
       />
     );
   }
@@ -2242,7 +2179,7 @@ export function ChatPanel({
                     if (item.kind === "user") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                          <UserBubble content={item.content} image={item.image} clamp={!legacyUi} />
+                          <UserBubble content={item.content} image={item.image} />
                         </motion.div>
                       );
                     }
@@ -2250,27 +2187,25 @@ export function ChatPanel({
                     if (item.kind === "thinking") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                          <ThinkingRow summary={item.summary} id={item.id} live={item.live} modern={!legacyUi} />
+                          <ThinkingRow summary={item.summary} id={item.id} live={item.live} />
                         </motion.div>
                       );
                     }
 
                     if (item.kind === "trace") {
-                      return legacyUi
-                        ? <WorkTraceCard key={item.id} trace={item.trace} />
-                        : <PlanningTraceBlock key={item.id} trace={item.trace} thought={item.thought} keepOpen={item.id === openTraceId} />;
+                      return <PlanningTraceBlock key={item.id} trace={item.trace} thought={item.thought} keepOpen={item.id === openTraceId} />;
                     }
 
                     if (item.kind === "generation_journal") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                          {legacyUi ? <GenerationJournalCard journal={item.journal} /> : <JournalBlock journal={item.journal} />}
+                          <JournalBlock journal={item.journal} />
                         </motion.div>
                       );
                     }
 
                     if (item.kind === "flow_build") {
-                      const group = flowGroups?.builds.get(item.approvalId);
+                      const group = flowGroups.builds.get(item.approvalId);
                       if (!group) return null;
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
@@ -2317,7 +2252,6 @@ export function ChatPanel({
                             onApproveScreenState={onApproveScreenState}
                             onDismissScreenState={handleDismissScreenState}
                             screens={screens}
-                            modern={!legacyUi}
                           />
                         </motion.div>
                       );
@@ -2349,22 +2283,12 @@ export function ChatPanel({
                 )}
               </AnimatePresence>
               {showFooterBusy ? (
-                legacyUi ? (
-                  <div className="px-5 py-2">
-                    <AgentThinkingIndicator
-                      label={busyLabel}
-                      className="text-slate-500"
-                    />
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2.5 px-4 py-2" role="status">
-                    <AgentStateMark state="working" />
-                    <span className="text-[13px] font-medium"><LiveText>{busyLabel.replace(/\.\.\.$/, "…")}</LiveText></span>
-                  </div>
-                )
+                <div className="flex items-center gap-2.5 px-4 py-2" role="status">
+                  <AgentMark state="working" />
+                  <span className="text-[13px] font-medium"><LiveText>{busyLabel.replace(/\.\.\.$/, "…")}</LiveText></span>
+                </div>
               ) : null}
-              <PlanningConversation project={project} disabled={disabled || isBusy} legacyCard={legacyUi} />
-              {legacyUi ? <ProductExecutionCard projectId={project.id} runs={generationRuns} screens={screens} /> : null}
+              <PlanningConversation project={project} disabled={disabled || isBusy} />
               <div ref={messagesEndRef} />
             </div>
             <div className="dg-chat-footer shrink-0 px-2 py-2">
@@ -2387,9 +2311,8 @@ export function ChatPanel({
                 onEditSelectedDesign={onEditSelectedDesign}
                 onClearSelectedElement={onClearSelectedElement}
                 onDeleteSelectedElement={onDeleteSelectedElement}
-                onStop={!legacyUi && stoppableApprovalId ? () => void flowControl.act("cancel", stoppableApprovalId) : undefined}
+                onStop={stoppableApprovalId ? () => void flowControl.act("cancel", stoppableApprovalId) : undefined}
                 stopping={flowControl.busy === "cancel"}
-                modern={!legacyUi}
               />
             </div>
           </>
@@ -2404,15 +2327,6 @@ export function ChatPanel({
             onTokenDraftChange={onTokenDraftChange}
             onSaveTokens={onSaveTokens}
             onDiscardTokens={onDiscardTokens}
-          />
-        ) : null}
-
-        {activeTab === "design-md" ? (
-          <DesignMdTab
-            project={project}
-            projectNavigation={projectNavigation}
-            tokenDraft={tokenDraft}
-            tokenDirty={tokenDirty}
           />
         ) : null}
       </PremiumTabPanel>

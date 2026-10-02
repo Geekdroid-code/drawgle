@@ -250,3 +250,26 @@ The founder approved the plan without approval-list editing. Phone view is the d
 - `components/PromptBar.stop.test.tsx`
 - `components/ChatPanel.flow.test.tsx`: a recorded two-batch build through the real chat, in both the new and the legacy views.
 - `components/product-planning/FlowApprovalCard.test.tsx`
+
+## 10. Follow-up the same day: what the person sees, and nothing else
+
+The founder confirmed the new chat and asked for two cleanups:
+
+- Stop showing how Drawgle keeps its UI premium.
+- Remove what the person doesn't need.
+
+**Removed:**
+
+- **The `?ui=legacy` view and the old cards:** `WorkTraceCard`, `GenerationJournalCard`, `ProductExecutionCard`, `ProductScopeCard`.
+- **The Design.md tab.** The agent pack export still carries Design.md (`lib/design-md`).
+- **The approval card's reference image and its "Assumptions to review":**
+  - The assumptions are the planner's own product facts (`source: "assumption"`, `proposal-runner.ts`), the same facts that build the flow. Hiding them saves no tokens, and they are still needed.
+  - The unused endpoint that served the reference image (`/api/projects/[projectId]/planning-reference`) is gone too.
+
+**References are never named or shown:**
+
+- **"Design direction" under Details** shows the direction's brief only when it describes the person's own image (or no image).
+  - For a catalogue reference, the direction text describes the catalogue app itself.
+  - In the live data, one read "The 'Buy BTC' button becomes 'Buy Now'".
+- **A catalogue reference is described, not named.** The build block, a regular build's journal and the planning step say "Formulated design decisions for the UI direction" (and "Formulating…" while it runs). Lines about the person's own image ("Read your image for its style") stay.
+- **The planner writes what the person reads about their product, never about a reference.** This covers the flow preview, the goal, the rationale, and screen descriptions, outcomes and action labels (`assess-evidence.ts`, `proposal-runner.ts`). Before, 1 in 38 previews and 3 in 20 catalogue-reference plans mentioned "the reference".

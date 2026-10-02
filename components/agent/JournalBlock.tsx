@@ -8,7 +8,7 @@ type Phase = GenerationJournalMetadata["phases"][number];
 
 const PHASE_LIVE: Record<string, string> = {
   brief: "Reading the brief",
-  reference: "Reading the reference",
+  reference: "Formulating design decisions for the UI direction",
   design: "Setting up the design system",
   blueprint: "Planning navigation",
   screens: "Planning screens",
@@ -16,8 +16,22 @@ const PHASE_LIVE: Record<string, string> = {
   build: "Designing screens",
 };
 
+// The person's names for the phases; the journal's own labels ("Reference direction") are the pipeline's.
+const PHASE_LABEL: Record<string, string> = {
+  brief: "Brief",
+  reference: "Design decisions for the UI direction",
+  design: "Design system",
+  blueprint: "Navigation",
+  screens: "Screen plan",
+  assets: "Images",
+};
+
 const phaseStatus = (phase: Phase): StepMarkStatus =>
   phase.status === "completed" ? "done" : phase.status === "active" ? "active" : phase.status === "failed" ? "failed" : "queued";
+
+/** A phase's detail, only while it runs or after it fails; what the look is based on is never spelled out. */
+const phaseDetail = (phase: Phase) =>
+  phase.id !== "reference" && (phase.status === "active" || phase.status === "failed") ? phase.detail : null;
 
 function screenStatus(screen: GenerationJournalScreen, live: boolean): StepMarkStatus {
   if (screen.status === "ready") return "done";
@@ -50,8 +64,8 @@ export function JournalBlock({ journal }: { journal: GenerationJournalMetadata }
         <TimelineStep
           key={phase.id}
           status={phaseStatus(phase)}
-          title={phase.label}
-          detail={phase.status === "active" || phase.status === "failed" ? phase.detail : null}
+          title={phase.status === "active" ? PHASE_LIVE[phase.id] ?? PHASE_LABEL[phase.id] ?? phase.label : PHASE_LABEL[phase.id] ?? phase.label}
+          detail={phaseDetail(phase)}
         />
       ))}
       {screens.map((screen, index) => {
