@@ -41,6 +41,15 @@ import { hasApprovedDesignTokens } from "@/lib/design-tokens";
 import { cleanErrorMessage } from "@/lib/errors/user-facing";
 import { generationRunHasRetryableWork } from "@/lib/generation/retry-scope";
 import { readWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
+import { readGenerationJournal } from "@/lib/agent/generation-journal";
+import { isProductApprovalRun, productApprovalIdOf, type FlowFulfillment } from "@/lib/agent/flow-build";
+import { groupFlowBuilds, type FlowBuildGroups } from "@/lib/agent/flow-messages";
+import { AgentMark as AgentStateMark, DoneMark, FailedMark, LiveText } from "@/components/agent/marks";
+import { FlowBuildBlock } from "@/components/agent/FlowBuildBlock";
+import { JournalBlock } from "@/components/agent/JournalBlock";
+import { PlanningTraceBlock } from "@/components/agent/PlanningTraceBlock";
+import { useLegacyChatUi } from "@/hooks/use-legacy-chat-ui";
+import { useProductGenerationControl } from "@/hooks/use-product-generation-control";
 import {
   readAgentStep,
   readAgentUi,
@@ -105,8 +114,9 @@ type ConversationItem =
   | { id: string; kind: "user"; content: string; image?: PromptImagePayload | null; timestamp?: string }
   | { id: string; kind: "assistant"; content: string; timestamp?: string; isError?: boolean; questions?: ProductQuestions | null; planningFailure?: PlanningFailure | null; messageId?: string; turnId?: string | null; sourceAction?: string | null }
   | { id: string; kind: "thinking"; summary: ThinkingSummaryMetadata; timestamp?: string; live?: boolean }
-  | { id: string; kind: "trace"; trace: WorkTrace; timestamp?: string }
+  | { id: string; kind: "trace"; trace: WorkTrace; timestamp?: string; thought?: { content: string; at: string } | null }
   | { id: string; kind: "generation_journal"; journal: GenerationJournalMetadata; timestamp?: string }
+  | { id: string; kind: "flow_build"; approvalId: string; timestamp?: string }
   | { id: string; kind: "screen_suggestions"; recommendation: RoadmapBuildRecommendation; messageId: string; timestamp?: string }
   | { id: string; kind: "action"; step: AgentStepMetadata; sourceContent?: string; retryRun?: GenerationRunData; proposal?: ScreenPlanProposalMetadata | null; stateProposal?: ScreenStateProposalMetadata | null; proposalMessageId?: string | null; timestamp?: string };
 
@@ -245,82 +255,6 @@ const isInternalGenerationActivity = (activityKey: string | null) =>
       /^screen:[^:]+:build$/.test(activityKey)
     ),
   );
-
-const JOURNAL_PHASE_STATUSES = new Set(["pending", "active", "completed", "failed"]);
-const JOURNAL_STATUSES = new Set(["queued", "planning", "building", "completed", "failed"]);
-const JOURNAL_SCREEN_STATUSES = new Set(["briefing", "planned", "preparing_assets", "queued", "building", "ready", "failed"]);
-
-const readGenerationJournal = (metadata: Record<string, unknown>): GenerationJournalMetadata | null => {
-  const journal = metadataRecord(metadata.generationJournal);
-  if (journal.version !== 1) return null;
-  if (typeof journal.generationRunId !== "string" || !journal.generationRunId) return null;
-  if (typeof journal.title !== "string" || !journal.title.trim()) return null;
-  if (typeof journal.status !== "string" || !JOURNAL_STATUSES.has(journal.status)) return null;
-  if (!Array.isArray(journal.phases)) return null;
-
-  const phases = journal.phases.flatMap((phaseValue) => {
-    const phase = metadataRecord(phaseValue);
-    const id = typeof phase.id === "string" ? phase.id : null;
-    const label = typeof phase.label === "string" ? phase.label : null;
-    const status = typeof phase.status === "string" && JOURNAL_PHASE_STATUSES.has(phase.status) ? phase.status : null;
-    if (!id || !label || !status) return [];
-    return [{
-      id,
-      label,
-      status: status as GenerationJournalMetadata["phases"][number]["status"],
-      detail: typeof phase.detail === "string" ? phase.detail : null,
-      startedAt: typeof phase.startedAt === "string" ? phase.startedAt : null,
-      completedAt: typeof phase.completedAt === "string" ? phase.completedAt : null,
-    }];
-  });
-  if (!phases.length) return null;
-
-  const screens: GenerationJournalMetadata["screens"] = Array.isArray(journal.screens)
-    ? journal.screens.flatMap((screenValue) => {
-      const screen = metadataRecord(screenValue);
-      const name = typeof screen.name === "string" ? screen.name : null;
-      if (!name) return [];
-      const type: NonNullable<GenerationJournalMetadata["screens"]>[number]["type"] =
-        screen.type === "root" || screen.type === "detail" ? screen.type : null;
-      const chrome: NonNullable<GenerationJournalMetadata["screens"]>[number]["chrome"] =
-        typeof screen.chrome === "string" ? screen.chrome as NonNullable<GenerationJournalMetadata["screens"]>[number]["chrome"] : null;
-      const status = typeof screen.status === "string" && JOURNAL_SCREEN_STATUSES.has(screen.status)
-        ? screen.status as NonNullable<GenerationJournalMetadata["screens"]>[number]["status"]
-        : "planned";
-      return [{
-        name,
-        type,
-        description: typeof screen.description === "string" ? screen.description : null,
-        chrome,
-        navigationItemId: typeof screen.navigationItemId === "string" ? screen.navigationItemId : null,
-        assetNeedCount: typeof screen.assetNeedCount === "number" && Number.isFinite(screen.assetNeedCount) ? screen.assetNeedCount : 0,
-        status,
-      }];
-    })
-    : [];
-
-  const assetSummaryRecord = metadataRecord(journal.assetSummary);
-  const assetSummary = typeof assetSummaryRecord.requested === "number"
-    ? {
-      requested: assetSummaryRecord.requested,
-      resolved: typeof assetSummaryRecord.resolved === "number" ? assetSummaryRecord.resolved : 0,
-      placeholders: typeof assetSummaryRecord.placeholders === "number" ? assetSummaryRecord.placeholders : 0,
-      failures: typeof assetSummaryRecord.failures === "number" ? assetSummaryRecord.failures : 0,
-    }
-    : null;
-
-  return {
-    version: 1,
-    generationRunId: journal.generationRunId,
-    status: journal.status as GenerationJournalMetadata["status"],
-    title: journal.title,
-    detail: typeof journal.detail === "string" ? journal.detail : null,
-    activePhase: typeof journal.activePhase === "string" ? journal.activePhase : null,
-    phases,
-    screens,
-    assetSummary,
-  };
-};
 
 const isUsefulThinkingSummary = (summary: ThinkingSummaryMetadata) => {
   const text = summary.text.trim();
@@ -481,8 +415,9 @@ const liveGenerationStep = (generationRun: GenerationRunData, screens: ScreenDat
 const isBusyStepStatus = (status?: AgentStepMetadata["status"] | null) =>
   status === "queued" || status === "thinking" || status === "editing";
 
-const conversationHasLiveWork = (items: ConversationItem[]) =>
+const conversationHasLiveWork = (items: ConversationItem[], liveFlowIds: Set<string> = new Set()) =>
   items.some((item) => {
+    if (item.kind === "flow_build") return liveFlowIds.has(item.approvalId);
     if (item.kind === "trace") return item.trace.status === "active";
     if (item.kind === "action") return isBusyStepStatus(item.step.status);
     if (item.kind === "generation_journal") {
@@ -519,6 +454,7 @@ function buildConversationItems({
   screenPlan,
   pendingTurn,
   contextualSuggestionsEnabled,
+  flowGroups = null,
 }: {
   messages: ProjectMessage[];
   screens: ScreenData[];
@@ -528,8 +464,19 @@ function buildConversationItems({
   screenPlan?: ScreenPlanState | null;
   pendingTurn: PendingTurn | null;
   contextualSuggestionsEnabled: boolean;
+  /** Approved-flow builds, each shown as one block; null keeps the previous cards (`?ui=legacy`). */
+  flowGroups?: FlowBuildGroups | null;
 }): ConversationItem[] {
   const items: ConversationItem[] = [];
+  const placedFlowBuilds = new Set<string>();
+  const pushFlowBuild = (approvalId: string, timestamp?: string) => {
+    if (placedFlowBuilds.has(approvalId)) return;
+    placedFlowBuilds.add(approvalId);
+    items.push({ id: `flow-build-${approvalId}`, kind: "flow_build", approvalId, timestamp });
+  };
+  // A run that belongs to an approved flow is shown by that flow's block, never by its own card.
+  const isFlowRun = (run: GenerationRunData | null | undefined) =>
+    Boolean(flowGroups && run && (isProductApprovalRun(run) || productApprovalIdOf(run)));
   const generationRunById = new Map(generationRuns.map((run) => [run.id, run]));
   if (generationRun) {
     generationRunById.set(generationRun.id, generationRun);
@@ -607,6 +554,20 @@ function buildConversationItems({
   for (const message of messages) {
     const action = getMetadataString(message.metadata, "action");
     const cleanContent = message.content.trim().toLowerCase();
+    if (flowGroups) {
+      // The approval becomes its build's block; the build's own progress lines and batch cards fold into it.
+      const anchoredApprovalId = flowGroups.anchors.get(message.id);
+      if (anchoredApprovalId) {
+        latestUserMessageId = message.id;
+        pushFlowBuild(anchoredApprovalId, message.timestamp);
+        continue;
+      }
+      if (flowGroups.consumed.has(message.id)) {
+        const owner = flowGroups.owners.get(message.id);
+        if (owner && flowGroups.unanchored.includes(owner)) pushFlowBuild(owner, message.timestamp);
+        continue;
+      }
+    }
     if (
       action === "pre_action_response" ||
       cleanContent.includes("applying a precise edit") ||
@@ -901,6 +862,16 @@ function buildConversationItems({
     }
 
     if (message.content.trim()) {
+      // The planner's flow preview is that turn's thought process, inside its block.
+      if (flowGroups && action === "product_flow_preview") {
+        const turnId = getMessageClientTurnId(message);
+        const turnTrace = [...items].reverse().find((item): item is typeof item & { kind: "trace" } =>
+          item.kind === "trace" && Boolean(turnId) && item.trace.turnId === turnId);
+        if (turnTrace) {
+          turnTrace.thought = { content: message.content, at: message.timestamp };
+          continue;
+        }
+      }
       const isError = message.messageType === "error" || ui?.variant === "error";
       items.push({
         id: `assistant-${message.id}`,
@@ -915,6 +886,11 @@ function buildConversationItems({
         isError,
       });
     }
+  }
+
+  // The latest flow keeps its block (progress, resume and stop) even when none of its messages are loaded.
+  if (flowGroups) {
+    for (const approvalId of flowGroups.unanchored) pushFlowBuild(approvalId);
   }
 
   if (pendingTurn && !hasPersistedPending) {
@@ -979,7 +955,7 @@ function buildConversationItems({
     });
   }
 
-  if (generationRun && isActiveGenerationRun(generationRun)) {
+  if (generationRun && isActiveGenerationRun(generationRun) && !isFlowRun(generationRun)) {
     const hasBusyGenerationSurface = items.some((item) => {
       if (item.kind === "generation_journal") {
         return item.journal.generationRunId === generationRun.id &&
@@ -1023,7 +999,7 @@ function buildConversationItems({
     requestedScreenCount: latestRetryRun.requestedScreenCount ?? null,
   }));
 
-  if (!generationRun && latestRetryRun && !hasSubsequentCompletedRun && !allScreensReady && hasRetryableWork) {
+  if (!generationRun && latestRetryRun && !isFlowRun(latestRetryRun) && !hasSubsequentCompletedRun && !allScreensReady && hasRetryableWork) {
     const alreadyShown = items.some((item) =>
       item.kind === "action" && item.step.detail === latestRetryRun.error
     );
@@ -1132,7 +1108,7 @@ function AgentMark({ busy, failed }: { busy?: boolean; failed?: boolean }) {
   return <Check className="h-3.5 w-3.5 text-slate-700" />;
 }
 
-function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMetadata; id: string; live?: boolean }) {
+function ThinkingRow({ summary, id, live = false, modern = false }: { summary: ThinkingSummaryMetadata; id: string; live?: boolean; modern?: boolean }) {
   const [expanded, setExpanded] = useState(Boolean(summary.expandedByDefault));
   const isLive = summary.label.toLowerCase().includes("analyzing");
   const seconds = summary.durationMs && summary.durationMs > 0
@@ -1143,11 +1119,18 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
     return (
       <div className="px-5 py-2">
         <div className="flex items-center gap-2">
-          <AgentThinkingIndicator
-            label={`${summary.label}...`}
-            className="text-black/40"
-            hideBall={true}
-          />
+          {modern ? (
+            <span className="flex items-center gap-2.5 text-[13px] font-medium" role="status">
+              <AgentStateMark state="working" />
+              <LiveText>{summary.label}…</LiveText>
+            </span>
+          ) : (
+            <AgentThinkingIndicator
+              label={`${summary.label}...`}
+              className="text-black/40"
+              hideBall={true}
+            />
+          )}
           {seconds ? (
             <span className="text-[11px] font-normal italic text-black/30">{seconds}</span>
           ) : null}
@@ -1177,7 +1160,9 @@ function ThinkingRow({ summary, id, live = false }: { summary: ThinkingSummaryMe
         {summary.text}
       </div>
       {isLive ? (
-        <AgentThinkingIndicator label="Thinking..." className="mt-2 pl-3 text-slate-500" hideBall={true} />
+        modern
+          ? <div className="mt-2 pl-3 text-[12px]"><LiveText>Thinking…</LiveText></div>
+          : <AgentThinkingIndicator label="Thinking..." className="mt-2 pl-3 text-slate-500" hideBall={true} />
       ) : null}
     </div>
   );
@@ -1224,7 +1209,10 @@ function AssistantMessage({ content, isError }: { content: string; isError?: boo
   );
 }
 
-function UserBubble({ content, image }: { content: string; image?: PromptImagePayload | null }) {
+function UserBubble({ content, image, clamp = false }: { content: string; image?: PromptImagePayload | null; clamp?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
+  // A long brief folds to five lines; the whole brief is one click away.
+  const long = clamp && (content.length > 320 || content.split("\n").length > 5);
   return (
     <div className="flex justify-end px-3 py-3">
       <div className="max-w-[78%] rounded-[18px] bg-[#f0f0f1] px-4 py-3 text-[15px] leading-6 text-slate-950">
@@ -1239,7 +1227,16 @@ function UserBubble({ content, image }: { content: string; image?: PromptImagePa
             />
           </div>
         ) : null}
-        <div className="whitespace-pre-wrap break-words text-xs">{content}</div>
+        <div className={cn("whitespace-pre-wrap break-words text-xs", long && !expanded && "line-clamp-5")}>{content}</div>
+        {long ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="mt-1 text-[11px] font-medium text-[var(--dg-text-muted)] hover:text-[var(--dg-text)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--dg-accent)]"
+          >
+            {expanded ? "Show less" : "Show more"}
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -1378,7 +1375,9 @@ function ActionCard({
   onApproveScreenState,
   onDismissScreenState,
   screens,
+  modern = false,
 }: {
+  modern?: boolean;
   step: AgentStepMetadata;
   retryRun?: GenerationRunData;
   retryDisabled?: boolean;
@@ -1500,7 +1499,9 @@ function ActionCard({
         <div className="flex flex-row items-center transition-colors rounded-lg duration-150 min-w-0 w-full">
           <div className="w-[20px] flex justify-center shrink-0">
             <div className="pt-0.5">
-              {failed ? (
+              {modern ? (
+                failed ? <FailedMark /> : busy ? <AgentStateMark state="working" /> : <DoneMark />
+              ) : failed ? (
                 <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
               ) : busy ? (
                 <AgentBall className="h-4 w-4 shrink-0" active />
@@ -1512,11 +1513,15 @@ function ActionCard({
           <div className="flex-1 min-w-0 pl-2.5">
             {busy ? (
               <div className="min-w-0 py-0.5">
-                <AgentThinkingIndicator
-                  label={`${liveTitle}...`}
-                  className="min-w-0 text-slate-700 font-medium"
-                  hideBall
-                />
+                {modern ? (
+                  <span className="block min-w-0 truncate text-[13px] font-medium" role="status"><LiveText>{liveTitle}…</LiveText></span>
+                ) : (
+                  <AgentThinkingIndicator
+                    label={`${liveTitle}...`}
+                    className="min-w-0 text-slate-700 font-medium"
+                    hideBall
+                  />
+                )}
                 {hasDistinctDetail ? (
                   <p className="min-w-0 break-words pt-0.5 text-[11.5px] leading-5 text-slate-500">{step.detail}</p>
                 ) : null}
@@ -1834,12 +1839,14 @@ export function CollapsedChatTrigger({
   isBusy,
   hasAlert,
   onExpand,
+  modern = false,
 }: {
   eyebrow: string;
   title: string;
   isBusy: boolean;
   hasAlert: boolean;
   onExpand: () => void;
+  modern?: boolean;
 }) {
   const statusToneClass = hasAlert
     ? "bg-rose-500"
@@ -1859,7 +1866,7 @@ export function CollapsedChatTrigger({
       {hasAlert ? (
         <AlertCircle className="h-5 w-5" />
       ) : isBusy ? (
-        <AgentBall className="h-5 w-5" active />
+        modern ? <AgentStateMark state="working" size={20} /> : <AgentBall className="h-5 w-5" active />
       ) : (
         <AgentBall className="h-5 w-5" />
       )}
@@ -1875,6 +1882,8 @@ export function ChatPanel({
   selectedScreen,
   generationRun,
   generationRuns,
+  flowFulfillments = null,
+  recordedMessages = null,
   projectNavigation,
   tokenDraft,
   tokenDirty = false,
@@ -1915,6 +1924,10 @@ export function ChatPanel({
   selectedScreen: ScreenData | null;
   generationRun: GenerationRunData | null;
   generationRuns: GenerationRunData[];
+  /** The latest approved flow's per-screen claims, read once for the chat and the canvas. */
+  flowFulfillments?: { approvalId: string; fulfillments: FlowFulfillment[] | null } | null;
+  /** A recorded conversation to show instead of the live one (the dev replay page). */
+  recordedMessages?: ProjectMessage[] | null;
   projectNavigation?: ProjectNavigationData | null;
   tokenDraft?: DesignTokens | null;
   tokenDirty?: boolean;
@@ -1956,7 +1969,9 @@ export function ChatPanel({
   onClearSelectedElement?: () => void;
   onDeleteSelectedElement?: () => void | Promise<void>;
 }) {
-  const { messages, isLoading } = useProjectMessages(project.id);
+  const live = useProjectMessages(recordedMessages ? "" : project.id);
+  const messages = recordedMessages ?? live.messages;
+  const isLoading = recordedMessages ? false : live.isLoading;
   const planningBusy = usePlanningLease(project.productPlanning?.lease);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const reduceMotion = Boolean(useReducedMotion());
@@ -1968,6 +1983,25 @@ export function ChatPanel({
   const isGenerationActive = isActiveGenerationRun(generationRun);
   const hasAlert = Boolean(queueError || screenPlan?.status === "error");
   const isBusy = isGenerationActive || isQueueing || screenPlan?.status === "planning" || Boolean(pendingTurn);
+  const legacyUi = useLegacyChatUi();
+  const flowControl = useProductGenerationControl(project.id);
+
+  // Approved-flow builds: each one becomes a single block in the conversation.
+  const flowGroups = useMemo(
+    () => (legacyUi ? null : groupFlowBuilds(messages, generationRuns)),
+    [generationRuns, legacyUi, messages],
+  );
+  const latestApprovalRun = useMemo(
+    () => generationRuns.filter((run) => isProductApprovalRun(run))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null,
+    [generationRuns],
+  );
+  const liveFlowIds = useMemo(
+    () => new Set(generationRuns.filter((run) => isProductApprovalRun(run) && isActiveGenerationRun(run)).map((run) => run.id)),
+    [generationRuns],
+  );
+  // The composer's Stop: the latest approved flow while it is building.
+  const stoppableApprovalId = latestApprovalRun && liveFlowIds.has(latestApprovalRun.id) ? latestApprovalRun.id : null;
 
   const conversationItems = useMemo(
     () => {
@@ -1981,12 +2015,17 @@ export function ChatPanel({
         screenPlan,
         pendingTurn,
         contextualSuggestionsEnabled,
+        flowGroups,
       });
     },
-    [contextualSuggestionsEnabled, generationRun, generationRuns, messages, pendingTick, pendingTurn, queueError, screenPlan, screens],
+    [contextualSuggestionsEnabled, flowGroups, generationRun, generationRuns, messages, pendingTick, pendingTurn, queueError, screenPlan, screens],
   );
+  // While the person still has to approve, the planning turn above the card stays open.
+  const openTraceId = !legacyUi && project.productPlanning?.scope?.status === "proposed"
+    ? [...conversationItems].reverse().find((item) => item.kind === "trace")?.id ?? null
+    : null;
 
-  const hasLiveConversationWork = conversationHasLiveWork(conversationItems);
+  const hasLiveConversationWork = conversationHasLiveWork(conversationItems, liveFlowIds);
   const showFooterBusy = (isBusy || planningBusy) && !hasLiveConversationWork;
   const busyLabel = pendingTurn
     ? "Reading your prompt..."
@@ -2151,6 +2190,7 @@ export function ChatPanel({
         isBusy={isBusy}
         hasAlert={hasAlert}
         onExpand={() => onCollapseChange(false)}
+        modern={!legacyUi}
       />
     );
   }
@@ -2202,7 +2242,7 @@ export function ChatPanel({
                     if (item.kind === "user") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                          <UserBubble content={item.content} image={item.image} />
+                          <UserBubble content={item.content} image={item.image} clamp={!legacyUi} />
                         </motion.div>
                       );
                     }
@@ -2210,19 +2250,38 @@ export function ChatPanel({
                     if (item.kind === "thinking") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                          <ThinkingRow summary={item.summary} id={item.id} live={item.live} />
+                          <ThinkingRow summary={item.summary} id={item.id} live={item.live} modern={!legacyUi} />
                         </motion.div>
                       );
                     }
 
                     if (item.kind === "trace") {
-                      return <WorkTraceCard key={item.id} trace={item.trace} />;
+                      return legacyUi
+                        ? <WorkTraceCard key={item.id} trace={item.trace} />
+                        : <PlanningTraceBlock key={item.id} trace={item.trace} thought={item.thought} keepOpen={item.id === openTraceId} />;
                     }
 
                     if (item.kind === "generation_journal") {
                       return (
                         <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
-                          <GenerationJournalCard journal={item.journal} />
+                          {legacyUi ? <GenerationJournalCard journal={item.journal} /> : <JournalBlock journal={item.journal} />}
+                        </motion.div>
+                      );
+                    }
+
+                    if (item.kind === "flow_build") {
+                      const group = flowGroups?.builds.get(item.approvalId);
+                      if (!group) return null;
+                      return (
+                        <motion.div key={item.id} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}>
+                          <FlowBuildBlock
+                            projectId={project.id}
+                            group={group}
+                            runs={generationRuns}
+                            designTokens={project.designTokens}
+                            isLatest={item.approvalId === latestApprovalRun?.id}
+                            fulfillments={flowFulfillments?.approvalId === item.approvalId ? flowFulfillments.fulfillments : undefined}
+                          />
                         </motion.div>
                       );
                     }
@@ -2258,6 +2317,7 @@ export function ChatPanel({
                             onApproveScreenState={onApproveScreenState}
                             onDismissScreenState={handleDismissScreenState}
                             screens={screens}
+                            modern={!legacyUi}
                           />
                         </motion.div>
                       );
@@ -2289,15 +2349,22 @@ export function ChatPanel({
                 )}
               </AnimatePresence>
               {showFooterBusy ? (
-                <div className="px-5 py-2">
-                  <AgentThinkingIndicator
-                    label={busyLabel}
-                    className="text-slate-500"
-                  />
-                </div>
+                legacyUi ? (
+                  <div className="px-5 py-2">
+                    <AgentThinkingIndicator
+                      label={busyLabel}
+                      className="text-slate-500"
+                    />
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2.5 px-4 py-2" role="status">
+                    <AgentStateMark state="working" />
+                    <span className="text-[13px] font-medium"><LiveText>{busyLabel.replace(/\.\.\.$/, "…")}</LiveText></span>
+                  </div>
+                )
               ) : null}
-              <PlanningConversation project={project} disabled={disabled || isBusy} />
-              <ProductExecutionCard projectId={project.id} runs={generationRuns} screens={screens} />
+              <PlanningConversation project={project} disabled={disabled || isBusy} legacyCard={legacyUi} />
+              {legacyUi ? <ProductExecutionCard projectId={project.id} runs={generationRuns} screens={screens} /> : null}
               <div ref={messagesEndRef} />
             </div>
             <div className="dg-chat-footer shrink-0 px-2 py-2">
@@ -2320,6 +2387,9 @@ export function ChatPanel({
                 onEditSelectedDesign={onEditSelectedDesign}
                 onClearSelectedElement={onClearSelectedElement}
                 onDeleteSelectedElement={onDeleteSelectedElement}
+                onStop={!legacyUi && stoppableApprovalId ? () => void flowControl.act("cancel", stoppableApprovalId) : undefined}
+                stopping={flowControl.busy === "cancel"}
+                modern={!legacyUi}
               />
             </div>
           </>

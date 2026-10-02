@@ -19,8 +19,11 @@ import { hasSharedNavigation } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, buildGoogleFontHref, normalizeLegacyTypographyFontMarkup } from "@/lib/token-runtime";
 import { useRealtimeRunWithStreams } from "@trigger.dev/react-hooks";
 import {
+  FULL_FRAME_RADIUS,
+  PHONE_FRAME_RADIUS,
   SCREEN_FRAME_HEIGHT,
   SCREEN_FRAME_WIDTH,
+  type CanvasFrameMode,
   type CanvasNavigationMessage,
   type CanvasTool,
 } from "@/lib/canvas-interactions";
@@ -565,6 +568,7 @@ export function ScreenNode({
   onRetryScreen,
   onCreateState,
   readOnly,
+  frameMode = "full",
 }: {
   screen: ScreenData;
   projectNavigation?: ProjectNavigationData | null;
@@ -594,6 +598,8 @@ export function ScreenNode({
   onRetryScreen?: (screen: ScreenData) => void;
   onCreateState?: (screen: ScreenData) => void;
   readOnly?: boolean;
+  /** "phone": a 390×844 phone whose page scrolls inside; "full": the page at its full height. */
+  frameMode?: CanvasFrameMode;
 }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const safeCode = typeof screen.code === "string" ? screen.code : "";
@@ -626,6 +632,11 @@ export function ScreenNode({
   // It is only active while the screen is selected.
   const [interactMode, setInteractMode] = useState(false);
   const isInteractModeActive = Boolean(isSelected && interactMode);
+  // The iframe's viewport mode (a fixed 844px page that scrolls inside, bar pinned) serves both phone view and
+  // interact mode; leaving interact mode in phone view keeps the phone.
+  const isPhoneView = frameMode === "phone";
+  const isViewportMode = isPhoneView || isInteractModeActive;
+  const frameHeightOf = (measured: number) => (isViewportMode ? SCREEN_FRAME_HEIGHT : measured);
 
   const [contentHeight, setContentHeight] = useState(SCREEN_FRAME_HEIGHT);
   const [selectedElementBounds, setSelectedElementBounds] = useState<{
@@ -636,7 +647,7 @@ export function ScreenNode({
     height: number;
   } | null>(null);
 
-  const syncIframeInteractionMode = useCallback((enabled: boolean) => {
+  const syncIframeInteractMode = useCallback((enabled: boolean) => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) return;
 
@@ -648,7 +659,10 @@ export function ScreenNode({
       { type: enabled ? "enterInteractMode" : "exitInteractMode" },
       "*",
     );
-    iframe.contentWindow.postMessage(
+  }, []);
+
+  const syncIframeViewportMode = useCallback((enabled: boolean) => {
+    iframeRef.current?.contentWindow?.postMessage(
       { type: "setViewportMode", enabled },
       "*",
     );
@@ -822,11 +836,8 @@ export function ScreenNode({
       if (event.data?.type !== "drawgleIframeReady") return;
       iframeReadyRef.current = true;
       postCurrentRenderState(true);
-      syncIframeInteractionMode(isInteractModeActive);
-      iframeRef.current?.contentWindow?.postMessage(
-        { type: "setViewportMode", enabled: isInteractModeActive },
-        "*",
-      );
+      syncIframeInteractMode(isInteractModeActive);
+      syncIframeViewportMode(isViewportMode);
       iframeRef.current?.contentWindow?.postMessage(
         { type: selectionMode ? "enableSelectionMode" : "disableSelectionMode" },
         "*",
@@ -839,7 +850,7 @@ export function ScreenNode({
 
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [isInteractModeActive, postCurrentRenderState, selectedDrawgleId, selectionMode, syncIframeInteractionMode, screen.id, onContentHeightChange]);
+  }, [isInteractModeActive, isViewportMode, postCurrentRenderState, selectedDrawgleId, selectionMode, syncIframeInteractMode, syncIframeViewportMode, screen.id, onContentHeightChange]);
 
   // ── Escape key exits interact mode
   useEffect(() => {
@@ -852,8 +863,12 @@ export function ScreenNode({
   }, [isSelected, interactMode]);
 
   useEffect(() => {
-    syncIframeInteractionMode(isInteractModeActive);
-  }, [isInteractModeActive, syncIframeInteractionMode]);
+    syncIframeInteractMode(isInteractModeActive);
+  }, [isInteractModeActive, syncIframeInteractMode]);
+
+  useEffect(() => {
+    syncIframeViewportMode(isViewportMode);
+  }, [isViewportMode, syncIframeViewportMode]);
 
   // ── Selection mode: tell the iframe to enable/disable element picking
   useEffect(() => {
@@ -2338,8 +2353,8 @@ export function ScreenNode({
         style={{
           position: 'relative',
           width: SCREEN_FRAME_WIDTH,
-          height: isInteractModeActive ? SCREEN_FRAME_HEIGHT : contentHeight,
-          borderRadius: 16,
+          height: frameHeightOf(contentHeight),
+          borderRadius: isPhoneView ? PHONE_FRAME_RADIUS : FULL_FRAME_RADIUS,
           background: 'var(--dg-color-background-primary, #ffffff)',
           border: '1px solid rgba(0, 0, 0, 0.08)',
           boxShadow: (() => {
@@ -2369,7 +2384,10 @@ export function ScreenNode({
             onDoubleClick={() => {
               if (canvasTool === "pointer" && isSelected && !isTemporaryCanvasPan) {
                 setInteractMode(true);
-                window.requestAnimationFrame(() => syncIframeInteractionMode(true));
+                window.requestAnimationFrame(() => {
+                  syncIframeInteractMode(true);
+                  syncIframeViewportMode(true);
+                });
               }
             }}
           />
@@ -2401,7 +2419,10 @@ export function ScreenNode({
               );
             }
             if (isInteractModeActive) {
-              syncIframeInteractionMode(true);
+              syncIframeInteractMode(true);
+            }
+            if (isViewportMode) {
+              syncIframeViewportMode(true);
             }
           }}
         />
@@ -2441,7 +2462,7 @@ export function ScreenNode({
       </div>
 
       {/* ── Dimension badge — visible while dragging ────────────────────── */}
-      <DimensionBadge visible={isDragging} height={isInteractModeActive ? SCREEN_FRAME_HEIGHT : contentHeight} />
+      <DimensionBadge visible={isDragging} height={frameHeightOf(contentHeight)} />
 
       {/* Code Viewer Dialog */}
       {!readOnly ? (

@@ -655,14 +655,106 @@ html[data-drawgle-theme-vt="active"]::view-transition-old(root) {
   }
 }
 
+/* The agent's live line: a soft glint passing through the words while the agent works. */
+.dg-live-text {
+  --dg-live-base: var(--dg-text);
+  --dg-live-glint: var(--dg-text-faint);
+  background: linear-gradient(100deg, var(--dg-live-base) 0%, var(--dg-live-base) 38%, var(--dg-live-glint) 50%, var(--dg-live-base) 62%, var(--dg-live-base) 100%);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: dg-live-text 2.4s linear infinite;
+}
+
+.dg-live-text-accent {
+  --dg-live-base: var(--dg-accent);
+  --dg-live-glint: color-mix(in oklab, var(--dg-accent) 35%, var(--dg-surface));
+}
+
+@keyframes dg-live-text {
+  from {
+    background-position: 100% 0;
+  }
+
+  to {
+    background-position: -160% 0;
+  }
+}
+
+/* A step that just finished: its mark settles in and its check draws. */
+.dg-mark-pop {
+  transform-origin: center;
+  animation: dg-mark-pop 0.36s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+}
+
+.dg-mark-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: dg-mark-draw 0.34s 0.1s cubic-bezier(0.3, 0.7, 0.2, 1) forwards;
+}
+
+@keyframes dg-mark-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes dg-mark-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* A screen that isn't on the canvas yet: a soft light sweeping across its phone. */
+.dg-placeholder-sweep {
+  background: linear-gradient(110deg, transparent 0%, transparent 35%, color-mix(in oklab, var(--dg-surface) 70%, transparent) 50%, transparent 65%, transparent 100%);
+  background-size: 250% 100%;
+  animation: dg-placeholder-sweep 2.6s ease-in-out infinite;
+}
+
+@keyframes dg-placeholder-sweep {
+  from {
+    background-position: 120% 0;
+  }
+
+  to {
+    background-position: -120% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dg-brief-title-active,
   .dg-brief-prompt-shimmer::before,
   .dg-agent-ball-active,
   .dg-shimmer-char,
   .dg-canvas-loader-mark::before,
-  .dg-canvas-loader-line::before {
+  .dg-canvas-loader-line::before,
+  .dg-mark-pop,
+  .dg-placeholder-sweep {
     animation: none;
+  }
+
+  .dg-live-text {
+    animation: none;
+    background: none;
+    color: var(--dg-live-base);
+  }
+
+  .dg-mark-draw {
+    animation: none;
+    stroke-dashoffset: 0;
   }
 
   .dg-brief-title-wave span {

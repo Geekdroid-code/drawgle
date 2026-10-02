@@ -2,11 +2,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ProjectData } from "@/lib/types";
 import { ProductScopeCard } from "./ProductScopeCard";
+import { FlowApprovalCard } from "./FlowApprovalCard";
 import { notifyProjectChanged } from "@/lib/project-refresh";
 import { initializePlanningConversation } from "@/lib/product-planning/initialize-conversation";
 import { usePlanningLease } from "@/hooks/use-planning-lease";
 
-export function PlanningConversation({ project, disabled }: { project: ProjectData; disabled?: boolean }) {
+export function PlanningConversation({ project, disabled, legacyCard = false }: {
+  project: ProjectData; disabled?: boolean;
+  /** The previous approval card, for the chat's `?ui=legacy` view. */
+  legacyCard?: boolean;
+}) {
   const started = useRef<string | null>(null);
   const approvalRequest = useRef<{ revision: number; id: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -30,14 +35,17 @@ export function PlanningConversation({ project, disabled }: { project: ProjectDa
   return <>
     {waitingForTurn && !busy && !planningBusy && !state.initialTurnComplete && <p className="px-5 py-3 text-sm text-slate-500" role="status">Waiting for the current product turn. <button type="button" className="underline" onClick={() => void initialize()}>Check again</button></p>}
     {error && <div role="alert" className="px-5 py-3 text-sm text-rose-600">{error} <button type="button" className="underline disabled:opacity-50" disabled={busy || planningBusy} onClick={() => void initialize()}>Retry</button></div>}
-    <ProductScopeCard state={state} projectId={project.id} disabled={disabled || busy} onApprove={async (revision) => {
-      if (approvalRequest.current?.revision !== revision) approvalRequest.current = { revision, id: crypto.randomUUID() };
-      const response = await fetch("/api/generations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
-        projectId: project.id, prompt: "Approve this design scope.", productApproval: { revision }, clientRequestId: approvalRequest.current.id,
-      }) });
-      const data = await response.json();
-      notifyProjectChanged(project.id);
-      if (!response.ok) throw new Error(data.error || "Could not start generation.");
-    }} />
+    {(() => {
+      const ApprovalCard = legacyCard ? ProductScopeCard : FlowApprovalCard;
+      return <ApprovalCard state={state} projectId={project.id} disabled={disabled || busy} onApprove={async (revision) => {
+        if (approvalRequest.current?.revision !== revision) approvalRequest.current = { revision, id: crypto.randomUUID() };
+        const response = await fetch("/api/generations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({
+          projectId: project.id, prompt: "Approve this design scope.", productApproval: { revision }, clientRequestId: approvalRequest.current.id,
+        }) });
+        const data = await response.json();
+        notifyProjectChanged(project.id);
+        if (!response.ok) throw new Error(data.error || "Could not start generation.");
+      }} />;
+    })()}
   </>;
 }

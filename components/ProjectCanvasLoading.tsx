@@ -1,4 +1,4 @@
-import { AgentBall } from "@/components/AgentBall";
+import { AgentMark } from "@/components/agent/marks";
 
 export function ProjectCanvasLoading() {
   return (
@@ -7,7 +7,7 @@ export function ProjectCanvasLoading() {
 
       <div className="relative flex flex-col items-center px-6 text-center">
         <div className="dg-canvas-loader-mark">
-          <AgentBall className="relative h-8 w-8" active />
+          <AgentMark state="working" size={32} className="relative" />
         </div>
 
         <div className="mt-5 text-sm font-semibold tracking-tight text-[var(--dg-text)]">

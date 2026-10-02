@@ -7,6 +7,8 @@ import {
   Hand,
   LassoSelect,
   MousePointer2,
+  Smartphone,
+  UnfoldVertical,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -18,17 +20,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { CanvasTool } from "@/lib/canvas-interactions";
+import type { CanvasFrameMode, CanvasTool } from "@/lib/canvas-interactions";
 
 type DockButtonProps = {
   label: string;
   active?: boolean;
+  /** A two-state view switch announces its state; plain tools do not. */
+  pressed?: boolean;
   disabled?: boolean;
   onClick?: () => void;
   children: React.ReactNode;
 };
 
-function DockButton({ label, active, disabled, onClick, children }: DockButtonProps) {
+function DockButton({ label, active, pressed, disabled, onClick, children }: DockButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger
@@ -38,6 +42,7 @@ function DockButton({ label, active, disabled, onClick, children }: DockButtonPr
             variant="ghost"
             size="icon"
             aria-label={label}
+            aria-pressed={pressed}
             disabled={disabled}
             onClick={onClick}
             className={`h-9 w-9 rounded-full transition md:h-10 md:w-10 ${
@@ -91,6 +96,8 @@ export function CanvasToolDock({
   disabled,
   readOnly,
   workspaceCenterX,
+  frameMode,
+  onFrameModeChange,
   onToolChange,
   onZoomOut,
   onResetZoom,
@@ -104,6 +111,9 @@ export function CanvasToolDock({
   disabled?: boolean;
   readOnly?: boolean;
   workspaceCenterX: number | null;
+  /** The view the canvas is drawing now (full length while elements are being picked). */
+  frameMode?: CanvasFrameMode;
+  onFrameModeChange?: (mode: CanvasFrameMode) => void;
   onToolChange?: (tool: CanvasTool) => void;
   onZoomOut?: () => void;
   onResetZoom?: () => void;
@@ -150,6 +160,28 @@ export function CanvasToolDock({
           >
             <Hand className="h-4 w-4 md:h-5 md:w-5" />
           </DockButton>
+
+          {onFrameModeChange ? (
+            <>
+              <div className="mx-1 h-6 w-px shrink-0 bg-[var(--dg-border-strong)]/30" />
+              <DockButton
+                label="Phone view: every screen at phone size"
+                active={frameMode === "phone"}
+                pressed={frameMode === "phone"}
+                onClick={() => onFrameModeChange("phone")}
+              >
+                <Smartphone className="h-4 w-4 md:h-5 md:w-5" />
+              </DockButton>
+              <DockButton
+                label="Full length: each page at its full height"
+                active={frameMode === "full"}
+                pressed={frameMode === "full"}
+                onClick={() => onFrameModeChange("full")}
+              >
+                <UnfoldVertical className="h-4 w-4 md:h-5 md:w-5" />
+              </DockButton>
+            </>
+          ) : null}
 
           <div className="mx-1 h-6 w-px shrink-0 bg-[var(--dg-border-strong)]/30" />
 
