@@ -56,13 +56,21 @@ async function reconcile<T>(value: T, state: ProductPlanning | null | undefined,
   // One review, one validation repair. Provider failure never silently applies a
   // partial patch or relaxes the approved requirements on a retry.
   let repair = "";
-  for (let attempt = 0; attempt < 2; attempt++) {
-    const response = await createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
-      contents: [{ role: "user", parts: [{ text: JSON.stringify({ requirements, artifact: value, repair }) }] }] });
-    try { return applyDesignEdits(value, JSON.parse(response.text || "{}"), explicitDesignRequirements(state).map(f => f.id), kind); }
-    catch { repair = "The patch failed validation. Cite existing fact IDs and existing string paths. Use exact current before values, unique small passages for briefs, no structural edits."; }
+  try {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const response = await createGeminiClient().models.generateContent({ model: policy.model, config: policy.config,
+        contents: [{ role: "user", parts: [{ text: JSON.stringify({ requirements, artifact: value, repair }) }] }] });
+      try { return applyDesignEdits(value, JSON.parse(response.text || "{}"), explicitDesignRequirements(state).map(f => f.id), kind); }
+      catch { repair = "The patch failed validation. Cite existing fact IDs and existing string paths. Use exact current before values, unique small passages for briefs, no structural edits."; }
+    }
+  } catch (error) {
+    console.warn(`Design consistency review of ${kind} was unavailable; keeping them as planned.`, error);
+    return value;
   }
-  throw new Error("Design consistency review returned invalid corrections. Retry with the saved requirements.");
+  // The review only corrects contradictions; it never fails the generation. The builder is given the same
+  // requirements (compileProductContent), so the artifact is kept as planned rather than failing the batch.
+  console.warn(`Design consistency review of ${kind} returned no valid corrections; keeping them as planned.`);
+  return value;
 }
 
 export const reconcileTokensWithDesignRequirements = (tokens: DesignTokens, state?: ProductPlanning | null) => reconcile(tokens, state, "tokens");

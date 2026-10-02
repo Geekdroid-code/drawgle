@@ -18,7 +18,9 @@ export async function resumeProductGeneration(admin: PlanningStore, ownerId: str
   const handle = await tasks.trigger("generate-product-flow", {
     generationRunId: approvalId, projectId, ownerId, productPlanning: state, productAttempt: attempt,
     prompt: root.prompt, imagePath: root.image_path, imageReferenceMode: state.input.imageReferenceMode,
-    referencePolicy: root.metadata.referencePolicy, isNewProject: false,
+    // As first dispatched (lib/product-planning/approval.ts); the coordinator treats a batch as the project's
+    // first only while nothing is built.
+    referencePolicy: root.metadata.referencePolicy, isNewProject: state.phase === "discovery",
   }, { idempotencyKey: `product-resume:${approvalId}:${attempt}`, idempotencyKeyTTL: "30d" }).catch(async error => {
     await saveExecutionProgress(admin, approvalId, ownerId, attempt, "failed", null,
       "Continuation could not confirm dispatch. Resume again to recover the same pending work.");
