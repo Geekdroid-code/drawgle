@@ -49,7 +49,9 @@ export const generateProductFlowTask = task({
         metadata: { action: "product_generation_progress", generationRunId: rootId } });
     };
     await update("building", `Starting the approved flow: ${manifest.filter(i => i.kind === "screen").length} screens and ${manifest.filter(i => i.kind === "state").length} states.`);
-    for (let step = 0; step <= manifest.length; step++) {
+    // Outputs whose batch failed are built once more before the flow pauses for a manual resume.
+    let retriedFailedOutputs = false;
+    for (let step = 0; step <= manifest.length * 2 + 1; step++) {
       const { data: root, error: rootError } = await admin.from("generation_runs").select("status, metadata").eq("id", rootId).single();
       if (rootError) throw rootError;
       if (root.status === "canceled") return { canceled: true };
@@ -95,6 +97,15 @@ export const generateProductFlowTask = task({
         ? nextProductBatch(batchManifest, claims, 1, existingOutputs.map(output => output.item.stableKey), recreate)
         : fullBatch;
       if (!batch.length) {
+        // Nothing left to pick: everything else is built, and what failed is retried once, as a resume would.
+        if (!retriedFailedOutputs && claims.some(claim => claim.status === "failed")) {
+          retriedFailedOutputs = true;
+          const { error: releaseError } = await admin.from("product_output_fulfillments").delete()
+            .eq("approval_id", rootId).eq("owner_id", payload.ownerId).eq("status", "failed");
+          if (releaseError) throw releaseError;
+          await update("building", "Retrying the approved outputs that could not be built.");
+          continue;
+        }
         await update("failed", "Some approved screens could not be built. Completed screens are kept; resume to retry the failed ones and finish the flow.");
         return { blocked: true };
       }
@@ -125,7 +136,9 @@ export const generateProductFlowTask = task({
           ...batch.map(item => ({ output_key: item.stableKey, generation_run_id: batchId, status: "ready" as const, screen_id: null })),
         ], 8, existingOutputs.map(output => output.item.stableKey), recreate).filter(item => item.kind === "screen" || recreate).map(item => item.stableKey),
         prompt: scopedGenerationPrompt(executionState, executionKeys), scopeContract: productScopeContract(executionState, recreate ? "user_recreate" : "user_style", executionKeys),
-        isNewProject: payload.isNewProject === true && claims.length === 0 && !existingOutputs.length, projectCharter: project.project_charter ?? payload.projectCharter,
+        // The first batch to build anything is the project's first, also after an earlier batch failed: it makes
+        // the component kit and the screen the rest are matched to.
+        isNewProject: payload.isNewProject === true && !claims.some(c => c.status === "ready") && !existingOutputs.length, projectCharter: project.project_charter ?? payload.projectCharter,
         designTokens: project.design_tokens ?? payload.designTokens,
         navigationPlan: navigation?.plan ?? payload.navigationPlan,
         projectRoadmap: { version: 1, tranche: 1, requestedParentCount: manifest.filter(i => i.kind === "screen").length,

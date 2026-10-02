@@ -7,15 +7,17 @@ vi.mock("@/lib/supabase/queries", () => ({ insertProjectMessage: async () => ({ 
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc, from: (table: string) => {
   const filters: Array<(row: Record<string, any>) => boolean> = [];
   let patch: Record<string, any> | null = null;
+  let removing = false;
   const execute = (single = false) => {
     const rows = (mocks.tables[table] ??= []).filter(row => filters.every(filter => filter(row)));
     if (patch) rows.forEach(row => Object.assign(row, patch));
+    if (removing) mocks.tables[table] = mocks.tables[table].filter(row => !rows.includes(row));
     return { data: structuredClone(single ? rows[0] : rows), error: null };
   };
   const query = { select: () => query, order: () => query, eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return query; },
     neq: (key: string, value: unknown) => { filters.push(row => row[key] !== value); return query; },
     in: (key: string, values: unknown[]) => { filters.push(row => values.includes(row[key])); return query; },
-    update: (value: Record<string, any>) => { patch = value; return query; }, single: async () => execute(true), maybeSingle: async () => execute(true),
+    update: (value: Record<string, any>) => { patch = value; return query; }, delete: () => { removing = true; return query; }, single: async () => execute(true), maybeSingle: async () => execute(true),
     then: (resolve: (value: unknown) => unknown) => Promise.resolve(execute()).then(resolve) };
   return query;
 } }) }));
@@ -163,5 +165,34 @@ describe("durable approved-flow coordinator", () => {
     expect(await invoke(payload())).toEqual({ canceled: true });
     expect(mocks.child).toHaveBeenCalledOnce();
     expect(mocks.tables.product_output_fulfillments[0].status).toBe("ready");
+  });
+  // The live failure: the first screen's batch failed, the rest were built without the component kit, and the flow
+  // paused at three of four until a manual resume.
+  it("builds the rest as the project's first after a failed first batch, then retries the failed screen once", async () => {
+    process.env.DRAWGLE_PROGRESSIVE_GENERATION_ENABLED = "true";
+    mocks.child.mockImplementationOnce(async () => ({ ok: false }));
+    expect(await invoke({ ...payload(), isNewProject: true })).toEqual({ completed: true });
+    const children = mocks.child.mock.calls.map(([, child]) => child);
+    expect(children.map(child => child.productExecutionKeys.length)).toEqual([1, 6, 1]);
+    expect(children[2].productExecutionKeys).toEqual(["screen:0"]);
+    expect(children.map(child => child.isNewProject)).toEqual([true, true, false]);
+    expect(mocks.tables.product_output_fulfillments).toHaveLength(7);
+    expect(mocks.tables.product_output_fulfillments.every(row => row.status === "ready")).toBe(true);
+    expect(mocks.tables.generation_runs[0].status).toBe("completed");
+  });
+  it("pauses for a manual resume when an output fails again after its one automatic retry", async () => {
+    const build = mocks.child.getMockImplementation()!;
+    mocks.child.mockImplementation(async (...args) => {
+      await build(...args);
+      mocks.tables.screens = mocks.tables.screens.filter(screen => screen.roadmap_item_id !== "screen:3");
+      return { ok: false };
+    });
+    expect(await invoke(payload())).toEqual({ blocked: true });
+    expect(mocks.child.mock.calls.map(([, child]) => child.productExecutionKeys)).toEqual([
+      Array.from({ length: 7 }, (_, index) => `screen:${index}`), ["screen:3"],
+    ]);
+    expect(mocks.tables.generation_runs[0].status).toBe("failed");
+    expect(mocks.tables.generation_runs[0].metadata.productProgress.delivered).toBe(6);
+    expect(mocks.tables.product_output_fulfillments.find(row => row.output_key === "screen:3")?.status).toBe("failed");
   });
 });

@@ -11,7 +11,7 @@ const stateWith = (detail: string) => applyProductPatch(productFixture(), { oper
   id: "req", section: "preferences", label: "Direction", detail, evidence: detail, source: "user",
 } }] }, "11111111-1111-4111-8111-111111111111");
 const tokens = { tokens: { color: { background: { screen: "#FFFFFF" }, action: { primary: "#000000" } }, radii: { app: "16px" } } };
-beforeEach(() => generate.mockReset().mockResolvedValue({ text: '{"edits":[]}' }));
+beforeEach(() => { generate.mockReset().mockResolvedValue({ text: '{"edits":[]}' }); });
 it.each(["No dark mode; keep the white background", "Show ice cream photographs on white cards", "Pill buttons only; keep cards square"])("does not apply keyword substitutions: %s", async text => {
   expect(await reconcileTokensWithDesignRequirements(tokens, stateWith(text))).toEqual(tokens);
   expect(JSON.stringify(generate.mock.calls[0][0].contents)).toContain(text);
@@ -50,8 +50,28 @@ it.each([
   expect(() => applyDesignEdits(tokens, { edits: [{ ...edit, reason: "test" }] }, ["req"], "tokens")).toThrow();
   expect(tokens.tokens.radii.app).toBe("16px");
 });
-it("bounds invalid reviewer responses without accepting a partial redesign", async () => {
+it("bounds invalid reviewer responses without accepting a partial redesign, and keeps the plan", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
   generate.mockResolvedValue({ text: '{"tokens":{}}' });
-  await expect(reconcileTokensWithDesignRequirements(tokens, stateWith("No gradients"))).rejects.toThrow(/invalid corrections/);
+  expect(await reconcileTokensWithDesignRequirements(tokens, stateWith("No gradients"))).toBe(tokens);
   expect(generate).toHaveBeenCalledTimes(2);
+});
+// The live failure: the review of a style project's briefs cited a passage that was not in them, twice, and the
+// whole first batch failed. A review that cannot correct the briefs keeps them; it never fails the build.
+it("keeps the briefs when one edit of an otherwise valid correction is stale, twice", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  generate.mockResolvedValue({ text: JSON.stringify({ edits: [
+    { factId: "req", path: ["0", "description"], before: "gradient fill", after: "solid fill", reason: "No gradients" },
+    { factId: "req", path: ["0", "description"], before: "gradient hero", after: "flat hero", reason: "No gradients" },
+  ] }) });
+  const screens = [{ name: "Overview", type: "root" as const, description: "Large editorial header; gradient fill on action." }];
+  expect(await reconcileScreenBriefsWithDesignRequirements(screens, stateWith("No gradients"))).toBe(screens);
+  expect(generate).toHaveBeenCalledTimes(2);
+  expect(JSON.parse(generate.mock.calls[1][0].contents[0].parts[0].text).repair).toMatch(/failed validation/);
+});
+it("keeps the plan when the review itself is unavailable", async () => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  generate.mockImplementation(async () => { throw new Error("503 overloaded"); });
+  const screens = [{ name: "Overview", type: "root" as const, description: "Gradient fill on action." }];
+  expect(await reconcileScreenBriefsWithDesignRequirements(screens, stateWith("No gradients"))).toBe(screens);
 });
