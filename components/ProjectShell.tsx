@@ -1676,7 +1676,7 @@ export function ProjectShell({
   const [canvasTool, setCanvasTool] = useState<CanvasTool>("pointer");
   const [selectedScreen, setSelectedScreen] = useState<ScreenData | null>(null);
   const [isChatCollapsed, setIsChatCollapsed] = useState(false);
-  const [workspaceTab, setWorkspaceTab] = useState<"chat" | "design" | "design-md">("chat");
+  const [workspaceTab, setWorkspaceTab] = useState<"chat" | "design">("chat");
   const [inspectorDirty, setInspectorDirty] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);

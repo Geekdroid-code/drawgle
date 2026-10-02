@@ -7,7 +7,6 @@ import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CreditCard,
-  FolderPlus,
   LayoutDashboard,
   Loader2,
   MoreVertical,
@@ -19,6 +18,8 @@ import {
 
 import { DrawgleLogo } from "@/components/DrawgleLogo";
 import { NavUser } from "@/components/dashboard/nav-user";
+import { MkButton } from "@/components/marketing/MkButton";
+import { marketingFontVariables } from "@/components/marketing/fonts";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { PreviewShareDialog } from "@/components/PreviewShareDialog";
 import {
@@ -90,13 +91,15 @@ function CreditsCard({ userId }: { userId: string }) {
         </div>
         <Sparkles className="size-4 shrink-0 text-sidebar-foreground/70" />
       </div>
-      <Link
+      <MkButton
         href="/billing"
         prefetch={false}
-        className="mt-3 flex h-8 items-center justify-center rounded-md dg-button-primary hover:dg-button-primary px-3 text-xs font-medium text-sidebar-primary-foreground transition hover:opacity-90"
+        variant="secondary"
+        size="sm"
+        className={cn(marketingFontVariables, "[font-family:var(--font-inter-tight)] mt-3 h-9 w-full focus-visible:ring-offset-[var(--sidebar)] dark:bg-white/10 dark:text-white dark:hover:bg-white/15")}
       >
         Upgrade plan
-      </Link>
+      </MkButton>
     </div>
   );
 }
@@ -458,14 +461,6 @@ export function AppSidebar({
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <Link
-          href="/project/new"
-          prefetch={false}
-          className="mx-2 flex h-9 items-center justify-center gap-2 rounded-lg dg-button-primary hover:dg-button-primary px-3 text-sm font-medium text-sidebar-primary-foreground transition hover:opacity-90 group-data-[collapsible=icon]:mx-0 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:px-0"
-        >
-          <FolderPlus className="size-4" />
-          <span className="group-data-[collapsible=icon]:hidden">New project</span>
-        </Link>
       </SidebarHeader>
       <SidebarContent>
         <ProjectGroups userId={user.id} initialProjects={initialProjects} />

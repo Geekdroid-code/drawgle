@@ -66,10 +66,13 @@ describe("an approved flow in the chat", () => {
     expect(screen.queryByText("Created 4 screens")).toBeNull();
   });
 
-  it("keeps the previous cards one URL away, for comparison", () => {
+  it("has no old view to fall back to, and no Design.md tab", () => {
     window.history.replaceState({}, "", "/?ui=legacy");
     renderChat();
-    expect(screen.getAllByText(/This batch delivered/).length).toBe(2);
-    expect(screen.queryByText("Generation complete")).toBeNull();
+    expect(screen.getByText("Generation complete")).toBeTruthy();
+    expect(screen.queryByText(/This batch delivered/)).toBeNull();
+    expect(screen.getByText("Chat")).toBeTruthy();
+    expect(screen.getByText("Design")).toBeTruthy();
+    expect(screen.queryByText("Design.md")).toBeNull();
   });
 });

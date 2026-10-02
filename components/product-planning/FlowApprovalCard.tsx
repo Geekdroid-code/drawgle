@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import Image from "next/image";
 import { ChevronDown } from "lucide-react";
 
 import { usePlanningLease } from "@/hooks/use-planning-lease";
@@ -9,12 +8,24 @@ import { activeFacts, describeScopeNavigation, type ProductPlanning } from "@/li
 import { scopeQuote, scopeParents } from "@/lib/product-planning/scope-outputs";
 
 /**
- * The approval card in the agent timeline: the flow as a short numbered list of screens (each opens to its purpose
- * and its states), the navigation, what comes later, and one Approve button. Everything else the planner decided
- * (journeys, outcomes, rationale, design direction, assumptions) sits under "Details". Same approval as before.
+ * The design direction is shown only when it describes the person's own image, or no image. A direction written for a
+ * catalogue reference describes that reference (its look, sometimes its content), which is Drawgle's, not theirs.
  */
-export function FlowApprovalCard({ state, projectId, disabled, onApprove }: {
-  state: ProductPlanning; projectId?: string; disabled?: boolean; onApprove: (revision: number) => Promise<void>;
+export function shownDesignDirection(state: ProductPlanning): string | null {
+  const source = state.input.referenceSource;
+  const ownOrNone = source === "user" || source === "none" || (!source && Boolean(state.input.imagePath));
+  const direction = state.experience?.direction?.trim();
+  return ownOrNone && direction ? direction : null;
+}
+
+/**
+ * The approval card in the agent timeline: the flow as a short numbered list of screens (each opens to its purpose
+ * and its states), the navigation, what comes later, and one Approve button. The journeys, outcomes, rationale and
+ * the design direction's brief sit under "Details". No reference image or the planner's working assumptions: the
+ * person approves the flow, not how Drawgle arrives at it. Same approval as before.
+ */
+export function FlowApprovalCard({ state, disabled, onApprove }: {
+  state: ProductPlanning; disabled?: boolean; onApprove: (revision: number) => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +39,7 @@ export function FlowApprovalCard({ state, projectId, disabled, onApprove }: {
   const quote = scopeQuote(state);
   const navigation = scope.navigation ? describeScopeNavigation(scope.navigation) : null;
   const journeys = manifest ? activeFacts(state, "journeys").filter((fact) => manifest.some((item) => item.journeyIds.includes(fact.id))) : [];
-  const assumptions = manifest ? activeFacts(state).filter((fact) => fact.source === "assumption" && ["decisions", "constraints", "journeys"].includes(fact.section)) : [];
+  const direction = shownDesignDirection(state);
   const blocked = disabled || busy || planningBusy;
 
   return (
@@ -92,19 +103,10 @@ export function FlowApprovalCard({ state, projectId, disabled, onApprove }: {
               </div>
             ) : null}
             <p>{scope.rationale}</p>
-            {state.experience ? (
+            {direction ? (
               <div>
-                <p className="font-medium text-[var(--dg-text)]">Design direction & reference</p>
-                {projectId && state.experience.referenceHash ? (
-                  <Image src={`/api/projects/${projectId}/planning-reference?v=${encodeURIComponent(state.experience.referenceHash)}`} alt="Reference used for this design direction" width={600} height={600} unoptimized className="my-2 max-h-56 w-full rounded-lg object-contain" />
-                ) : null}
-                <p>{state.experience.direction}</p><p>{state.experience.informationHierarchy}</p><p>{state.experience.navigation}</p><p>{state.experience.adaptations}</p>
-              </div>
-            ) : null}
-            {assumptions.length ? (
-              <div>
-                <p className="font-medium text-[var(--dg-text)]">Assumptions to review</p>
-                {assumptions.map((fact) => <p key={fact.id}>{fact.detail}</p>)}
+                <p className="font-medium text-[var(--dg-text)]">Design direction</p>
+                <p>{direction}</p>
               </div>
             ) : null}
           </div>

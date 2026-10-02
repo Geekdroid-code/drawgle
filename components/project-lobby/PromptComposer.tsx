@@ -1,5 +1,5 @@
 import { useRef, type RefObject } from "react";
-import { ArrowRight, ImagePlus, Loader2, Smartphone } from "lucide-react";
+import { ArrowRight, ImagePlus, Loader2 } from "lucide-react";
 
 import { CLIENT_ENTRY_IMAGE_TYPES } from "@/lib/client-entry-draft";
 import { BriefAttachment } from "./BriefAttachment";
@@ -42,7 +42,6 @@ export function PromptComposer({ brief, textareaRef }: { brief: ProjectBrief; te
                   <ImagePlus className="size-4" /><span>Add reference</span>
                 </button>
               )}
-              <span className={styles.projectKind}><Smartphone className="size-3.5" /> Mobile app</span>
             </div>
             <button type="submit" disabled={!brief.isBriefReady || brief.isBusy} className={styles.submitButton}>
               <span>{brief.isGeneratingDesign ? "Creating…" : "Start project"}</span>

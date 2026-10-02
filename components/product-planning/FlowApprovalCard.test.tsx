@@ -49,20 +49,35 @@ describe("flow approval card", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
-  it("numbers every screen, counts its states, quotes the cost, and keeps the direction under Details", () => {
+  it("numbers every screen, counts its states, quotes the cost, and keeps the direction's brief under Details", () => {
     const state = designerFixture();
     const parent = functionalFixture();
     state.scope!.manifest = [parent, ...Array.from({ length: 6 }, (_, index) => functionalFixture(`screen:${index}`, `Screen ${index}`, index + 1)),
       ...Array.from({ length: 4 }, (_, index) => ({ ...functionalFixture(`state:${index}`, `State ${index}`, index + 8), kind: "state" as const,
         parentStableKey: parent.stableKey, stateKey: `state-${index}`, triggerLabel: "Change options", editInstruction: "Show updated options" }))];
-    render(<FlowApprovalCard state={proposeProductScope(state)} onApprove={vi.fn()} />);
+    const { container } = render(<FlowApprovalCard state={proposeProductScope(state)} onApprove={vi.fn()} />);
     expect(screen.getByText(/7 screens \+ 4 states · 180 credits/)).toBeTruthy();
     expect(screen.getByText("Screen 5")).toBeTruthy();
     expect(screen.getByText("07")).toBeTruthy();
     expect(screen.getByText("4 states")).toBeTruthy();
     expect(screen.getByText(/State 3: Change options/)).toBeTruthy();
     expect(screen.getByText("Details")).toBeTruthy();
-    expect(screen.getByText("Design direction & reference")).toBeTruthy();
+    // the person's own image: its direction's brief, and nothing else of the planner's design notes
+    expect(screen.getByText("Design direction")).toBeTruthy();
+    expect(screen.getByText("Product-led restrained shopping")).toBeTruthy();
+    expect(screen.queryByText("Product then price then action")).toBeNull();
+    expect(container.querySelector("img")).toBeNull();
+  });
+
+  it("never shows a reference image, the direction written for a catalogue reference, or the planner's assumptions", () => {
+    const proposed = proposeProductScope(designerFixture());
+    proposed.input = { ...proposed.input, imagePath: null, referenceSource: "curated" };
+    const { container } = render(<FlowApprovalCard state={proposed} onApprove={vi.fn()} />);
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.queryByText(/reference/i)).toBeNull();
+    expect(screen.queryByText("Design direction")).toBeNull();
+    expect(screen.queryByText("Product-led restrained shopping")).toBeNull();
+    expect(screen.queryByText("Assumptions to review")).toBeNull();
   });
 
   it("shows the approval's own error and lets the person try again", async () => {

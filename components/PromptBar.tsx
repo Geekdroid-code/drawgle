@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { ReferenceAttachment } from "@/components/product-planning/ReferenceAttachment";
-import { Loader2, Palette, Pencil, Send, Trash, X } from "lucide-react";
+import { Palette, Pencil, Send, Trash, X } from "lucide-react";
 
-import { AgentThinkingIndicator } from "@/components/AgentBall";
 import { AgentMark, LiveText } from "@/components/agent/marks";
 import { Orbit } from "loading-dev";
 import { Button } from "@/components/ui/button";
@@ -36,8 +35,6 @@ export type AgentComposerProps = {
    */
   onStop?: () => void;
   stopping?: boolean;
-  /** The agent's new marks (Orbit) instead of the previous indicator. */
-  modern?: boolean;
 };
 
 export function AgentComposer({
@@ -62,7 +59,6 @@ export function AgentComposer({
   variant = "floating",
   onStop,
   stopping = false,
-  modern = false,
 }: AgentComposerProps) {
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState<PromptImagePayload | null>(null);
@@ -214,7 +210,7 @@ export function AgentComposer({
 
       {variant === "floating" && isGenerating && agentStatus ? (
         <div className="absolute -top-10 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-full dg-button-primary px-3.5 py-1.5 text-xs font-medium text-white">
-          <Loader2 className="w-3 h-3 animate-spin" />
+          <Orbit size={12} color="currentColor" />
           {agentStatus}
         </div>
       ) : null}
@@ -244,14 +240,10 @@ export function AgentComposer({
 
       {variant === "panel" && isGenerating ? (
         <div className="pointer-events-none absolute bottom-4 left-4 max-w-[calc(100%-5rem)]">
-          {modern ? (
-            <span className="flex items-center gap-2 text-[12.5px] font-medium" role="status">
-              <AgentMark state="working" />
-              <LiveText>{(agentStatus || submitStatusText).replace(/\.\.\.$/, "…")}</LiveText>
-            </span>
-          ) : (
-            <AgentThinkingIndicator label={agentStatus || submitStatusText} className="text-slate-600" />
-          )}
+          <span className="flex items-center gap-2 text-[12.5px] font-medium" role="status">
+            <AgentMark state="working" />
+            <LiveText>{(agentStatus || submitStatusText).replace(/\.\.\.$/, "…")}</LiveText>
+          </span>
         </div>
       ) : null}
 
@@ -283,9 +275,7 @@ export function AgentComposer({
                 disabled={disabled || isGenerating || (!prompt.trim() && !image)}
                 aria-label="Send"
               >
-                {isGenerating
-                  ? modern ? <Orbit size={16} color="currentColor" /> : <Loader2 className="w-4 h-4 animate-spin" />
-                  : <Send className="w-4 h-4" />}
+                {isGenerating ? <Orbit size={16} color="currentColor" /> : <Send className="w-4 h-4" />}
               </Button>
             }
           />
