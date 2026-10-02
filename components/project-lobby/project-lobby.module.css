@@ -1,0 +1,407 @@
+.lobby {
+  --lobby-surface: #fff;
+  --lobby-inset: #f7f8fa;
+  --lobby-border: rgb(20 20 20 / 0.08);
+  --lobby-ink: #1e1e1e;
+  --lobby-muted: #747781;
+  --lobby-accent: #305dde;
+  position: relative;
+  container-type: inline-size;
+  display: flex;
+  min-height: calc(100svh - 56px);
+  flex-direction: column;
+  align-items: center;
+  overflow: clip;
+  background: var(--dg-bg);
+  color: var(--lobby-ink);
+  font-family: var(--font-marketing);
+  -webkit-font-smoothing: antialiased;
+}
+:global(.dark) .lobby {
+  --lobby-surface: #212225;
+  --lobby-inset: #1b1c1f;
+  --lobby-border: rgb(255 255 255 / 0.09);
+  --lobby-ink: #f1f2f5;
+  --lobby-muted: #9da1ab;
+  --lobby-accent: #86a5ff;
+}
+.studio {
+  position: relative;
+  width: min(100%, 800px);
+  margin: auto 0;
+  padding: 64px 28px 48px;
+}
+.intro {
+  margin-bottom: 30px;
+  text-align: center;
+}
+.studioLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 20px;
+  color: var(--lobby-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.studioLabel svg {
+  color: var(--lobby-accent);
+}
+.intro h1 {
+  font-size: clamp(36px, 4.2vw, 50px);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.035em;
+}
+.intro h1 span {
+  color: var(--lobby-accent);
+}
+.intro > p {
+  margin-top: 17px;
+  color: var(--lobby-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.composerForm {
+  position: relative;
+  z-index: 1;
+}
+.composerShell {
+  padding: 6px;
+  border: 1px solid var(--lobby-border);
+  border-radius: 30px;
+  background: var(--lobby-surface);
+  box-shadow: 0 10px 35px -22px rgb(20 30 60 / 0.23), 0 2px 4px rgb(20 30 60 / 0.02);
+  transition: border-color 180ms, box-shadow 180ms;
+  position: relative;
+}
+.composerShell:focus-within {
+  border-color: color-mix(in srgb, var(--lobby-accent) 50%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lobby-accent) 7%, transparent), 0 10px 35px -22px rgb(20 30 60 / 0.23);
+}
+.composerSurface {
+  border: 1px solid var(--lobby-border);
+  border-radius: 24px;
+  background: var(--lobby-inset);
+}
+.textarea {
+  display: block;
+  width: 100%;
+  height: 136px;
+  resize: none;
+  min-height: 112px;
+  max-height: 360px;
+  padding: 22px 22px 14px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--lobby-ink);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.6;
+  scrollbar-width: thin;
+  scrollbar-color: var(--lobby-border) transparent;
+}
+.textarea::placeholder {
+  color: var(--lobby-muted);
+  opacity: 0.8;
+}
+.composerToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+.tools {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px;
+}
+.referenceButton {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--lobby-border);
+  border-radius: 999px;
+  background: var(--lobby-surface);
+  font-size: 12px;
+  font-weight: 500;
+  transition: border-color 180ms, color 180ms;
+}
+.referenceButton:hover:enabled {
+  color: var(--lobby-accent);
+  border-color: color-mix(in srgb, var(--lobby-accent) 28%, transparent);
+}
+.projectKind {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--lobby-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.submitButton {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 13px;
+  min-height: 42px;
+  padding: 5px 6px 5px 17px;
+  border-radius: 999px;
+  background: #305dde;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 180ms, transform 180ms, opacity 180ms;
+}
+.submitButton:hover:enabled {
+  background: #254cc4;
+}
+.submitButton:active:enabled {
+  transform: scale(0.98);
+}
+.submitButton:disabled {
+  background: color-mix(in srgb, var(--lobby-muted) 16%, var(--lobby-surface));
+  color: var(--lobby-muted);
+}
+.submitIcon {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #305dde;
+}
+.submitIcon svg {
+  transition: transform 180ms;
+}
+.submitButton:hover:enabled .submitIcon svg {
+  transform: translateX(2px);
+}
+.submitButton:disabled .submitIcon {
+  background: var(--lobby-surface);
+  color: var(--lobby-muted);
+}
+.composerHelp {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 7px 0;
+  color: var(--lobby-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+.keyboardHint {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 5px;
+  opacity: 0.8;
+}
+.keyboardHint kbd {
+  font-family: inherit;
+}
+.error {
+  margin-top: 12px;
+  padding: 12px 16px;
+  border: 1px solid rgb(225 29 72 / 0.16);
+  border-radius: 15px;
+  background: rgb(225 29 72 / 0.05);
+  color: #be123c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+:global(.dark) .error {
+  color: #fda4af;
+}
+.lobby button:focus-visible {
+  outline: 2px solid var(--lobby-accent);
+  outline-offset: 3px;
+}
+.lobby button:disabled {
+  cursor: not-allowed;
+}
+.referenceButton:disabled {
+  opacity: 0.55;
+}
+.composerForm[data-has-attachment="true"] {
+  margin-top: 42px;
+}
+.composerForm[data-has-attachment="true"] .textarea {
+  height: 180px;
+  padding-top: 76px;
+}
+@media (max-width: 639px) {
+  .studio {
+    padding: 30px 18px 32px;
+  }
+  .intro {
+    margin-bottom: 20px;
+  }
+  .intro > p {
+    margin-top: 12px;
+    padding: 0 4px;
+    font-size: 13px;
+  }
+  .studioLabel {
+    margin-bottom: 14px;
+    font-size: 11px;
+  }
+  .textarea {
+    height: 112px;
+    padding: 16px 16px 10px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .composerToolbar {
+    gap: 8px;
+    padding: 0 10px 10px;
+  }
+  .projectKind, .keyboardHint {
+    display: none;
+  }
+  .referenceButton {
+    padding: 0 10px;
+    font-size: 11px;
+    min-height: 36px;
+  }
+  .submitButton {
+    gap: 8px;
+    padding-left: 13px;
+    font-size: 12px;
+    min-height: 38px;
+    padding: 4px 5px 4px 13px;
+  }
+  .composerHelp {
+    padding-inline: 6px;
+  }
+  .intro h1 {
+    font-size: 32px;
+    line-height: 1.1;
+  }
+  .composerShell {
+    padding: 5px;
+    border-radius: 26px;
+  }
+  .composerSurface {
+    border-radius: 21px;
+  }
+  .submitIcon {
+    width: 26px;
+    height: 26px;
+  }
+  .composerForm[data-has-attachment="true"] {
+    margin-top: 40px;
+  }
+  .composerForm[data-has-attachment="true"] .textarea {
+    height: 124px;
+    padding-top: 38px;
+  }
+}
+@container (max-width: 640px) {
+  .studio {
+    padding: 30px 18px 32px;
+  }
+  .intro {
+    margin-bottom: 20px;
+  }
+  .intro > p {
+    margin-top: 12px;
+    padding: 0 4px;
+    font-size: 13px;
+  }
+  .studioLabel {
+    margin-bottom: 14px;
+    font-size: 11px;
+  }
+  .textarea {
+    height: 112px;
+    padding: 16px 16px 10px;
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .composerToolbar {
+    gap: 8px;
+    padding: 0 10px 10px;
+  }
+  .projectKind, .keyboardHint {
+    display: none;
+  }
+  .referenceButton {
+    padding: 0 10px;
+    font-size: 11px;
+    min-height: 36px;
+  }
+  .submitButton {
+    gap: 8px;
+    padding-left: 13px;
+    font-size: 12px;
+    min-height: 38px;
+    padding: 4px 5px 4px 13px;
+  }
+  .composerHelp {
+    padding-inline: 6px;
+  }
+  .intro h1 {
+    font-size: 32px;
+    line-height: 1.1;
+  }
+  .composerShell {
+    padding: 5px;
+    border-radius: 26px;
+  }
+  .composerSurface {
+    border-radius: 21px;
+  }
+  .submitIcon {
+    width: 26px;
+    height: 26px;
+  }
+  .composerForm[data-has-attachment="true"] {
+    margin-top: 40px;
+  }
+  .composerForm[data-has-attachment="true"] .textarea {
+    height: 124px;
+    padding-top: 38px;
+  }
+}
+@media (max-width: 360px) {
+  .referenceButton {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
+  .referenceButton span {
+    display: none;
+  }
+  .intro h1 {
+    font-size: 28px;
+  }
+}
+@container (max-width: 360px) {
+  .referenceButton {
+    width: 36px;
+    min-height: 36px;
+    padding: 0;
+  }
+  .referenceButton span {
+    display: none;
+  }
+  .intro h1 {
+    font-size: 28px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lobby *, .lobby *::before, .lobby *::after {
+    transition: none !important;
+  }
+}

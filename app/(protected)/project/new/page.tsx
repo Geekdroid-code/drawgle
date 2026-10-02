@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { ProjectLobby } from "@/components/ProjectLobby";
+import { marketingFontVariables } from "@/components/marketing/fonts";
 import { mapAuthenticatedUser, mapProjectRow } from "@/lib/supabase/mappers";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
@@ -38,6 +39,7 @@ export default async function NewProjectPage({
 
   return (
     <ProjectLobby
+      className={marketingFontVariables}
       initialPrompt={initialPrompt}
       initialClientDraftId={initialClientDraftId}
       initialStylePreset={stylePreset ? {

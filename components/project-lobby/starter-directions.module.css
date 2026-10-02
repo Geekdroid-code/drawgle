@@ -1,0 +1,377 @@
+.section {
+  width: 100%;
+  margin-top: 32px;
+  min-width: 0;
+  color: var(--lobby-ink, #141414);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 3px;
+  margin-bottom: 12px;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 550;
+  letter-spacing: -0.015em;
+}
+
+.explore {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  border-radius: 5px;
+  color: var(--lobby-muted, #757575);
+  font-size: 11px;
+  text-decoration: none;
+  transition: color 160ms ease;
+}
+
+.explore:hover:not([aria-disabled="true"]) {
+  color: var(--lobby-accent, #305dde);
+}
+
+.explore[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.explore:focus-visible,
+.card:focus-visible {
+  outline: 2px solid var(--lobby-accent, #305dde);
+  outline-offset: 3px;
+}
+
+.tray {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 3px 2px 7px;
+}
+
+.card {
+  position: relative;
+  isolation: isolate;
+  height: 142px;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--lobby-border, #e7e7e7);
+  border-radius: 20px;
+  padding: 17px;
+  background: var(--lobby-surface, #fff);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: 0 5px 14px -12px rgb(0 0 0 / 15%);
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.card::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: radial-gradient(ellipse at 95% 10%, var(--direction-color), transparent 65%);
+  opacity: 0.055;
+  content: "";
+}
+
+.card:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--lobby-ink, #141414) 22%, var(--lobby-border, #e7e7e7));
+  box-shadow: 0 7px 18px -13px rgb(0 0 0 / 22%);
+}
+
+.card[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--lobby-accent, #305dde) 60%, var(--lobby-border, #e7e7e7));
+  background-color: color-mix(in srgb, var(--lobby-accent, #305dde) 4%, var(--lobby-surface, #fff));
+}
+
+.card:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.copy {
+  position: absolute;
+  inset: 18px auto auto 17px;
+  width: calc(100% - 112px);
+}
+
+.title {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+
+.caption {
+  display: block;
+  margin-top: 7px;
+  color: var(--lobby-muted, #757575);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.palette {
+  position: absolute;
+  bottom: 19px;
+  left: 17px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.palette > span {
+  width: 9px;
+  height: 9px;
+  border: 1px solid rgb(0 0 0 / 9%);
+  border-radius: 50%;
+}
+
+.previews {
+  position: absolute;
+  right: 13px;
+  bottom: 11px;
+  width: 84px;
+  height: 112px;
+}
+
+.phone {
+  position: absolute;
+  width: 49px;
+  height: 106px;
+  overflow: hidden;
+  border: 3px solid var(--lobby-inset, #f7f7f7);
+  border-radius: 10px;
+  background: var(--lobby-inset, #f7f7f7);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--lobby-ink, #141414) 10%, transparent),
+    0 8px 14px -7px rgb(0 0 0 / 26%);
+  transition: transform 220ms ease;
+}
+
+.phone:first-child {
+  right: 0;
+  bottom: 5px;
+  transform: rotate(4deg);
+}
+
+.phone:last-child {
+  left: 0;
+  bottom: 0;
+  transform: rotate(-4deg);
+}
+
+.card:hover:not(:disabled) .phone:first-child {
+  transform: translateY(-2px) rotate(3deg);
+}
+
+.card:hover:not(:disabled) .phone:last-child {
+  transform: translateY(-2px) rotate(-3deg);
+}
+
+.screen {
+  object-fit: cover;
+  object-position: top;
+}
+
+.selected {
+  position: absolute;
+  z-index: 2;
+  top: 11px;
+  right: 11px;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 2px solid var(--lobby-surface, #fff);
+  border-radius: 50%;
+  background: var(--lobby-accent, #305dde);
+  color: #fff;
+}
+
+@media (max-width: 640px) {
+  .section {
+    margin-top: 24px;
+  }
+
+  .header {
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .header h2 {
+    font-size: 12px;
+  }
+
+  .explore {
+    font-size: 10px;
+  }
+
+  .tray {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .tray::-webkit-scrollbar {
+    display: none;
+  }
+
+  .card {
+    flex: 0 0 210px;
+    height: 124px;
+    border-radius: 18px;
+    padding: 15px;
+    scroll-snap-align: start;
+  }
+
+  .copy {
+    top: 15px;
+    left: 15px;
+    width: calc(100% - 104px);
+  }
+
+  .title {
+    font-size: 13px;
+  }
+
+  .caption {
+    margin-top: 6px;
+    font-size: 10px;
+  }
+
+  .palette {
+    bottom: 16px;
+    left: 15px;
+  }
+
+  .palette > span {
+    width: 8px;
+    height: 8px;
+  }
+
+  .previews {
+    right: 11px;
+    bottom: 9px;
+    width: 74px;
+    height: 100px;
+  }
+
+  .phone {
+    width: 43px;
+    height: 94px;
+    border-width: 2px;
+    border-radius: 9px;
+  }
+
+  .selected {
+    top: 9px;
+    right: 9px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@container (max-width: 640px) {
+  .section {
+    margin-top: 24px;
+  }
+
+  .header {
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+
+  .header h2 {
+    font-size: 12px;
+  }
+
+  .explore {
+    font-size: 10px;
+  }
+
+  .tray {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: none;
+  }
+
+  .tray::-webkit-scrollbar {
+    display: none;
+  }
+
+  .card {
+    flex: 0 0 210px;
+    height: 124px;
+    border-radius: 18px;
+    padding: 15px;
+    scroll-snap-align: start;
+  }
+
+  .copy {
+    top: 15px;
+    left: 15px;
+    width: calc(100% - 104px);
+  }
+
+  .title {
+    font-size: 13px;
+  }
+
+  .caption {
+    margin-top: 6px;
+    font-size: 10px;
+  }
+
+  .palette {
+    bottom: 16px;
+    left: 15px;
+  }
+
+  .palette > span {
+    width: 8px;
+    height: 8px;
+  }
+
+  .previews {
+    right: 11px;
+    bottom: 9px;
+    width: 74px;
+    height: 100px;
+  }
+
+  .phone {
+    width: 43px;
+    height: 94px;
+    border-width: 2px;
+    border-radius: 9px;
+  }
+
+  .selected {
+    top: 9px;
+    right: 9px;
+    width: 18px;
+    height: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .phone,
+  .explore {
+    transition: none;
+  }
+}
