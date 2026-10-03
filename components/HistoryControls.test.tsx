@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ScreenData } from "@/lib/types";
-import { HistoryControls } from "./HistoryControls";
+import { EXIT_HISTORY_PREVIEW_EVENT, HistoryControls, RESTORE_HISTORY_PREVIEW_EVENT } from "./HistoryControls";
 
 const projectId = "11111111-1111-4111-8111-111111111111";
 const screenId = "22222222-2222-4222-8222-222222222222";
@@ -14,7 +14,7 @@ let calls: Array<{ url: string; init?: RequestInit }> = [];
 const renderControls = (overrides: Partial<React.ComponentProps<typeof HistoryControls>> = {}) => render(<>
   <input aria-label="Text editor" />
   <HistoryControls projectId={projectId} target={{ context: "screen", screenId }} screenName="Profile"
-    screens={[screen]} navigation={null} tokens={null} onApplied={vi.fn()} {...overrides} />
+    screens={[screen]} onApplied={vi.fn()} {...overrides} />
 </>);
 beforeEach(() => {
   calls = [];
@@ -49,15 +49,16 @@ describe("contextual history controls", () => {
     fireEvent.keyDown(document, { key: "z", ctrlKey: true });
     expect(calls.filter(c => c.init?.method === "POST")).toHaveLength(0);
   });
-  it("previews a retained screen entry and offers restore", async () => {
+  it("shows a retained screen entry on the canvas, before the change first, and offers restore", async () => {
     const user = userEvent.setup();
-    const view = renderControls();
+    const onCanvasPreviewChange = vi.fn();
+    const view = renderControls({ onCanvasPreviewChange });
     await user.click(await view.findByLabelText("Recent changes"));
     await user.click(await view.findByText(/Edited Profile/));
-    expect(await view.findByTitle("History preview")).toBeTruthy();
-    expect(view.getByText(/Shared tokens and navigation stay current/)).toBeTruthy();
-    expect(view.getByTitle("History preview").getAttribute("srcdoc")).toContain("Earlier</main>");
-    await user.click(view.getByText("Restore before this change"));
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith({ context: "screen", screenId, code: "<main>Earlier</main>", label: "Edited Profile", side: "before" }));
+    expect(view.getByText(/The canvas shows this screen before the change/)).toBeTruthy();
+    expect(view.queryByTitle("History preview")).toBeNull();
+    await user.click(view.getByText("Restore this version"));
     await waitFor(() => expect(calls.some(c => c.init?.method === "POST" && JSON.parse(c.init.body as string).action === "restore" && JSON.parse(c.init.body as string).side === "before")).toBe(true));
   });
   it("never falls through into saved undo while a local redo branch exists", async () => {
@@ -95,14 +96,57 @@ describe("contextual history controls", () => {
     expect(host.children).toHaveLength(0);
     expect(view.getByLabelText("Recent changes").getAttribute("aria-expanded")).toBe("false"); host.remove();
   });
-  it("switches preview source with Before/After and restores the chosen side", async () => {
-    const user = userEvent.setup(); const view = renderControls();
+  it("switches the canvas with Before/After and restores the chosen side", async () => {
+    const user = userEvent.setup(); const onCanvasPreviewChange = vi.fn(); const view = renderControls({ onCanvasPreviewChange });
     await user.click(view.getByLabelText("Recent changes"));
     await user.click(await view.findByText("Edited Profile"));
-    expect((await view.findByTitle("History preview")).getAttribute("srcdoc")).toContain("Earlier</main>");
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(expect.objectContaining({ code: "<main>Earlier</main>", side: "before" })));
     await user.click(view.getByRole("button", { name: "After change" }));
-    expect(view.getByTitle("History preview").getAttribute("srcdoc")).toContain("Current</main>");
-    await user.click(view.getByText("Restore after this change"));
+    expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(expect.objectContaining({ code: "<main>Current</main>", side: "after" }));
+    await user.click(view.getByText("Restore this version"));
     await waitFor(() => expect(calls.some(call => call.init?.method === "POST" && JSON.parse(call.init.body as string).side === "after")).toBe(true));
+    // a restored version is the current design: the canvas stops previewing
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(null));
+  });
+
+  it("returns the canvas to the current design on Exit preview, on leaving history, and on closing", async () => {
+    const user = userEvent.setup(); const onCanvasPreviewChange = vi.fn(); const view = renderControls({ onCanvasPreviewChange });
+    await user.click(view.getByLabelText("Recent changes"));
+    await user.click(await view.findByText("Edited Profile"));
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(expect.objectContaining({ side: "before" })));
+    act(() => { window.dispatchEvent(new Event(EXIT_HISTORY_PREVIEW_EVENT)); });
+    expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(null);
+    expect(await view.findByText("Edited Profile")).toBeTruthy();
+    await user.click(view.getByText("Edited Profile"));
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(expect.objectContaining({ side: "before" })));
+    await user.click(view.getByRole("button", { name: "Back to history" }));
+    expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(null);
+    await user.click(view.getByText("Edited Profile"));
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(expect.objectContaining({ side: "before" })));
+    view.unmount();
+    expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it("restores the version the canvas shows from the preview bar, as on a phone", async () => {
+    const user = userEvent.setup(); const onCanvasPreviewChange = vi.fn(); const view = renderControls({ onCanvasPreviewChange });
+    // nothing to restore until a version is on the canvas
+    act(() => { window.dispatchEvent(new Event(RESTORE_HISTORY_PREVIEW_EVENT)); });
+    expect(calls.filter(call => call.init?.method === "POST")).toHaveLength(0);
+    await user.click(view.getByLabelText("Recent changes"));
+    await user.click(await view.findByText("Edited Profile"));
+    await user.click(view.getByRole("button", { name: "After change" }));
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(expect.objectContaining({ side: "after" })));
+    act(() => { window.dispatchEvent(new Event(RESTORE_HISTORY_PREVIEW_EVENT)); });
+    await waitFor(() => expect(calls.some(call => call.init?.method === "POST" && JSON.parse(call.init.body as string).action === "restore" && JSON.parse(call.init.body as string).side === "after")).toBe(true));
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(null));
+  });
+
+  it("keeps the canvas on the current design while an adjustment or another job is pending", async () => {
+    const user = userEvent.setup(); const onCanvasPreviewChange = vi.fn();
+    const view = renderControls({ onCanvasPreviewChange, disabledReason: "Wait for the active design job to finish." });
+    await user.click(view.getByLabelText("Recent changes"));
+    await user.click(await view.findByText("Edited Profile"));
+    expect(await view.findByText(/Finish or discard the pending change to see this version on the canvas/)).toBeTruthy();
+    expect(onCanvasPreviewChange.mock.calls.every(([preview]) => preview === null)).toBe(true);
   });
 });

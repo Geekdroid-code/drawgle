@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { tasks } from "@trigger.dev/sdk";
 
 import { applyDeterministicEdits, ensureDrawgleIds, type DeterministicEditOperation, type DrawgleElementTargetType } from "@/lib/drawgle-dom";
+import { describeElementEdit } from "@/lib/design-history/labels";
 import { persistDesignChange, readDesignRequestReplay, readDesignTarget } from "@/lib/design-history/persistence";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -123,7 +124,7 @@ export async function POST(req: Request) {
 
       const result = await persistDesignChange(admin, target, { expectedRevision, requestId,
         payload: { ...saved.payload as object, shellCode: nextCode },
-        label: operations[0]?.type === "deleteElement" ? "Deleted navigation element" : "Edited shared navigation",
+        label: describeElementEdit(currentCode, drawgleId, operations, "navigation"),
         origin });
       if (result.status !== "success") return NextResponse.json({ error: "Navigation changed. Refresh before retrying.", status: result.status }, { status: 409 });
 
@@ -154,8 +155,7 @@ export async function POST(req: Request) {
     const nextCode = tokenizeStaticDrawgleHtml(editedCode, designTokens).code;
 
     const result = await persistDesignChange(admin, target, { expectedRevision, requestId,
-      payload: { code: nextCode }, label: operations[0]?.type === "deleteElement" ? "Deleted element" :
-        operations[0]?.type === "duplicateElement" ? "Duplicated element" : "Edited element", origin });
+      payload: { code: nextCode }, label: describeElementEdit(currentCode, drawgleId, operations), origin });
     if (result.status !== "success") return NextResponse.json({ error: "Screen changed. Refresh before retrying.", status: result.status }, { status: 409 });
 
     if (nextCode !== currentCode) {
