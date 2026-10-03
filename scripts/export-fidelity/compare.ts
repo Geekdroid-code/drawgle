@@ -7,7 +7,9 @@
  * Screens: the exports in public/screens, out/corpus-db.json (from collect.ts) when present, and any export files
  * given as arguments.
  *
- *   pnpm exec tsx --conditions=react-server scripts/export-fidelity/compare.ts [--only=name] [export.html ...]
+ *   pnpm exec tsx --conditions=react-server scripts/export-fidelity/compare.ts [--only=name ...] [--save] [export.html ...]
+ *
+ * --save also writes each screen's old and clean export to out/pages/<screen>.old.html and .clean.html.
  */
 import { existsSync } from "node:fs";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
@@ -276,6 +278,15 @@ async function main() {
   const cases = (await loadCases(args.filter((arg) => !arg.startsWith("--"))))
     .filter((item) => !only.length || only.some((name) => item.name.toLowerCase().includes(name)));
   console.log(`Comparing ${cases.length} screens, each as a standalone page and as an Agent Pack screen...`);
+  if (args.includes("--save")) {
+    // Each screen's old and clean export side by side, for reading or opening in a browser.
+    await mkdir(path.join(outDirectory, "pages"), { recursive: true });
+    for (const item of cases) {
+      const slug = item.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 80);
+      await writeFile(path.join(outDirectory, "pages", `${slug}.old.html`), buildStandaloneHtmlExport(item.input));
+      await writeFile(path.join(outDirectory, "pages", `${slug}.clean.html`), buildCleanHtmlExport(item.input));
+    }
+  }
   const browser = await chromium.launch();
   const results: Result[] = [];
   const queue = cases.flatMap((item) => [[item, "standalone"], [item, "screen-only"]] as const);

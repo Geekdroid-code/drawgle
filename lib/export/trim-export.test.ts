@@ -184,4 +184,11 @@ describe("token CSS trimming", () => {
     expect(pickTailwindTheme(["group-hover:!-mt-section-gap"])).toEqual({ spacing: { "section-gap": "var(--section-gap, var(--dg-mobile-layout-section-gap))" } });
     expect(Object.keys(pickTailwindTheme(["bg-tint-2/40"])?.colors ?? {})).toEqual(["tint"]);
   });
+
+  it("reads a radius, font size, weight or shadow entry only from the utility that uses it", () => {
+    // shadow-sm and text-sm are Tailwind's own; only a rounded class reads the theme's radii
+    expect(pickTailwindTheme(["shadow-sm", "text-sm", "max-w-md", "text-lg"])).toBeNull();
+    expect(pickTailwindTheme(["md:rounded-tl-lg"])).toEqual({ borderRadius: { lg: "var(--radius, var(--dg-radii-app))" } });
+    expect(Object.keys(pickTailwindTheme(["text-body", "font-heading"]) ?? {})).toEqual(["fontFamily", "fontSize"]);
+  });
 });

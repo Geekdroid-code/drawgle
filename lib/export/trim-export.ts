@@ -111,7 +111,7 @@ export function writeKitTabsOnce(navigationHtml: string) {
     }
   }
   for (const style of Array.from(page.querySelectorAll("style"))) {
-    if (style.textContent?.includes(KIT_TAB_STATE_RULE)) style.textContent = style.textContent.replace(KIT_TAB_STATE_RULE, "");
+    if (style.textContent?.includes(KIT_TAB_STATE_RULE)) style.textContent = style.textContent.replace(`${KIT_TAB_STATE_RULE}\n`, "").replace(KIT_TAB_STATE_RULE, "");
   }
   return page.body.innerHTML;
 }
@@ -298,19 +298,34 @@ function utilityName(token: string) {
 type ThemeNode = TailwindThemeExtend[string][string];
 
 /**
- * The Tailwind entries a page's classes could use, nested as in the theme, or null when none. An entry stays when any
- * class ends with its name (bg-card, rounded-lg, text-screen-title), which keeps a few unused ones but never drops a
- * used one. dg classes are the token CSS's own rules: no Tailwind utility starts with dg-, so they use no entry.
+ * The only Tailwind utilities that read each theme group, where they are few: rounded-sm reads borderRadius.sm, but
+ * shadow-sm and text-sm do not. Colors and spacing feed many utilities (bg, text, border, ring, p, m, gap, inset and
+ * more), so any class ending in their name counts.
+ */
+const GROUP_UTILITY: Record<string, RegExp> = {
+  borderRadius: /^rounded(?:-[a-z]{1,2})?-/,
+  boxShadow: /^shadow-/,
+  fontFamily: /^font-/,
+  fontSize: /^text-/,
+  fontWeight: /^font-/,
+};
+
+/**
+ * The Tailwind entries a page's classes could use, nested as in the theme, or null when none. An entry stays when a
+ * class that can read its group ends with its name (bg-card, rounded-lg, text-screen-title), which keeps a few unused
+ * colors or spacing but never drops a used entry. dg classes are the token CSS's own rules: no Tailwind utility starts
+ * with dg-, so they use no entry.
  */
 export function pickTailwindTheme(classTokens: Iterable<string>, theme: TailwindThemeExtend = DRAWGLE_TAILWIND_THEME_EXTEND) {
   const utilities = Array.from(new Set(Array.from(classTokens, utilityName))).filter((utility) => !utility.startsWith("dg-"));
-  const used = (suffix: string) => utilities.some((utility) => utility.endsWith(`-${suffix}`));
-  const prune = (node: ThemeNode, path: string[]): ThemeNode | undefined => {
+  const used = (group: string, suffix: string) => utilities.some((utility) =>
+    utility.endsWith(`-${suffix}`) && (GROUP_UTILITY[group]?.test(utility) ?? true));
+  const prune = (group: string, node: ThemeNode, path: string[]): ThemeNode | undefined => {
     if (typeof node === "string" || Array.isArray(node)) {
-      return used(path.filter((key) => key !== "DEFAULT").join("-")) ? node : undefined;
+      return used(group, path.filter((key) => key !== "DEFAULT").join("-")) ? node : undefined;
     }
     const entries = Object.entries(node).flatMap(([key, child]) => {
-      const kept = prune(child, [...path, key]);
+      const kept = prune(group, child, [...path, key]);
       return kept === undefined ? [] : [[key, kept] as const];
     });
     return entries.length ? Object.fromEntries(entries) : undefined;
@@ -319,7 +334,7 @@ export function pickTailwindTheme(classTokens: Iterable<string>, theme: Tailwind
   const picked: TailwindThemeExtend = {};
   for (const [group, entries] of Object.entries(theme)) {
     const kept = Object.entries(entries).flatMap(([key, node]) => {
-      const value = prune(node, [key]);
+      const value = prune(group, node, [key]);
       return value === undefined ? [] : [[key, value] as const];
     });
     if (kept.length) picked[group] = Object.fromEntries(kept);
