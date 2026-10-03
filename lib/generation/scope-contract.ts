@@ -541,6 +541,17 @@ const normalizeBoundingBox = (value: unknown) => {
   return { x, y, width: Math.min(width, 1 - x), height: Math.min(height, 1 - y) };
 };
 
+/** What a salvage writes for a screen it counted and could not describe. */
+const UNDESCRIBED_SCREEN_SUMMARY = "Visible screen count was detected, but detailed layout analysis was not available.";
+
+/**
+ * Whether an analysis describes every screen it counts. A salvage fills in a placeholder for each screen it could not
+ * describe, so a placeholder counts as missing.
+ */
+export const describesEveryScreen = (analysis: ReferenceAnalysis) =>
+  analysis.screenReferences.length >= analysis.screenCountEstimate
+  && analysis.screenReferences.every((screen) => screen.layoutSummary !== UNDESCRIBED_SCREEN_SUMMARY);
+
 export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {
   const diagnostics: string[] = [];
   const validationIssues: string[] = [];
@@ -673,7 +684,7 @@ export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResul
       : Array.from({ length: screenCountEstimate }, (_, index) => ({
           index: index + 1,
           suggestedRole: `Reference Screen ${index + 1}`,
-          layoutSummary: "Visible screen count was detected, but detailed layout analysis was not available.",
+          layoutSummary: UNDESCRIBED_SCREEN_SUMMARY,
           visualHierarchy: "Use the uploaded reference image directly for structural hierarchy.",
           components: ["Use visible components from the uploaded reference image."],
           stylingCues: ["Use visible styling cues from the uploaded reference image."],

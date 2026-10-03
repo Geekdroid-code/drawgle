@@ -1,7 +1,8 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
-import type { DesignTokens, ReferenceAnalysis } from "@/lib/types";
+import { describesEveryScreen } from "@/lib/generation/scope-contract";
+import type { DesignTokens, ReferenceAnalysis, ReferenceMode } from "@/lib/types";
 import { compileDesignRequirements, designRequirementsKey } from "./design-requirements";
 import { activeFacts, type ProductPlanning } from "./model";
 import { productReferenceExecution } from "./reference-execution";
@@ -56,9 +57,67 @@ export function projectDesignPreparationKey(state: ProductPlanning, presetVersio
   }))).digest("hex");
 }
 
+export type ProjectDesignPreparation = {
+  designTokens: DesignTokens; referenceAnalysis: ReferenceAnalysis | null;
+  requirementsKey: string; preparedAt: string; queuedAt: string | null;
+};
+
+/** The reference a build resolved, to check a preparation's analysis against. */
+export type BuildReference = {
+  referenceMode: ReferenceMode; referenceId: string | null; imagePath: string | null; hasImage: boolean;
+};
+
+/** Whether a preparation's analysis could be of the reference this build resolved; checked before waiting for one. */
+export function preparedAnalysisMayApply(state: ProductPlanning, build: BuildReference) {
+  const reference = productReferenceExecution(state);
+  return (build.referenceMode === "curated_style" || build.referenceMode === "user_style") && build.hasImage
+    && reference.mode === build.referenceMode && reference.referenceId === build.referenceId
+    && reference.imagePath === build.imagePath;
+}
+
+const sameTokens = (left: DesignTokens, right: DesignTokens) =>
+  JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
+
+/**
+ * The preparation's reference analysis, when a build can plan from it instead of analysing the image again. It read
+ * the same image with the project-wide prompt and the tokens were made from it, so planning from it keeps the tokens,
+ * the plan and the charter's reference DNA on one reading of the image. It is used only with the tokens of the same
+ * preparation (`projectTokens`: the project's tokens, when they were already saved from it), for the reference the
+ * build resolved, and only when it describes every screen it counts.
+ */
+export function reusablePreparedAnalysis(prepared: ProjectDesignPreparation | null, state: ProductPlanning,
+  build: BuildReference & { projectTokens?: DesignTokens | null }): ReferenceAnalysis | null {
+  const analysis = prepared?.referenceAnalysis;
+  if (!prepared || !analysis || prepared.requirementsKey !== designRequirementsKey(state)) return null;
+  if (!preparedAnalysisMayApply(state, build)) return null;
+  if (build.projectTokens && !sameTokens(build.projectTokens, prepared.designTokens)) return null;
+  return describesEveryScreen(analysis) ? analysis : null;
+}
+
+/**
+ * The reading a project's first batch plans from when its design preparation made one: instead of analysing the
+ * image again, so the tokens, the plan and the charter's reference DNA rest on one reading. Only a batch that would
+ * otherwise analyse (`analyses`) the reference it was prepared for looks; it waits for a preparation still being made
+ * (`awaitPrepared`) only when it will take its tokens from it, and a retry whose tokens were already saved from it
+ * reads the saved one (`readPrepared`).
+ */
+export async function preparedReadingForFirstBatch({ state, build, analyses, designTokens, projectTokens,
+  awaitPrepared, readPrepared }: {
+  state: ProductPlanning | null; build: BuildReference; analyses: boolean;
+  designTokens: DesignTokens | null; projectTokens: DesignTokens | null;
+  awaitPrepared: () => Promise<ProjectDesignPreparation | null>;
+  readPrepared: () => Promise<ProjectDesignPreparation | null>;
+}): Promise<ReferenceAnalysis | null> {
+  if (!analyses || !state || !preparedAnalysisMayApply(state, build)) return null;
+  if (!designTokens) return reusablePreparedAnalysis(await awaitPrepared(), state, build);
+  if (projectTokens && designTokens === projectTokens) {
+    return reusablePreparedAnalysis(await readPrepared(), state, { ...build, projectTokens });
+  }
+  return null;
+}
+
 export async function readProjectDesignPreparation(admin: PlanningStore, projectId: string, ownerId: string,
-  key: string): Promise<{ designTokens: DesignTokens; referenceAnalysis: ReferenceAnalysis | null;
-    requirementsKey: string; preparedAt: string; queuedAt: string | null } | null> {
+  key: string): Promise<ProjectDesignPreparation | null> {
   const { data, error } = await admin.from("product_design_preparations")
     .select("design_tokens,reference_analysis,requirements_key,queued_at,created_at,expires_at")
     .eq("project_id", projectId).eq("owner_id", ownerId).eq("preparation_key", key).maybeSingle();
