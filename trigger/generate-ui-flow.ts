@@ -28,8 +28,8 @@ import { reviewScreenContent } from "@/lib/product-planning/review-screen-conten
 import { recreationFrameChrome } from "@/lib/product-planning/recreation-frames";
 import { preparedPlanKey, readPreparedPlan, savePreparedPlan } from "@/lib/product-planning/prepared-plans";
 import { assetsForScopePlan, projectScopePlanForKeys, readPreparedComponentKit, readScopePreparation, scopePreparationKey } from "@/lib/product-planning/scope-preparation";
-import { earlyDesignMode, projectDesignPreparationKey,
-  readProjectDesignPreparation } from "@/lib/product-planning/project-design-preparation";
+import { earlyDesignMode, preparedReadingForFirstBatch, projectDesignPreparationKey, readProjectDesignPreparation,
+  type ProjectDesignPreparation } from "@/lib/product-planning/project-design-preparation";
 import { generateProjectDesign } from "@/lib/product-planning/generate-project-design";
 import { projectDesignTaskIdentity } from "@/lib/product-planning/project-design-task";
 import { prepareProjectDesignTask } from "./prepare-project-design";
@@ -89,7 +89,7 @@ import {
   screenPlansNeedBuildEnrichment,
 } from "@/lib/generation/service";
 import { screenBuildOutputTokenBudget } from "@/lib/generation/screen-budget";
-import { analyzeReferenceImageForScope, preflightGenerationScope } from "@/lib/generation/scope-contract";
+import { analyzeReferenceImageForScope, preflightGenerationScope, resultForKnownAnalysis } from "@/lib/generation/scope-contract";
 import { planVisualAssets, resolveProjectAssets } from "@/lib/generation/visual-assets";
 import { normalizeReferenceImage, shouldAttachReferenceImage } from "@/lib/generation/reference-image";
 import { progressiveGenerationEnabled } from "@/lib/product-planning/generation-flags";
@@ -2404,6 +2404,55 @@ export const generateUiFlowTask = task({
     );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
+    const useProjectWideTokens = earlyDesignMode() === "on" && !screenScoped && !exactRecreation && Boolean(productPlanning);
+    // The project design preparation, read once, waiting for it when it is still being made.
+    let preparedDesignLookup: Promise<{ prepared: ProjectDesignPreparation | null; matchesCurrent: boolean }> | null = null;
+    const lookUpPreparedDesign = (planning: ProductPlanning) => preparedDesignLookup ??= (async () => {
+      const key = projectDesignPreparationKey(planning, publishedStylePreset?.version ?? null);
+      const currentState = readProductPlanning(existingProject?.product_planning);
+      const matchesCurrent = !currentState
+        || projectDesignPreparationKey(currentState, publishedStylePreset?.version ?? null) === key;
+      let prepared = matchesCurrent
+        ? await readProjectDesignPreparation(admin, payload.projectId, payload.ownerId, key).catch(() => null) : null;
+      if (!prepared && matchesCurrent) {
+        try {
+          const taskIdentity = await projectDesignTaskIdentity(planning, payload.projectId,
+            publishedStylePreset?.version ?? null);
+          await prepareProjectDesignTask.triggerAndWait({ projectId: payload.projectId, ownerId: payload.ownerId,
+            queuedAt: new Date().toISOString() }, {
+            idempotencyKey: taskIdentity.idempotencyKey, idempotencyKeyTTL: "1d",
+          });
+        } catch {
+          // A failed speculative task falls through to the existing cold token path.
+        }
+        prepared = await readProjectDesignPreparation(admin, payload.projectId, payload.ownerId, key).catch(() => null);
+      }
+      return { prepared, matchesCurrent };
+    })();
+    // The preparation read this reference with the project-wide prompt and made the tokens from that reading. A first
+    // batch plans from the same reading instead of analysing the image again, so the tokens, the plan and the
+    // charter's reference DNA agree, and the build skips a model call. The token step below uses the same lookup.
+    const preparedReadingStartedAt = now();
+    const preparedReadingStartedMs = Date.now();
+    const preparedReferenceAnalysis = useProjectWideTokens && productPlanning
+      ? await preparedReadingForFirstBatch({
+          state: productPlanning,
+          build: { referenceMode, referenceId, imagePath: payload.imagePath ?? null, hasImage: Boolean(promptImage) },
+          analyses: Boolean(payload.scopeContract) && !(payload.referenceAnalysis ?? reusableProjectReferenceDna?.analysis)
+            && !payload.projectCharter && !existingCharter,
+          designTokens: designTokens ?? null,
+          projectTokens: projectTokens ?? null,
+          awaitPrepared: async () => (await lookUpPreparedDesign(productPlanning!)).prepared,
+          readPrepared: () => readProjectDesignPreparation(admin, payload.projectId, payload.ownerId,
+            projectDesignPreparationKey(productPlanning!, publishedStylePreset?.version ?? null)).catch(() => null),
+        })
+      : null;
+    if (preparedDesignLookup) {
+      // Waiting for the preparation is its own stage, so the scope stage stays the analysis alone.
+      await mergeGenerationPerformance(admin, payload.generationRunId, {
+        stages: { designPreparationWait: performanceStage(preparedReadingStartedAt, preparedReadingStartedMs) },
+      });
+    }
     const scopeStartedAt = now();
     const scopeStartedMs = Date.now();
     const scopePreflight = payload.scopeContract
@@ -2418,6 +2467,13 @@ export const generateUiFlowTask = task({
               scopeContract: { ...payload.scopeContract, referenceMode },
               referenceAnalysis: null as ReferenceAnalysis | null,
               referenceAnalysisResult: null,
+            }
+        : preparedReferenceAnalysis
+          ? {
+              scopeContract: { ...payload.scopeContract, referenceMode },
+              referenceAnalysis: preparedReferenceAnalysis,
+              referenceAnalysisResult: resultForKnownAnalysis(preparedReferenceAnalysis,
+                "Reused the project design preparation's reference analysis; skipped multimodal reference analysis.", "high"),
             }
         : await analyzeReferenceImageForScope({
             prompt: payload.prompt,
@@ -2499,29 +2555,10 @@ export const generateUiFlowTask = task({
 
     const designStartedAt = now();
     const designStartedMs = Date.now();
-    const useProjectWideTokens = earlyDesignMode() === "on" && !screenScoped && !exactRecreation && Boolean(productPlanning);
     let usedPreparedProjectTokens = false;
     let skipPreparedTokenReview = Boolean(scopePreparation && !projectTokens && designTokens === scopePreparation.designTokens);
     if (useProjectWideTokens && !designTokens && productPlanning) {
-      const key = projectDesignPreparationKey(productPlanning, publishedStylePreset?.version ?? null);
-      const currentState = readProductPlanning(existingProject?.product_planning);
-      const matchesCurrent = !currentState
-        || projectDesignPreparationKey(currentState, publishedStylePreset?.version ?? null) === key;
-      let prepared = matchesCurrent
-        ? await readProjectDesignPreparation(admin, payload.projectId, payload.ownerId, key).catch(() => null) : null;
-      if (!prepared && matchesCurrent) {
-        try {
-          const taskIdentity = await projectDesignTaskIdentity(productPlanning, payload.projectId,
-            publishedStylePreset?.version ?? null);
-          await prepareProjectDesignTask.triggerAndWait({ projectId: payload.projectId, ownerId: payload.ownerId,
-            queuedAt: new Date().toISOString() }, {
-            idempotencyKey: taskIdentity.idempotencyKey, idempotencyKeyTTL: "1d",
-          });
-        } catch {
-          // A failed speculative task falls through to the existing cold token path.
-        }
-        prepared = await readProjectDesignPreparation(admin, payload.projectId, payload.ownerId, key).catch(() => null);
-      }
+      const { prepared, matchesCurrent } = await lookUpPreparedDesign(productPlanning);
       if (prepared && prepared.requirementsKey === designRequirementsKey(productPlanning)) {
         designTokens = prepared.designTokens;
         usedPreparedProjectTokens = true;

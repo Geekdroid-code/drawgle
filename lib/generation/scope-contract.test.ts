@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   analyzePromptScreenIntent,
+  describesEveryScreen,
+  normalizeReferenceAnalysis,
   resolveGenerationScopeContract,
 } from "@/lib/generation/scope-contract";
 
@@ -89,5 +91,26 @@ describe("generation scope reference provenance", () => {
     });
 
     expect(contract.referenceMode).toBe("curated_style");
+  });
+});
+
+describe("whether an analysis describes every screen it counts", () => {
+  const screen = (index: number) => ({ index, suggestedRole: `Screen ${index}`, layoutSummary: `Layout ${index}`,
+    visualHierarchy: "Title then cards", components: ["card"], stylingCues: ["tone-on-tone"] });
+
+  it("is true for an analysis that describes each screen", () => {
+    const { analysis } = normalizeReferenceAnalysis({ screenCountEstimate: 2, screenReferences: [screen(1), screen(2)] });
+    expect(analysis && describesEveryScreen(analysis)).toBe(true);
+  });
+
+  it("is false when screens are missing or only placeholders a salvage filled in", () => {
+    const partial = normalizeReferenceAnalysis({ screenCountEstimate: 3, screenReferences: [screen(1)] }).analysis;
+    expect(partial && describesEveryScreen(partial)).toBe(false);
+    const salvaged = normalizeReferenceAnalysis({ screenCountEstimate: 3, screenReferences: [] }).analysis;
+    expect(salvaged?.screenReferences).toHaveLength(3);
+    expect(salvaged && describesEveryScreen(salvaged)).toBe(false);
+    // more descriptions than screens counted is a reading that contradicts itself
+    const contradictory = normalizeReferenceAnalysis({ screenCountEstimate: 2, screenReferences: [screen(1), screen(2), screen(3)] }).analysis;
+    expect(contradictory && describesEveryScreen(contradictory)).toBe(false);
   });
 });
