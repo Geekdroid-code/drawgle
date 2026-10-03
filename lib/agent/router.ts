@@ -18,6 +18,7 @@ import {
   type ProjectReadToolResult,
   type ScreenRegionReference,
 } from "@/lib/agent/project-tools";
+import { parseNavigationEditIntent, type NavigationEditIntent } from "@/lib/navigation-edit-intent";
 
 export type AgentTargetType = "none" | "screen" | "selected_element" | "navigation" | "project";
 export type AgentScope = "none" | "selected_element" | "screen_region" | "whole_screen" | "navigation" | "new_screen";
@@ -130,6 +131,8 @@ export type AgentRouterDecision = {
   selectedElementDrawgleId: string | null;
   scope: AgentScope;
   editOperation: AgentEditOperation;
+  /** For a navigation edit, what the person asked to change about the shared nav. */
+  navigationChange?: NavigationEditIntent | null;
   routerSource: "llm_text" | "llm_function" | "fallback";
   routerFailureReason: string | null;
   sourceReferences?: ScreenRegionReference[];
@@ -169,6 +172,7 @@ const toolCallArgsSchema = z.object({
   targetType: z.string().trim().max(80).optional(),
   scope: z.string().trim().max(80).optional(),
   editOperation: z.string().trim().max(80).optional(),
+  navigationChange: z.string().trim().max(40).optional(),
   sourceReferences: z.array(z.object({
     screenId: z.string().trim().min(1).max(160),
     blockId: z.string().trim().min(1).max(160).nullable().optional(),
@@ -219,7 +223,7 @@ const routerSystemInstruction = [
   "A state proposal is always presented for explicit button approval. Never use approve_pending_plan for a state proposal and never claim a state has started building from conversational confirmation alone.",
   "Call modify_existing_ui when the user asks to change existing UI, selected elements, navigation, copy, layout, styling, or screen structure.",
   "Primary bottom navigation is ONE shared project component. Requests to add/use/reuse a nav on an existing screen, correct inconsistent navs, or redesign a nav use targetType navigation and scope navigation, even without an element selection or when the selected nav is embedded in screen HTML. Preserve the destination targetScreenId from the active/recent screen; a named source screen is a sourceReference, not the edit destination. A nav request is not a new-screen request.",
-  "Distinguish reusing an accepted nav from redesigning it in the instruction. Reuse keeps every icon, label, destination and layout; only the active tab changes per screen. Complaints about an unwanted new nav request reuse, not another new design. For genuinely ambiguous target screens use recent conversation and read tools before asking. A request to keep the nav while editing other content remains a screen edit.",
+  "For a navigation edit, set navigationChange to what the person wants changed, judged by meaning rather than wording. reuse: put the accepted nav on a screen or make navs consistent; every icon, label, destination and layout stays and only the active tab changes per screen; complaints about an unwanted new nav are reuse. restyle: change only how the nav looks, keeping its tabs. redesign: a new, better, premium, creative or more fitting nav, or dissatisfaction with the current one; both its look and which tabs the app needs are open. destinations: add, remove, rename, reorder or re-icon specific tabs while keeping the look. Write the instruction to match. For genuinely ambiguous target screens use recent conversation and read tools before asking. A request to keep the nav while editing other content remains a screen edit.",
   "When activeSelection.present is true, treat it as strong current canvas context, but not a hard mode. If the user asks to edit the selected thing, call modify_existing_ui with targetType selected_element, scope selected_element, the activeSelection drawgleId, and the activeSelection screenId when present.",
   "If activeSelection.present is true but the user clearly asks for broader work such as a new screen, a whole-screen rewrite, project planning, or general discussion, choose that broader action instead of forcing a selected-element edit.",
   "For modify_existing_ui, always choose explicit targetType, scope, and editOperation values. Use ask_clarification only when the target is genuinely ambiguous after considering activeSelection and the active screen.",
@@ -284,6 +288,7 @@ const toolDeclarations: FunctionDeclaration[] = [
         selectedElementDrawgleId: stringProperty("Selected Drawgle element id if known."),
         scope: stringProperty("One of selected_element, screen_region, whole_screen, navigation, none."),
         editOperation: stringProperty("One of copy_change, style_change, layout_change, content_change, add_element, remove_element, append_content, replace_region, restyle_region, rewrite_screen, repair_screen, unknown."),
+        navigationChange: stringProperty("Navigation edits only. One of reuse, restyle, redesign, destinations."),
         sourceReferences: {
           type: Type.ARRAY,
           description: "Optional inspected source regions to borrow from without editing them.",
@@ -542,6 +547,7 @@ const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRo
       selectedElementDrawgleId: selectedDrawgleId,
       scope: coerceScope(args.scope, targetType === "selected_element" ? "selected_element" : targetType === "navigation" ? "navigation" : "whole_screen"),
       editOperation: coerceEditOperation(args.editOperation, "unknown"),
+      navigationChange: parseNavigationEditIntent(args.navigationChange),
       sourceReferences: args.sourceReferences ?? [],
       routerSource: "llm_function",
       routerFailureReason: parsedArgs.success

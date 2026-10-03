@@ -5,10 +5,10 @@ import { navigationSnapshotSchema, historyResultSchema } from "@/lib/design-hist
 import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { navigationEditIntent, type NavigationEditIntent } from "@/lib/navigation-edit-intent";
-import { applyNavigationDesignEdit, indexNavigationShell, renderDeterministicNavigationShell, validateNavigationShell } from "@/lib/project-navigation";
+import { indexNavigationShell, renderDeterministicNavigationShell, validateNavigationShell } from "@/lib/project-navigation";
 import type { DesignTokens, NavigationPlan, ProjectCharter } from "@/lib/types";
 import { findNavigationSource, navigationFromScreen } from "./navigation-source";
-import { redesignNavigation, resolveNavigationMembership } from "./navigation-design-edit";
+import { redesignNavigation, resolveNavigationMembership, reviseNavigationDestinations, type NavigationDesignNotes } from "./navigation-design-edit";
 import { editLegacyNavigation } from "./legacy-navigation-edit";
 
 type Request = {
@@ -18,23 +18,74 @@ type Request = {
   selectedElementTarget?: "screen" | "navigation" | null;
   selectedElementDrawgleId?: string | null;
 };
+type Assignment = ReturnType<typeof navigationSnapshotSchema.parse>["assignments"][number];
+/** The card the chat shows for the edit: the designer's own title and summary, and the tab changes as computed. */
+export type NavigationDesignSummary = { title: string; summary: string; styleDiff: string | null };
+
+const chromeOf = (policy: Record<string, unknown> | null | undefined) => typeof policy?.chrome === "string" ? policy.chrome : null;
+const listLabels = (labels: string[]) => labels.length < 2 ? labels.join("") : `${labels.slice(0, -1).join(", ")} and ${labels[labels.length - 1]}`;
+
+/**
+ * Screens follow the destinations: a screen whose tab was removed stops showing the bar, and a built top-level
+ * screen that a new tab opens shows the bar with that tab active. Screen HTML is untouched.
+ */
+function followDestinations(plan: NavigationPlan, assignments: Assignment[], screens: Array<{ id: string; name: string }>) {
+  const ids = new Set(plan.items.map(item => item.id));
+  const opens = new Map(plan.items.flatMap(item => item.linkedScreenName ? [[item.linkedScreenName.toLowerCase(), item.id] as const] : []));
+  const moved = new Map<string, string | null>();
+  const next = assignments.map(assignment => {
+    const name = screens.find(screen => screen.id === assignment.screenId)?.name;
+    const opened = name && !assignment.parentScreenId ? opens.get(name.toLowerCase()) : undefined;
+    if (name && opened && opened !== assignment.navigationItemId) {
+      moved.set(name, opened);
+      return { ...assignment, navigationItemId: opened, chromePolicy: { ...assignment.chromePolicy, chrome: "bottom-tabs", showPrimaryNavigation: true } };
+    }
+    if (assignment.navigationItemId && !ids.has(assignment.navigationItemId)) {
+      if (name && !assignment.parentScreenId) moved.set(name, null);
+      return { ...assignment, navigationItemId: null, chromePolicy: { ...assignment.chromePolicy, chrome: "top-bar", showPrimaryNavigation: false } };
+    }
+    return assignment;
+  });
+  const screenChrome = plan.screenChrome.filter(entry => !moved.has(entry.screenName) && (!entry.navigationItemId || ids.has(entry.navigationItemId)));
+  for (const [screenName, navigationItemId] of moved) screenChrome.push({ screenName, chrome: navigationItemId ? "bottom-tabs" : "top-bar", navigationItemId });
+  return { plan: { ...plan, screenChrome }, assignments: next };
+}
+
+/** What changed in the tabs, as lines for the chat card: computed, never taken from the model's description. */
+function tabChanges(before: NavigationPlan["items"], after: NavigationPlan["items"]) {
+  const lines: string[] = [];
+  for (const item of after) {
+    const old = before.find(previous => previous.id === item.id);
+    if (!old) lines.push(`+ ${item.label} tab${item.linkedScreenName ? `, opens ${item.linkedScreenName}` : " (screen not built yet)"}`);
+    else if (old.label !== item.label) lines.push(`Renamed ${old.label} to ${item.label}`);
+    else if (old.icon !== item.icon) lines.push(`New ${item.label} icon`);
+  }
+  for (const old of before) if (!after.some(item => item.id === old.id)) lines.push(`- ${old.label} tab`);
+  const kept = after.filter(item => before.some(old => old.id === item.id)).map(item => item.id);
+  if (kept.join() !== before.filter(old => kept.includes(old.id)).map(old => old.id).join()) lines.push("Reordered the tabs");
+  return lines;
+}
 
 /** Navigation and its screen assignments are one history transaction; screen HTML is never regenerated. */
 export async function executeNavigationEdit(admin: SupabaseClient<Database>, request: Request, designTokens: DesignTokens | null, projectCharter: ProjectCharter | null) {
-  const [{ data: saved, error: navError }, { data: rows, error: screenError }] = await Promise.all([
+  const [{ data: saved, error: navError }, { data: rows, error: screenError }, { data: roadmapRows, error: roadmapError }] = await Promise.all([
     admin.from("project_navigation").select("plan, shell_code, design_revision").eq("project_id", request.projectId).eq("owner_id", request.ownerId).maybeSingle(),
     admin.from("screens").select("id, name, code, chrome_policy, navigation_item_id, parent_screen_id, state_key, roadmap_item_id")
       .eq("project_id", request.projectId).eq("owner_id", request.ownerId).order("sort_index", { ascending: true }),
+    admin.from("project_screen_roadmap").select("id, name, description, kind, generated_screen_id")
+      .eq("project_id", request.projectId).eq("owner_id", request.ownerId).order("sequence", { ascending: true }),
   ]);
   if (navError) throw navError;
   if (screenError) throw screenError;
+  if (roadmapError) throw roadmapError;
   const screens = (rows ?? []).map(row => ({ ...row, code: row.code ?? "" }));
   if (request.screenId && !screens.some(screen => screen.id === request.screenId)) throw new Error("The navigation target screen is no longer available.");
+  const roadmap = (roadmapRows ?? []).filter(item => item.kind === "screen");
   const identity = { projectId: request.projectId, ownerId: request.ownerId, target: { context: "navigation" as const } };
   const snapshot = saved ? await readDesignTarget(admin, identity) : null;
   if (saved && snapshot?.revision !== saved.design_revision) throw new Error("Navigation changed while the edit was starting. Please retry.");
   const before = snapshot ? navigationSnapshotSchema.parse(snapshot.payload) : null;
-  let assignments = before?.assignments ?? screens.map(screen => ({
+  let assignments: Assignment[] = before?.assignments ?? screens.map(screen => ({
     screenId: screen.id, chromePolicy: screen.chrome_policy as Record<string, unknown> | null,
     navigationItemId: screen.navigation_item_id, parentScreenId: screen.parent_screen_id,
     stateKey: screen.state_key, roadmapItemId: screen.roadmap_item_id,
@@ -43,7 +94,7 @@ export async function executeNavigationEdit(admin: SupabaseClient<Database>, req
   let plan = storedPlan?.enabled && storedPlan.items.length >= 2 ? storedPlan : null;
   let shell = plan ? plan.version === 2 ? renderDeterministicNavigationShell(plan) : saved?.shell_code ?? "" : "";
   if (plan && !validateNavigationShell(shell, plan)) throw new Error("The saved shared navigation needs repair before it can be reused.");
-  const intent = request.intent ?? navigationEditIntent(request.prompt, true) ?? "edit";
+  const intent = request.intent ?? navigationEditIntent(request.prompt, true) ?? "restyle";
   let sourceScreenId: string | null = null;
   if (!plan) {
     const references = request.sourceReferences?.map(reference => reference.screenId) ?? [];
@@ -105,29 +156,42 @@ export async function executeNavigationEdit(admin: SupabaseClient<Database>, req
     plan.items = plan.items.map(item => item.id === itemId && !item.linkedScreenName
       ? { ...item, linkedScreenName: screen.name, availability: "generated" } : item);
   }
-  const legacyElementEdit = !creating && intent === "edit" && plan.version !== 2;
+  // The designer sees each screen as it will be after this edit: its role, its chrome, and the tab it opens from.
+  const designContext = {
+    ...context,
+    screens: orderedScreens.map(screen => {
+      const assignment = assignments.find(item => item.screenId === screen.id);
+      const role = roadmap.find(item => item.generated_screen_id === screen.id || item.id === screen.roadmap_item_id)?.description ?? null;
+      return { id: screen.id, name: screen.name, code: screen.code, role, navigationItemId: assignment?.navigationItemId ?? null,
+        chrome: chromeOf(assignment?.chromePolicy) ?? chromeOf(screen.chrome_policy as Record<string, unknown> | null), parentScreenId: screen.parent_screen_id };
+    }),
+    plannedScreens: roadmap.filter(item => !item.generated_screen_id && !screens.some(screen => screen.name.toLowerCase() === item.name.toLowerCase()))
+      .map(item => ({ name: item.name, description: item.description })),
+  };
+  const previousItems = plan.items;
+  let notes: NavigationDesignNotes = { title: null, summary: null };
+  const legacyElementEdit = !creating && plan.version !== 2 && (intent === "restyle" || intent === "destinations");
   if (legacyElementEdit) {
     shell = await editLegacyNavigation({ prompt: request.prompt, shell, plan, designTokens, projectCharter,
       drawgleId: request.selectedElementTarget === "navigation" ? request.selectedElementDrawgleId : null });
-  } else if (creating || intent === "redesign") plan = await redesignNavigation(context, plan);
-  else if (intent === "edit") {
-    const deterministic = applyNavigationDesignEdit(plan, request.prompt);
-    // Keep the existing explicit rename operation. Appearance requests need the project's style context,
-    // even when a keyword could otherwise select a generic built-in bar.
-    plan = JSON.stringify(deterministic.items) !== JSON.stringify(plan.items)
-      ? { ...plan, items: deterministic.items }
-      : await redesignNavigation(context, plan);
+  } else if (creating || intent === "restyle" || intent === "redesign") {
+    ({ plan, notes } = await redesignNavigation(designContext, plan, creating ? "create" : intent === "redesign" ? "redesign" : "restyle"));
+  } else if (intent === "destinations") {
+    ({ plan, notes } = await reviseNavigationDestinations(designContext, plan));
   }
+  if (plan.items !== previousItems) ({ plan, assignments } = followDestinations(plan, assignments, screens));
   // A reuse request never passes the accepted visual design through generation.
   if (!legacyElementEdit && (plan.version === 2 || creating || intent !== "reuse")) shell = renderDeterministicNavigationShell(plan);
   shell = ensureDrawgleIds(shell, "dg-nav").code;
   if (!validateNavigationShell(shell, plan)) throw new Error("The shared navigation did not pass validation; no changes were saved.");
   const payload = navigationSnapshotSchema.parse({ plan, shellCode: shell, assignments });
   const changed = JSON.stringify(before) !== JSON.stringify(payload);
+  const label = creating ? "Created shared navigation" : { reuse: "Reused shared navigation", restyle: "Restyled shared navigation",
+    redesign: "Redesigned shared navigation", destinations: "Changed navigation tabs" }[intent];
   if (changed) {
     if (snapshot) {
       const result = await persistDesignChange(admin, identity, { expectedRevision: snapshot.revision, requestId: request.userMessageId,
-        payload, label: intent === "reuse" ? "Reused shared navigation" : "Redesigned shared navigation", origin: "ai-edit" });
+        payload, label, origin: "ai-edit" });
       if (result.status !== "success") throw new Error("Navigation or its screens changed during this edit. Please retry.");
     } else {
       const { data, error } = await admin.rpc("apply_navigation_repair", {
@@ -139,5 +203,20 @@ export async function executeNavigationEdit(admin: SupabaseClient<Database>, req
       if (historyResultSchema.parse(data).status !== "success") throw new Error("Navigation or its screens changed during this edit. Please retry.");
     }
   }
-  return { changed, message: changed ? intent === "reuse" && !creating ? "Applied the shared project navigation, preserving its design and icons." : "Updated the shared project navigation." : "This screen already uses the shared project navigation." };
+  if (intent === "reuse" && !creating) {
+    return { changed, designSummary: null, message: changed ? "Applied the shared project navigation, preserving its design and icons." : "This screen already uses the shared project navigation." };
+  }
+  if (!changed) return { changed, designSummary: null, message: "The shared navigation already matches that request, so nothing changed." };
+  const unbuilt = plan.items.filter(item => item.availability === "planned" && !previousItems.some(previous => previous.id === item.id)).map(item => item.label);
+  const message = [
+    notes.summary ?? (intent === "destinations" ? "Updated the navigation tabs." : "Updated the shared project navigation."),
+    unbuilt.length ? `${listLabels(unbuilt)} ${unbuilt.length === 1 ? "doesn't have its screen" : "don't have their screens"} yet; ask me to create ${unbuilt.length === 1 ? "it" : "them"} when you're ready.` : "",
+  ].filter(Boolean).join(" ");
+  const diff = tabChanges(previousItems, plan.items);
+  const designSummary: NavigationDesignSummary = {
+    title: notes.title ?? label,
+    summary: message,
+    styleDiff: diff.length ? diff.join("\n") : null,
+  };
+  return { changed, designSummary, message };
 }

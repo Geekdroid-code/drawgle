@@ -1,5 +1,20 @@
-/** A conservative routing backstop; the semantic router handles phrasing outside these common requests. */
-export type NavigationEditIntent = "reuse" | "redesign" | "edit";
+/**
+ * What a navigation request asks for. The semantic router decides this from the person's own words; the patterns
+ * below are a conservative backstop for when it could not.
+ * - reuse: put the accepted nav on a screen. Its look and tabs stay exactly as they are.
+ * - restyle: change how the nav looks. The tabs stay.
+ * - redesign: a new or better nav for this app. Both its look and which tabs it has are open.
+ * - destinations: add, remove, rename, reorder or re-icon specific tabs. The look stays.
+ */
+export const NAVIGATION_EDIT_INTENTS = ["reuse", "restyle", "redesign", "destinations"] as const;
+export type NavigationEditIntent = typeof NAVIGATION_EDIT_INTENTS[number];
+
+export const parseNavigationEditIntent = (value: unknown): NavigationEditIntent | null =>
+  NAVIGATION_EDIT_INTENTS.find(intent => intent === value) ?? null;
+
+const REDESIGN_WORDS = /\b(?:redesign|restyle|moderni[sz]e|revamp|premium|modern|better|new|improve|creative)\b/i;
+// A tab bar is the nav itself, not one of its tabs.
+const DESTINATION_CHANGE = /\b(?:add|remove|delete|drop|rename|reorder|swap)\b[^.!?]{0,40}\b(?:tabs?(?!\s*bar)|destinations?)\b|\brename\s+["']?[^"'\s]+["']?\s+to\b/i;
 
 export function navigationEditIntent(prompt: string, navigationSelected = false): NavigationEditIntent | null {
   const namesNavigation = /\b(nav(?:s|bar|igation)?|tab\s*bar|bottom\s+bar|floating\s+dock)\b/i.test(prompt);
@@ -14,6 +29,8 @@ export function navigationEditIntent(prompt: string, navigationSelected = false)
     const navSubject = /^(?:(?:the|this|our|bottom|shared|primary)\s+)*(?:nav(?:bar|igation)?|tab\s*bar)\b/i.test(prompt.trim());
     if (!directRequest && !complaint && !navSubject) return null;
   }
+  // "Add a profile tab to the nav" changes the tabs; it is not a request to put the nav somewhere.
+  if (DESTINATION_CHANGE.test(prompt) && !REDESIGN_WORDS.test(prompt)) return "destinations";
   if (/\b(?:reuse|re-use|same|consistent|different navs?|different navigation)\b/i.test(prompt)
     || /\b(?:add|create|build|use|apply|put|include|copy)\b[^.!?]{0,80}\b(?:nav(?:igation)?|tab bar|bottom bar)\b/i.test(prompt)
     || /\b(?:nav(?:igation)?|tab bar)\b[^.!?]{0,70}\b(?:this|that|another|second)\s+(?:screen|page)\b/i.test(prompt)) {
@@ -23,6 +40,6 @@ export function navigationEditIntent(prompt: string, navigationSelected = false)
     // Complaints about an unwanted new bar must not trigger another redesign.
     if (/why\b[^.!?]{0,100}\bnew\b|didn'?t\s+(?:you\s+)?use|different navs?/i.test(prompt)) return "reuse";
   }
-  if (/\b(?:redesign|restyle|moderni[sz]e|revamp|premium|modern|better|new|improve)\b/i.test(prompt)) return "redesign";
-  return "edit";
+  if (REDESIGN_WORDS.test(prompt)) return "redesign";
+  return "restyle";
 }

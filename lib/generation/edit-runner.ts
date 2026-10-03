@@ -36,7 +36,7 @@ import {
   sanitizeScreenCodeForSharedNavigation,
 } from "@/lib/project-navigation";
 import { executeNavigationEdit } from "./navigation-edit-runner";
-import { navigationEditIntent } from "@/lib/navigation-edit-intent";
+import { navigationEditIntent, type NavigationEditIntent } from "@/lib/navigation-edit-intent";
 import { deriveRequiresBottomNav } from "@/lib/navigation";
 import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -77,6 +77,8 @@ export type ModifyScreenPayload = {
   selectedElementDrawgleId?: string | null;
   selectedElementTarget?: "screen" | "navigation" | null;
   requestTargetsNavigation?: boolean;
+  /** The router's reading of a navigation request; the text backstop decides only when it is missing. */
+  navigationIntent?: NavigationEditIntent | null;
   targetScope?: EditTargetScope | string | null;
   editOperation?: EditOperation | string | null;
   editStrategy?: EditStrategy | string | null;
@@ -688,14 +690,14 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     const result = await executeNavigationEdit(admin, {
       ...payload,
       prompt: prompt === originalPrompt ? prompt : `${originalPrompt}\nResolved request: ${prompt}`,
-      intent: navigationEditIntent(originalPrompt) ?? navigationEditIntent(prompt, true),
+      intent: payload.navigationIntent ?? navigationEditIntent(originalPrompt) ?? navigationEditIntent(prompt, true),
     }, designTokens, projectCharter);
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId, ownerId: payload.ownerId, screenId: payload.screenId ?? null,
       role: "model", content: result.message, messageType: result.changed ? "edit_applied" : "chat",
       metadata: { action: result.changed ? "edit_applied" : "edit_noop", target: "project_navigation", screenName: "Navigation",
         userMessageId: payload.userMessageId, editJob: { status: "completed", targetType: "navigation" }, routerDecision: payload.routerDecision ?? null,
-        agentState: buildEditAgentState({ kind: "last_actionable_request", instruction: prompt, scope: "navigation", screenId: payload.screenId }) },
+        designSummary: result.designSummary, agentState: buildEditAgentState({ kind: "last_actionable_request", instruction: prompt, scope: "navigation", screenId: payload.screenId }) },
     });
     await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, result.message);
     return { targetType: "navigation" as const, ...result };
