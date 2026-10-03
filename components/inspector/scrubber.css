@@ -1,0 +1,18 @@
+.ip-scrubber { --scrub-surface:var(--dg-surface-muted,#f0f0f0); --scrub-ink:var(--dg-text,#171717); position:relative; isolation:isolate; display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; min-width:0; height:36px; overflow:hidden; border-radius:9px; padding:0 11px; background:var(--scrub-surface); color:var(--scrub-ink); font-size:12px; cursor:ew-resize; touch-action:none; user-select:none; outline:none; }
+.ip-scrubber-fill { position:absolute; inset:0 auto 0 0; border-radius:inherit; background:color-mix(in srgb,var(--scrub-ink) 12%,transparent); transition:width .15s ease-out; pointer-events:none; }
+.ip-scrubber-ticks { position:absolute; inset:0 64px 0 78px; display:flex; align-items:center; justify-content:space-evenly; pointer-events:none; }
+.ip-scrubber-ticks i { width:1px; height:6px; border-radius:2px; background:color-mix(in srgb,var(--scrub-ink) 20%,transparent); }
+.ip-scrubber-thumb { position:absolute; top:50%; transform:translate(-50%,-50%); transition:left .15s ease-out; pointer-events:none; }
+.ip-scrubber-thumb i { display:block; width:3px; height:22px; border-radius:3px; background:var(--scrub-ink); opacity:.15; transition:opacity .15s; }
+.ip-scrubber-label,.ip-scrubber-value { position:relative; z-index:1; pointer-events:none; }
+.ip-scrubber-label { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:500; }
+.ip-scrubber-value { flex-shrink:0; font-family:ui-monospace,monospace; font-size:11px; font-variant-numeric:tabular-nums; }
+.ip-scrubber:focus-visible { outline:2px solid #3563ee; outline-offset:2px; }
+.ip-scrubber[data-dragging] .ip-scrubber-thumb i,.ip-scrubber:focus-visible .ip-scrubber-thumb i { opacity:.6; }
+.ip-scrubber[data-dragging] .ip-scrubber-fill,.ip-scrubber[data-dragging] .ip-scrubber-thumb { transition:none; }
+.ip-scrubber-spectrum:after { content:""; position:absolute; bottom:0; left:0; right:0; height:3px; background:linear-gradient(90deg,red,#ff0,#0f0,#0ff,#00f,#f0f,red); pointer-events:none; }
+.ip-scrubber[aria-disabled=true],fieldset:disabled .ip-scrubber { opacity:.5; cursor:default; }
+@media(hover:hover) { .ip-scrubber:not([aria-disabled=true]):hover .ip-scrubber-thumb i { opacity:.5; } }
+@media(max-width:767px) { .ip-scrubber { height:44px; } }
+.ip-scrubber[data-reduced-motion] .ip-scrubber-fill,.ip-scrubber[data-reduced-motion] .ip-scrubber-thumb { transition:none; }
+@media(prefers-reduced-motion:reduce) { .ip-scrubber * { transition:none!important; } }

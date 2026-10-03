@@ -79,7 +79,7 @@ export function Hero() {
 
           <motion.h1
             {...rise(0.1, 22)}
-            className="mx-auto mb-5 max-w-4xl text-4xl font-medium leading-[1.1] tracking-[-0.025em] text-mk-heading sm:text-[52px] md:text-[62px] md:leading-[66px]"
+            className="mx-auto mb-5 max-w-4xl text-[28px] font-medium leading-[1.1] tracking-[-0.025em] text-mk-heading sm:text-[52px] md:text-[62px] md:leading-[66px]"
           >
             Design premium Mobile UIs <br />
             <span className="font-semibold text-mk-accent">at the speed of thought</span>

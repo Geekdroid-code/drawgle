@@ -20,18 +20,16 @@ import {
   MessageCircle,
   Minimize2,
   Palette,
-  RotateCcw,
-  Save,
   Sparkles,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
-import { DesignSystemEditor } from "@/components/DesignSystemEditor";
+import { DesignTab } from "@/components/design-system/DesignTab";
+import { SegmentedControl } from "@/components/inspector/SegmentedControl";
 import { AgentComposer } from "@/components/PromptBar";
 import { Button } from "@/components/ui/button";
-import { PremiumSegmentedTabs, PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
+import { PremiumTabPanel } from "@/components/ui/premium-segmented-tabs";
 import { useProjectMessages } from "@/hooks/use-project-messages";
-import { hasApprovedDesignTokens } from "@/lib/design-tokens";
 import { cleanErrorMessage } from "@/lib/errors/user-facing";
 import { generationRunHasRetryableWork } from "@/lib/generation/retry-scope";
 import { readWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
@@ -1474,7 +1472,7 @@ function ActionCard({
               </div>
             ) : (
               <div className="flex items-center gap-2 py-0.5 text-sm text-left text-slate-800 font-semibold w-full min-w-0">
-                <span className="min-w-0 flex-1 break-words whitespace-normal leading-tight">{step.title}</span>
+                <span className="min-w-0 flex-1 break-words whitespace-normal leading-tight text-xs">{step.title}</span>
                 {failed ? (
                   <span className="text-[10px] font-bold uppercase tracking-wider text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded shrink-0">
                     {statusLabel}
@@ -1689,92 +1687,6 @@ function EmptyConversation({ isLoading }: { isLoading: boolean }) {
   return (
     <div className="px-5 py-4 text-[13px] leading-6 text-slate-500">
       I&apos;m ready. Tell me what to create or edit, and I&apos;ll talk through the work as it happens.
-    </div>
-  );
-}
-
-function DesignTab({
-  tokenDraft,
-  tokenDirty,
-  tokenSaving,
-  generationActive,
-  onTokenDraftChange,
-  onSaveTokens,
-  onDiscardTokens,
-}: {
-  tokenDraft?: DesignTokens | null;
-  tokenDirty?: boolean;
-  tokenSaving?: boolean;
-  generationActive?: boolean;
-  onTokenDraftChange?: (tokens: DesignTokens) => void;
-  onSaveTokens?: () => Promise<void>;
-  onDiscardTokens?: () => void;
-}) {
-  const hasTokens = Boolean(tokenDraft && hasApprovedDesignTokens(tokenDraft));
-
-  if (!hasTokens || !tokenDraft || !onTokenDraftChange || !onSaveTokens || !onDiscardTokens) {
-    return (
-      <div className="dg-token-editor-muted flex min-h-0 flex-1 items-center justify-center px-5 text-center text-sm leading-6 text-slate-500">
-        Design tokens will appear here soon.
-      </div>
-    );
-  }
-
-  const status = generationActive
-    ? "Locked while building"
-    : tokenSaving
-      ? "Saving tokens"
-      : tokenDirty
-        ? "Unsaved token changes"
-        : "Tokens saved";
-
-  return (
-    <div className="dg-token-editor-muted flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 [scrollbar-gutter:stable]">
-        <DesignSystemEditor
-          value={tokenDraft}
-          onChange={onTokenDraftChange}
-          onSubmit={onSaveTokens}
-          title="Design System"
-          description="Exact project tokens used by screens and navigation."
-          submitLabel={tokenDirty ? "Save Tokens" : "Tokens Saved"}
-          isSubmitting={tokenSaving}
-          submitStatus="Saving live token system..."
-          layout="panel"
-          showPreview={false}
-        />
-      </div>
-      <div className="dg-token-editor-surface shrink-0 border-t border-slate-950/[0.08] px-3 py-2 backdrop-blur-xl">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <div className="truncate text-[12px] font-medium text-slate-700">{status}</div>
-            <div className="truncate text-[11px] text-slate-400">Preview updates live on canvas</div>
-          </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-[10px] text-slate-500 hover:bg-slate-950/[0.05] hover:text-slate-950"
-              disabled={!tokenDirty || tokenSaving}
-              title="Discard token changes"
-              onClick={onDiscardTokens}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              className="h-8 rounded-[10px] bg-slate-950 px-3 text-xs font-semibold text-white hover:bg-slate-800"
-              disabled={!tokenDirty || tokenSaving || generationActive}
-              onClick={() => void onSaveTokens()}
-            >
-              {tokenSaving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
-              Save
-            </Button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -2158,12 +2070,9 @@ export function ChatPanel({
             <Minimize2 className="h-4 w-4" />
           </Button>
         </div>
-        <PremiumSegmentedTabs
-          items={CHAT_WORKSPACE_TABS}
-          value={activeTab}
-          onValueChange={(tab) => { setActiveTab(tab); onWorkspaceTabChange?.(tab); }}
-          size="sm"
-          layoutId="chat-workspace-tab"
+        <SegmentedControl label="Workspace" value={activeTab}
+          options={CHAT_WORKSPACE_TABS.map(({ id, label, icon: Icon }) => ({ value: id, label: <><Icon size={14} />{label}</>, title: label }))}
+          onChange={tab => { setActiveTab(tab); onWorkspaceTabChange?.(tab); }}
         />
       </header>
 

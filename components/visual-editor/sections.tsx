@@ -43,7 +43,7 @@ export function EditorSections({ info, editor, tokens, more }: { info: SelectedE
         <div className="mt-2">{numeric("width", "Custom width")}</div></Section>}</>;
   }
   if (selection.kind === "text") return <><Section title="Content">{textContent}</Section><Section title="Typography"><div className="grid grid-cols-2 gap-2">
-    {numeric("font-size", "Size")}<Choices label="Weight" value={value("font-weight")} choices={["400", "500", "600", "700", "800"]} onChange={set("font-weight")} /></div></Section>
+    {numeric("font-size", "Size")}<Choices label="Weight" showLabel value={value("font-weight")} choices={["400", "500", "600", "700", "800"]} labels={{ "400": "Regular", "500": "Medium", "600": "Semibold", "700": "Bold", "800": "Heavy" }} onChange={set("font-weight")} /></div></Section>
     <Section title="Color">{color("color", "Text color")}</Section><Section title="Alignment"><Segments label="Text alignment" value={value("text-align")}
       options={[{ value: "left", label: <AlignLeft size={16} />, title: "Align left" }, { value: "center", label: <AlignCenter size={16} />, title: "Align center" }, { value: "right", label: <AlignRight size={16} />, title: "Align right" }]} onChange={set("text-align")} /></Section></>;
   if (selection.kind === "image") return <><Section title="Image">{selection.image && <div className="flex items-center gap-3">

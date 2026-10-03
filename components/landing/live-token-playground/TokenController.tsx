@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Box, Layers, Palette, RotateCcw, Ruler, SlidersHorizontal, Type } from "lucide-react";
+import { Scrubber } from "@/components/inspector/Scrubber";
 
 import {
   cloneTokens,
@@ -340,18 +341,7 @@ function TypeRow({
 function MetricSlider({ label, value, max, onChange }: { label: string; value: number; max: number; onChange: (value: number) => void }) {
   return (
     <div className="border-b border-slate-100 px-3 py-3 last:border-b-0">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-bold text-slate-900">{label}</span>
-        <span className="rounded-full bg-slate-100 px-3 py-1 font-mono text-xs text-slate-600">{value}px</span>
-      </div>
-      <input
-        type="range"
-        min={0}
-        max={max}
-        value={value}
-        onChange={(event) => onChange(Number(event.target.value))}
-        className="mt-3 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-slate-950"
-      />
+      <Scrubber label={label} max={max} value={value} formatValue={next => `${next}px`} onValueChange={onChange} />
     </div>
   );
 }
@@ -376,18 +366,8 @@ function ShapeRow({
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_86px] items-center gap-3 border-b border-slate-100 px-3 py-3 last:border-b-0">
       <div>
-        <div className="text-sm font-bold text-slate-900">{label}</div>
-        <div className="font-mono text-xs text-slate-500">{value}px</div>
-        <input
-          type="range"
-          min={0}
-          max={sliderMax}
-          value={sliderValue}
-          onChange={(event) => setTokens((draft) => {
-            draft.radii[radiusKey] = radiusKey === "pill" && Number(event.target.value) === 100 ? 9999 : Number(event.target.value);
-          })}
-          className="mt-2 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-slate-950"
-        />
+        <Scrubber label={label} max={sliderMax} value={sliderValue} formatValue={() => `${value}px`}
+          onValueChange={next => setTokens(draft => { draft.radii[radiusKey] = radiusKey === "pill" && next === 100 ? 9999 : next; })} />
       </div>
       <div className="grid h-12 place-items-center rounded-[10px] border border-slate-200 bg-slate-50">
         <div className="h-7 w-14 border border-slate-200 bg-white" style={{ borderRadius: value }} />
