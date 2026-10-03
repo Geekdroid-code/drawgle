@@ -54,7 +54,7 @@ export function Pricing({ as = "h2", className }: { as?: "h1" | "h2"; className?
                     {plan.capacity.replace("/mo", " a month")}
                   </p>
 
-                  <MkButton href={BILLING_PATH} variant={plan.popular ? "primary" : "secondary"} className="mt-6 w-full">
+                  <MkButton href={BILLING_PATH} variant={plan.popular ? "primary" : "secondary"} className="mt-6 w-full" data-oa-event="cta_click" data-oa-prop-location="pricing_section" data-oa-prop-plan={plan.name}>
                     {plan.cta}
                   </MkButton>
                 </div>

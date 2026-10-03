@@ -65,7 +65,7 @@ export function Navbar() {
 
           <div className="flex shrink-0 items-center gap-2 sm:gap-3">
             {!isOpen ? (
-              <MkButton href="/project/new" size="sm" className="hidden md:inline-flex">
+              <MkButton href="/project/new" size="sm" className="hidden md:inline-flex" data-oa-event="cta_click" data-oa-prop-location="navbar">
                 Design Your UI
               </MkButton>
             ) : null}
@@ -116,7 +116,7 @@ export function Navbar() {
                 ))}
               </div>
               <div className="pt-3">
-                <MkButton href="/project/new" onClick={() => setIsOpen(false)} className="w-full">
+                <MkButton href="/project/new" onClick={() => setIsOpen(false)} className="w-full" data-oa-event="cta_click" data-oa-prop-location="navbar_mobile">
                   Design Your UI
                 </MkButton>
               </div>

@@ -18,6 +18,7 @@ import { PreviewShareDialog } from "@/components/PreviewShareDialog";
 import { ChatPanel } from "@/components/ChatPanel";
 import { PlanningEmptyCanvas } from "@/components/product-planning/PlanningEmptyCanvas";
 import { notifyProjectChanged } from "@/lib/project-refresh";
+import { track, trackCheckoutReturn } from "@/lib/analytics";
 import { saveDesignTokens } from "@/lib/design-history/save-tokens";
 import { useDraftNavigationGuard } from "@/components/visual-editor/use-draft-navigation-guard";
 import { VisualEditor } from "@/components/visual-editor/VisualEditor";
@@ -482,6 +483,36 @@ export function ProjectShell({
     }
   }, [generationRun?.id]);
 
+  // Count a generation outcome only when this tab watched the run go from
+  // in-flight to terminal, so reopening a project never replays old runs.
+  const observedRunStatusesRef = useRef(new Map<string, GenerationRunData["status"]>());
+  useEffect(() => {
+    const observed = observedRunStatusesRef.current;
+    for (const run of generationRuns) {
+      const previous = observed.get(run.id);
+      observed.set(run.id, run.status);
+      if (!previous || TERMINAL_GENERATION_STATUSES.has(previous) || !TERMINAL_GENERATION_STATUSES.has(run.status)) continue;
+      const startedAt = Date.parse(run.createdAt);
+      const finishedAt = Date.parse(run.completedAt ?? run.updatedAt);
+      const props = {
+        status: run.status,
+        screen_count: run.requestedScreenCount ?? null,
+        duration_s: Number.isFinite(startedAt) && Number.isFinite(finishedAt) ? Math.max(0, Math.round((finishedAt - startedAt) / 1000)) : null,
+      };
+      track(run.status === "completed" ? "generation_completed" : "generation_failed", props);
+    }
+  }, [generationRuns]);
+
+  // PricingDialog's hosted checkout returns here with ?subscribed=1.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("subscribed")) return;
+    trackCheckoutReturn(params);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("subscribed");
+    window.history.replaceState(window.history.state, "", url.toString());
+  }, []);
+
   useEffect(() => {
     if (!pendingAddScreenRunId) {
       return;
@@ -627,6 +658,7 @@ export function ProjectShell({
         prompt: screen.prompt || "Retry failed screen",
       } as GenerationRunData);
 
+    track("screen_retried");
     await handleRetryGeneration(sourceRun, {
       targetScreenIds: [screen.id],
       targetScreenNames: [screen.name],
@@ -760,6 +792,14 @@ export function ProjectShell({
         throw new Error(payload.error ?? "Drawgle agent could not process the request.");
       }
 
+      track("agent_prompt_sent", {
+        intent: typeof payload.intent === "string" ? payload.intent : "unknown",
+        has_image: Boolean(options.image),
+        has_selection: Boolean(activeEditElement),
+        selection_target: activeEditElement?.targetType ?? null,
+        product_planning: Boolean(options.continueProductPlanning || options.productAnswers),
+      });
+
       if (payload.intent === "create_new_screen" && payload.generationRunId) {
         setPendingQueuedRunId(payload.generationRunId);
         setPendingAddScreenRunId(payload.generationRunId);
@@ -829,6 +869,7 @@ export function ProjectShell({
 
         throw new Error(payload.error ?? "Drawgle could not approve that screen plan.");
       }
+      track("screen_plan_approved", { state_variants: selectedStateVariantIds.length });
 
       if (payload.generationRunId) {
         setPendingQueuedRunId(payload.generationRunId);
@@ -867,6 +908,7 @@ export function ProjectShell({
         }
         throw new Error(payload.error ?? "Drawgle could not approve that screen state.");
       }
+      track("screen_state_approved");
       if (payload.generationRunId) {
         setPendingQueuedRunId(payload.generationRunId);
         setPendingAddScreenRunId(payload.generationRunId);
@@ -921,6 +963,7 @@ export function ProjectShell({
       }
 
       const committed = await editRes.json() as { revision: number; changed: boolean };
+      if (committed.changed) track("element_edited", { target: targetType, operation_count: operations.length });
       await refreshScreens();
       if (targetType === "screen") await loadScreenSource(screenId);
       notifyProjectChanged(project.id);

@@ -26,6 +26,12 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
       <head>
         <meta name="google-site-verification" content="49PXdY-HAHFpO0MJS7UIQlLOJ9t4q0Et6a97Fj2BKvE" />
         <JsonLd data={[organizationSchema(), websiteSchema()]} />
+        <script
+          async
+          src="https://c.ecompin.com/oa.js"
+          data-key="oa_pk_yVQED4ZAogZKtojasnMtegIBqRPFM-07"
+          data-collector="https://c.ecompin.com"
+        ></script>
       </head>
       <body>
         <Script async src="https://www.googletagmanager.com/gtag/js?id=G-L2Z678EBMX" />

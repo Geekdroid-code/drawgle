@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, GitFork, Loader2 } from "lucide-react";
 
 import { marketingFontVariables } from "@/components/marketing/fonts";
+import { track } from "@/lib/analytics";
 import { getTemplateSlug, showcaseCollections } from "@/lib/showcase";
 import { cn } from "@/lib/utils";
 
@@ -32,6 +33,7 @@ export function TemplateStarter({ slug, title }: { slug: string; title: string }
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok || !payload.projectId) throw new Error(payload.error || "Unable to start from this design.");
+        track("template_started", { template: slug });
         router.replace(`/project/${payload.projectId}`);
       })
       .catch((reason) => setError(reason instanceof Error ? reason.message : "Unable to start from this design."));

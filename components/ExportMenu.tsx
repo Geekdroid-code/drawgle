@@ -26,10 +26,13 @@ import {
   slugifyExportName,
   type ExportProjectContext,
 } from "@/lib/export-pipeline";
+import { track } from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import type { DesignTokens, ProjectData, ProjectNavigationData, ScreenData } from "@/lib/types";
 
 const HANDOFF_INSTRUCTION = "Read .drawgle/handoff.md and implement the Drawgle screens in this repository.";
+
+type ExportFormat = "agent_prompt_copy" | "agent_prompt_md" | "html" | "agent_pack";
 
 function downloadBlob(contents: BlobPart[], type: string, filename: string) {
   const blob = new Blob(contents, { type });
@@ -213,7 +216,7 @@ export function ExportMenu({
     });
   };
 
-  const withSnapshot = async (selected: ScreenData[], action: (context: ExportProjectContext) => void | Promise<void>) => {
+  const withSnapshot = async (selected: ScreenData[], format: ExportFormat, action: (context: ExportProjectContext) => void | Promise<void>) => {
     if (preparing || tokenDirty || !selected.length) return;
     setPreparing(true);
     setExportError(null);
@@ -225,6 +228,7 @@ export function ExportMenu({
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Export failed. Please retry.");
       await action(result as ExportProjectContext);
+      track("export_completed", { format, screen_count: selected.length });
     } catch (error) {
       setExportError(error instanceof Error ? error.message : "Export failed. Please retry.");
     } finally { setPreparing(false); }
@@ -238,16 +242,16 @@ export function ExportMenu({
   };
 
   const copyScreenForAgent = (screen: ScreenData, key = `screen:${screen.id}`) => {
-    void withSnapshot([screen], context => markCopied(key, buildAgentHandoffPrompt({ context, screen: context.screens[0], target: "auto" })));
+    void withSnapshot([screen], "agent_prompt_copy", context => markCopied(key, buildAgentHandoffPrompt({ context, screen: context.screens[0], target: "auto" })));
   };
 
   const downloadScreenHtml = (screen: ScreenData) => {
-    void withSnapshot([screen], context => downloadBlob([buildScreenHtml(context.screens[0], context)], "text/html;charset=utf-8", `${slugifyExportName(screen.name, "screen")}.html`));
+    void withSnapshot([screen], "html", context => downloadBlob([buildScreenHtml(context.screens[0], context)], "text/html;charset=utf-8", `${slugifyExportName(screen.name, "screen")}.html`));
   };
 
   const downloadAgentPack = () => {
     if (agentPackDisabled) return;
-    void withSnapshot(readyScreens, context => {
+    void withSnapshot(readyScreens, "agent_pack", context => {
     const bytes = buildAgentPackZip({ context, target: "auto" });
     downloadBlob(
       [new Uint8Array(bytes)],
@@ -348,7 +352,7 @@ export function ExportMenu({
                 title="Agent Prompt Markdown"
                 description="Download the selected screen handoff"
                 meta="MD"
-                onClick={() => activeScreen && void withSnapshot([activeScreen], context => downloadBlob([buildAgentHandoffPrompt({ context, screen: context.screens[0], target: "auto" })], "text/markdown;charset=utf-8", `${slugifyExportName(activeScreen.name, "screen")}-agent-prompt.md`))}
+                onClick={() => activeScreen && void withSnapshot([activeScreen], "agent_prompt_md", context => downloadBlob([buildAgentHandoffPrompt({ context, screen: context.screens[0], target: "auto" })], "text/markdown;charset=utf-8", `${slugifyExportName(activeScreen.name, "screen")}-agent-prompt.md`))}
                 disabled={selectedActionsDisabled}
                 trailing={<FileCode2 className="h-5 w-5" />}
               />

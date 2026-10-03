@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { track } from '@/lib/analytics'
 import { checkout } from '@/lib/dodopayments'
 
 export default function SubscribeButton({ productId, isAuthenticated, className, children }: { productId: string; isAuthenticated: boolean; className?: string; children?: React.ReactNode }) {
@@ -16,6 +17,7 @@ export default function SubscribeButton({ productId, isAuthenticated, className,
             }
 
             setLoading(true)
+            track('checkout_started', { source: 'billing_page', product_id: productId })
             const origin = typeof window !== 'undefined' ? window.location.origin : ''
             const return_url = `${origin}/billing?subscribed=1`
 

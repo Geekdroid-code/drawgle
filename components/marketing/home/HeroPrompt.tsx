@@ -8,6 +8,7 @@ import { Check, ChevronDown, ImagePlus, Sparkles, X } from "lucide-react";
 
 import { DrawgleLogo } from "@/components/DrawgleLogo";
 import { EASE } from "@/components/marketing/motion/hooks";
+import { track } from "@/lib/analytics";
 import { saveClientEntryDraft, validateClientEntryImage } from "@/lib/client-entry-draft";
 import { getStylePresetSlug, showcaseCollections, type ShowcaseCollection } from "@/lib/showcase";
 import { cn } from "@/lib/utils";
@@ -123,6 +124,7 @@ export function HeroPrompt() {
     if (isForwarding) return;
 
     const styleQuery = style && !image ? `style=${encodeURIComponent(getStylePresetSlug(style))}` : "";
+    track("hero_prompt_submitted", { has_brief: hasBrief, has_image: Boolean(image), has_style: Boolean(styleQuery) });
     if (!hasBrief) {
       router.push(`/project/new${styleQuery ? `?${styleQuery}` : ""}`);
       return;

@@ -11,6 +11,7 @@ import { marketingFontVariables } from "@/components/marketing/fonts";
 import { DitherField } from "@/components/marketing/motion/DitherField";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { track } from "@/lib/analytics";
 import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 import { testimonials } from "@/lib/marketing/home-content";
 import { createClient } from "@/lib/supabase/client";
@@ -105,6 +106,7 @@ function LoginPageContent() {
   const handleGoogleSignIn = async () => {
     clearFormFeedback();
     setPendingAction("google");
+    track("login_started", { method: "google" });
 
     try {
       const supabase = createClient();
@@ -148,6 +150,7 @@ function LoginPageContent() {
         throw error;
       }
 
+      track("login_completed", { method: "password" });
       finishSignedInFlow();
     } catch (error) {
       console.error("Supabase email sign-in failed", error);
@@ -187,6 +190,8 @@ function LoginPageContent() {
       if (error) {
         throw error;
       }
+
+      track("signup_completed", { method: "password", needs_confirmation: !data.session });
 
       if (data.session) {
         finishSignedInFlow();

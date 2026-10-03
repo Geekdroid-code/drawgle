@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { track } from "@/lib/analytics";
 import { draftImageToPromptPayload, readClientEntryDraft, validateClientEntryImage } from "@/lib/client-entry-draft";
 import { getStylePresetSlug, type ShowcaseCollection } from "@/lib/showcase";
 import type { ImageReferenceMode, PromptImagePayload } from "@/lib/types";
@@ -99,6 +100,11 @@ export function useProjectBrief({ initialPrompt = "", initialClientDraftId, init
       });
       const payload = await response.json();
       if (!response.ok || !payload.projectId) throw new Error(typeof payload.error === "string" ? payload.error : "Could not create your project.");
+      track("project_created", {
+        source: image ? "image" : selectedStylePreset ? "style_preset" : "prompt",
+        image_mode: image ? imageReferenceMode : null,
+        style_preset: !image ? selectedStylePreset?.slug ?? null : null,
+      });
       router.push(`/project/${payload.projectId}`);
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Could not create your project.");
