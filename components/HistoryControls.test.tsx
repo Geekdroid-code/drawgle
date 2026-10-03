@@ -141,6 +141,28 @@ describe("contextual history controls", () => {
     await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(null));
   });
 
+  it("opens where history starts on After, with nothing before it to show or restore", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      calls.push({ url, init });
+      if (url.includes("/history/") && !url.endsWith("/history")) return { ok: true, json: async () => ({ id: listing.entries[0].id, label: "Created the design system",
+        payload: { tokens: { tokens: { radii: { app: "16px" } } } }, beforePayload: { tokens: null }, startingPoint: true }) };
+      if (init?.method === "POST") return { ok: true, json: async () => ({ status: "success", revision: 5 }) };
+      return { ok: true, json: async () => ({ revision: 4, canUndo: false, canRedo: false,
+        entries: [{ ...listing.entries[0], label: "Created the design system", startingPoint: true }] }) };
+    }));
+    const user = userEvent.setup(); const onCanvasPreviewChange = vi.fn();
+    const view = renderControls({ target: { context: "tokens" }, onCanvasPreviewChange });
+    await waitFor(() => expect(view.getByLabelText("Undo design-token change").hasAttribute("disabled")).toBe(true));
+    await user.click(view.getByLabelText("Recent changes"));
+    await user.click(await view.findByText("Created the design system"));
+    await waitFor(() => expect(onCanvasPreviewChange).toHaveBeenLastCalledWith(expect.objectContaining({ context: "tokens", side: "after" })));
+    expect(view.getByRole("button", { name: "Before change" }).hasAttribute("disabled")).toBe(true);
+    expect(view.getByText(/Generation created this design system, so nothing comes before it/)).toBeTruthy();
+    await user.click(view.getByText("Restore this version"));
+    await waitFor(() => expect(calls.some(call => call.init?.method === "POST" && JSON.parse(call.init.body as string).side === "after")).toBe(true));
+    expect(calls.some(call => call.init?.method === "POST" && JSON.parse(call.init.body as string).side === "before")).toBe(false);
+  });
+
   it("keeps the canvas on the current design while an adjustment or another job is pending", async () => {
     const user = userEvent.setup(); const onCanvasPreviewChange = vi.fn();
     const view = renderControls({ onCanvasPreviewChange, disabledReason: "Wait for the active design job to finish." });

@@ -177,14 +177,14 @@ export function HistoryControls({ projectId, target, screenName, screens, disabl
   const historyView = open ? <HistoryPanel label={target.context === "screen" ? screenName || "Selected screen" : target.context === "navigation" ? "Shared navigation" : "Project styles"}
     entries={listing?.entries ?? []} preview={preview} onCanvas={Boolean(canvasPreview)} error={error} disabledReason={local?.hasLocalHistory ? "Apply or discard your adjustments before restoring a saved change." : disabledReason} working={working}
     failedScreen={!!failedScreen} onBack={() => { setOpen(false); setPreview(null); historyButton.current?.focus(); }}
-    side={previewSide} scope={target.context} onSideChange={side => { setPreviewSide(side); setError(null); }}
+    side={previewSide} scope={target.context} onSideChange={side => { if (side === "before" && preview?.startingPoint) return; setPreviewSide(side); setError(null); }}
     onClearPreview={() => setPreview(null)} onRestore={() => { if (preview) void run("restore", preview.id, previewSide); }}
     onRestoreLastGood={() => void restoreLastGood()} onPreview={entry => {
       void fetch(`/api/projects/${projectId}/history/${entry.id}?${targetKey}`, { cache: "no-store" })
         .then(async response => { if (!response.ok) { const failure = await response.json().catch(() => null); throw new Error(failure?.error || "Preview unavailable."); } const result = await response.json() as Preview;
           // Only a server without the before-snapshot migration answers without it.
           if (!result.beforePayload) throw new Error("This change can’t be previewed right now. Refresh Recent changes and try again.");
-          setPreviewSide("before"); setPreview(result); setError(null); })
+          setPreviewSide(result.startingPoint ? "after" : "before"); setPreview(result); setError(null); })
         .catch(err => setError(err.message));
     }} /> : null;
   return <div ref={root} className="relative flex items-center gap-1" data-testid="history-controls">

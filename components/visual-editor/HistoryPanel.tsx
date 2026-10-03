@@ -1,13 +1,19 @@
 "use client";
 import { ArrowLeft, Check, History } from "lucide-react";
 
-export type HistoryEntry = { id: string; label: string; createdAt: string; isCurrent: boolean };
-export type HistoryPreview = { id: string; label: string; payload: Record<string, unknown>; beforePayload: Record<string, unknown> };
+/** startingPoint: where the history starts (the design system or navigation generation created); nothing is before it. */
+export type HistoryEntry = { id: string; label: string; createdAt: string; isCurrent: boolean; startingPoint?: boolean };
+export type HistoryPreview = { id: string; label: string; payload: Record<string, unknown>; beforePayload: Record<string, unknown>; startingPoint?: boolean };
 
 const SHOWN: Record<"screen" | "navigation" | "tokens", (side: "before" | "after") => string> = {
   screen: (side) => `The canvas shows this screen ${side} the change. Restoring makes this version current. Shared styles and navigation stay as they are.`,
   navigation: (side) => `The canvas shows the navigation ${side} the change. Restoring brings back this navigation and which screens show it. Screen contents stay as they are.`,
   tokens: (side) => `The canvas shows the project styles ${side} the change. Restoring brings back these styles. Screen contents and navigation stay as they are.`,
+};
+const STARTED: Record<"screen" | "navigation" | "tokens", string> = {
+  screen: "",
+  navigation: "Generation created this navigation, so nothing comes before it. The canvas shows it as it was created; restoring brings it back. Screen contents stay as they are.",
+  tokens: "Generation created this design system, so nothing comes before it. The canvas shows it as it was created; restoring brings it back. Screen contents and navigation stay as they are.",
 };
 
 /**
@@ -40,10 +46,12 @@ export function HistoryPanel({ label, entries, preview, onCanvas, error, disable
       {preview ? <div className="ve-section">
         <p className="mb-3 text-xs font-medium">{preview.label}</p>
         <div className="ve-segments mb-3" aria-label="Preview state">
-          <button type="button" className="ve-segment" aria-pressed={side === "before"} onClick={() => onSideChange("before")}>Before change</button>
+          <button type="button" className="ve-segment" aria-pressed={side === "before"} disabled={preview.startingPoint}
+            title={preview.startingPoint ? "Nothing comes before this: generation created it." : undefined} onClick={() => onSideChange("before")}>Before change</button>
           <button type="button" className="ve-segment" aria-pressed={side === "after"} onClick={() => onSideChange("after")}>After change</button>
         </div>
-        <p className="text-xs leading-relaxed text-[var(--dg-text-muted)]">{onCanvas ? SHOWN[scope](side) : "Finish or discard the pending change to see this version on the canvas."}</p>
+        <p className="text-xs leading-relaxed text-[var(--dg-text-muted)]">{!onCanvas ? "Finish or discard the pending change to see this version on the canvas."
+          : preview.startingPoint && STARTED[scope] ? STARTED[scope] : SHOWN[scope](side)}</p>
       </div> : entries.length ? <ol className="space-y-1 p-3">{entries.map(entry => <li key={entry.id}>
         <button type="button" onClick={() => onPreview(entry)} className="ve-history-entry">
           <span className="flex items-start justify-between gap-2"><span className="min-w-0 text-[13px] font-medium leading-5">{entry.label}</span>

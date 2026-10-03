@@ -17,6 +17,7 @@ import type { CuratedStyleSelectionDiagnostics } from "@/lib/generation/curated-
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { CURATED_STYLE_EMBEDDING_MODEL } from "@/lib/generation/curated-style-index-core";
 import { indexScreenCode } from "@/lib/generation/block-index";
+import { designSystemSaveLabel, navigationSaveLabel } from "@/lib/design-history/labels";
 import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
 import { runRollingBuilds } from "@/lib/generation/build-scheduler";
 import { acceptedScreenFamily } from "@/lib/generation/accepted-screen-family";
@@ -2128,12 +2129,14 @@ export const generateUiFlowTask = task({
     }
     const projectTokens = existingProject?.design_tokens as DesignTokens | null | undefined;
     let tokenExpectedRevision: number = existingProject?.token_revision ?? 0;
+    let savedTokens = projectTokens ?? null;
     const saveGeneratedTokens = async (nextTokens: DesignTokens) => {
       const saved = await persistDesignChange(admin, { projectId: payload.projectId, ownerId: payload.ownerId,
         target: { context: "tokens" } }, { expectedRevision: tokenExpectedRevision, requestId: randomUUID(),
-        payload: { tokens: nextTokens }, label: "Updated generated design tokens", origin: "generation" });
+        payload: { tokens: nextTokens }, label: designSystemSaveLabel(savedTokens), origin: "generation" });
       if (saved.status !== "success") throw new Error("Design tokens changed during generation. Refresh and retry explicitly.");
       tokenExpectedRevision = saved.revision ?? tokenExpectedRevision;
+      savedTokens = nextTokens;
     };
     const candidateTokens = designTokens ?? projectTokens ?? null;
     const currentSourceHash = productPlanning?.experience?.referenceHash
@@ -3135,7 +3138,7 @@ export const generateUiFlowTask = task({
         const saved = await persistDesignChange(admin, navigationIdentity, {
           expectedRevision: initialNavigationSnapshot.revision, requestId: randomUUID(),
           payload: { ...initialNavigationSnapshot.payload as object, plan: plan.navigationPlan, shellCode: navigationShellCode },
-          label: "Updated shared navigation", origin: "generation",
+          label: navigationSaveLabel((initialNavigationSnapshot.payload as { shellCode?: string }).shellCode), origin: "generation",
         });
         if (saved.status !== "success") throw new Error("Navigation changed during generation. Refresh and retry explicitly.");
       } else {

@@ -12,6 +12,7 @@ import { readProductPlanning } from "@/lib/product-planning/model";
 import { resumeProductGeneration } from "@/lib/product-planning/resume-generation";
 
 import { normalizeDesignTokens } from "@/lib/design-tokens";
+import { designSystemSaveLabel } from "@/lib/design-history/labels";
 import { persistDesignChange } from "@/lib/design-history/persistence";
 import { getDesignStylePack, isDesignStyleId, summarizeDesignStyle } from "@/lib/generation/design-styles";
 import { VISUAL_ASSET_SEMANTIC_CATEGORIES } from "@/lib/generation/asset-semantics";
@@ -703,7 +704,7 @@ export async function POST(request: Request) {
       if (referenceScope !== "screen" && (payload.designTokens !== undefined || !project.design_tokens)) {
         const saved = await persistDesignChange(admin, { projectId, ownerId, target: { context: "tokens" } }, {
           expectedRevision: project.token_revision, requestId: crypto.randomUUID(), payload: { tokens: designTokens },
-          label: "Saved generation design tokens", origin: "generation-queue",
+          label: designSystemSaveLabel(project.design_tokens as DesignTokens | null), origin: "generation-queue",
         });
         if (saved.status !== "success") return NextResponse.json({ error: "Design tokens changed while queueing. Refresh and retry." }, { status: 409 });
       }

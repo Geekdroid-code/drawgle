@@ -1,4 +1,14 @@
 import { findDrawgleElement, type DeterministicEditOperation } from "@/lib/drawgle-dom";
+import type { DesignTokens } from "@/lib/types";
+
+/**
+ * Generation saving the design system or navigation: "Created" when there was none before, which is where that
+ * history starts (the database marks the same entries; supabase/migrations/20261003120000_history_starting_points.sql).
+ */
+export const designSystemSaveLabel = (before: DesignTokens | null | undefined) =>
+  before?.tokens && Object.keys(before.tokens).length > 0 ? "Updated the design system" : "Created the design system";
+export const navigationSaveLabel = (beforeShellCode: string | null | undefined) =>
+  beforeShellCode?.trim() ? "Updated the navigation" : "Created the navigation";
 
 /**
  * Names a saved element edit in Recent changes by what changed and where: "Restyled “Sign Out”", "Changed text to
