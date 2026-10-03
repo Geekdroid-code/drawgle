@@ -36,7 +36,7 @@ export async function saveProductPatchWithRoadmap(admin: PlanningStore, projectI
       // A decision link is optional context: a retired decision drops out
       // rather than blocking the product change, as in the roadmap save.
       if (section === "decisions") return [];
-      throw new ProductToolError(`Saved screen ${item.stableKey} still depends on ${id}. Replace that ${section} fact and its roadmap reference together.`,
+      throw new ProductToolError(`Saved screen ${item.stableKey} still depends on ${id}. Supersede it with a ${section} replacement, or first re-point or remove that screen with update_functional_plan and retire ${id} in a later response.`,
         "ROADMAP_FACT_REFERENCES", { outputKey: item.stableKey, factId: id });
     });
     const updated = { ...item, surfaceIds: remap(item.surfaceIds, "surfaces"),

@@ -26,9 +26,9 @@ export function reconcileFunctionalFactReferences(state: ProductPlanning, items:
     if (!byId.has(id)) return null;
     if (fact?.status === "active") throw new ProductToolError(fact.id === id
       ? `${id} is a ${fact.section} fact, not a ${section} fact. Use an active ${section} fact ID.`
-      : `The ${section} fact ${id} was replaced by ${fact.id}, which is a ${fact.section} fact. Use an active ${section} fact ID.`,
+      : `${id} was replaced by ${fact.id}, which is a ${fact.section} fact, not a ${section} fact. Use an active ${section} fact ID.`,
     "ROADMAP_FACT_REFERENCES", { factId: id, factSection: fact.section, expectedSection: section });
-    throw new ProductToolError(`The ${section} fact ${id} was retired. Use an active ${section} fact ID.`,
+    throw new ProductToolError(`${id} was retired. Use an active ${section} fact ID.`,
       "ROADMAP_FACT_REFERENCES", { factId: id, expectedSection: section });
   };
   const addAssumption = (id: string, section: "surfaces" | "journeys", item: FunctionalItem) => {
