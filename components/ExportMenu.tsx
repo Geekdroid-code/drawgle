@@ -21,7 +21,7 @@ import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import {
   buildAgentHandoffPrompt,
   buildAgentPackZip,
-  buildStandaloneHtmlExport,
+  buildCleanHtmlExport,
   resolveScreenNavigationCode,
   slugifyExportName,
   type ExportProjectContext,
@@ -205,7 +205,7 @@ export function ExportMenu({
   const activeScreen = screens.find((screen) => screen.id === activeScreenId) || screens[0] || null;
   const buildScreenHtml = (screen: ScreenData, context: ExportProjectContext) => {
     const navigationCode = resolveScreenNavigationCode(screen, context.projectNavigation);
-    return buildStandaloneHtmlExport({
+    return buildCleanHtmlExport({
       screen,
       navigationCode,
       activeNavigationItemId: screen.navigationItemId,

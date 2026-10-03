@@ -7,7 +7,7 @@ import { MoreHorizontal, Download, Trash2, Edit2, Smartphone, MousePointerClick,
 import { Button } from "@/components/ui/button";
 import { PremiumDropdown } from "@/components/ui/premium-dropdown";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { buildStandaloneHtmlExport, resolveScreenNavigationCode } from "@/lib/export-pipeline";
+import { buildCleanHtmlExport, resolveScreenNavigationCode } from "@/lib/export-pipeline";
 import { buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
 import { LUCIDE_NAME_REPAIR_SCRIPT } from "@/lib/lucide-runtime";
 import { createClient } from "@/lib/supabase/client";
@@ -768,7 +768,7 @@ export function ScreenNode({
       return;
     }
 
-    const exportCode = buildStandaloneHtmlExport({
+    const exportCode = buildCleanHtmlExport({
       screen: { ...screen, code: cleanScreenCode },
       navigationCode: cleanNavigationCode,
       activeNavigationItemId,
@@ -791,7 +791,7 @@ export function ScreenNode({
 
   const htmlExport = useMemo(() => {
     if (!isCodeOpen) return "";
-    return buildStandaloneHtmlExport({
+    return buildCleanHtmlExport({
       screen: {
         ...screen,
         code: rawDisplayCode,
