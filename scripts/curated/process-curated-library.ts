@@ -1,8 +1,16 @@
+/**
+ * Stages the curated reference library: reads each image, asks Gemini for its schema and uploads it to R2. It calls a
+ * paid model. Run it with the project's environment loaded by tsx, as the other scripts do:
+ *
+ *   pnpm exec tsx --env-file-if-exists=.env.local scripts/curated/process-curated-library.ts
+ *
+ * It does not import @next/env: that is a dependency of next, not of this project, so a clean install (the Trigger.dev
+ * deploy's) cannot resolve it, and the deploy's script typecheck failed on it.
+ */
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import sharp from "sharp";
-import { loadEnvConfig } from "@next/env";
 import { createGeminiClient } from "../../lib/ai/gemini";
 import {
   assertCuratedStyleCatalog,
@@ -10,8 +18,6 @@ import {
   type CuratedStyleReference,
 } from "../../lib/generation/curated-style-catalog";
 import { uploadBytesToR2, type R2UploadConfig } from "../../lib/r2-upload-core";
-
-loadEnvConfig(process.cwd());
 
 const CURATED_DIR = "C:\\Users\\harva\\Downloads\\curated";
 const STAGE_FILE = path.resolve(process.cwd(), "scripts/curated/out/staged-curated-batch.json");
