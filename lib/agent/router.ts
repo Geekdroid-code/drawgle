@@ -18,7 +18,7 @@ import {
   type ProjectReadToolResult,
   type ScreenRegionReference,
 } from "@/lib/agent/project-tools";
-import { parseNavigationEditIntent, type NavigationEditIntent } from "@/lib/navigation-edit-intent";
+import { navigationEditIntent, parseNavigationEditIntent, type NavigationEditIntent } from "@/lib/navigation-edit-intent";
 
 export type AgentTargetType = "none" | "screen" | "selected_element" | "navigation" | "project";
 export type AgentScope = "none" | "selected_element" | "screen_region" | "whole_screen" | "navigation" | "new_screen";
@@ -210,7 +210,7 @@ const safeJson = (value: unknown, limit = 6500) => {
 };
 
 const routerSystemInstruction = [
-  "For projects with hasProductBlueprint, call plan_product for product decisions/corrections, roadmap discussion, current design scope changes or requests for a new flow (such as add the orders flow). This maintains durable product truth and presents a scope approval. Continue using normal editing/state tools for existing canvas edits. For new individual screens, use product planning when they change product behavior; simple existing product screen additions can use draft_new_screen_plan with project facts from get_project_overview.",
+  "For projects with hasProductBlueprint, call plan_product for product decisions/corrections, roadmap discussion, current design scope changes or requests for a new flow (such as add the orders flow). This maintains durable product truth and presents a scope approval. Continue using normal editing/state tools for existing canvas edits. The bottom navigation is a canvas component, not product scope: a request about its look or its tabs, including more, fewer or different tabs for existing or planned screens, is modify_existing_ui with targetType navigation. Only an explicit request to design new screens or a new flow is product planning. For new individual screens, use product planning when they change product behavior; simple existing product screen additions can use draft_new_screen_plan with project facts from get_project_overview.",
   "You are Drawgle AI inside a mobile app design canvas.",
   "Act as a project agent, not a classifier. Answer directly, inspect project data with read tools, or call one action tool for real work.",
   "Use direct text for greetings, acknowledgements, lightweight design discussion, and general questions that do not require project context or canvas mutation.",
@@ -223,7 +223,7 @@ const routerSystemInstruction = [
   "A state proposal is always presented for explicit button approval. Never use approve_pending_plan for a state proposal and never claim a state has started building from conversational confirmation alone.",
   "Call modify_existing_ui when the user asks to change existing UI, selected elements, navigation, copy, layout, styling, or screen structure.",
   "Primary bottom navigation is ONE shared project component. Requests to add/use/reuse a nav on an existing screen, correct inconsistent navs, or redesign a nav use targetType navigation and scope navigation, even without an element selection or when the selected nav is embedded in screen HTML. Preserve the destination targetScreenId from the active/recent screen; a named source screen is a sourceReference, not the edit destination. A nav request is not a new-screen request.",
-  "For a navigation edit, set navigationChange to what the person wants changed, judged by meaning rather than wording. reuse: put the accepted nav on a screen or make navs consistent; every icon, label, destination and layout stays and only the active tab changes per screen; complaints about an unwanted new nav are reuse. restyle: change only how the nav looks, keeping its tabs. redesign: a new, better, premium, creative or more fitting nav, or dissatisfaction with the current one; both its look and which tabs the app needs are open. destinations: add, remove, rename, reorder or re-icon specific tabs while keeping the look. Write the instruction to match. For genuinely ambiguous target screens use recent conversation and read tools before asking. A request to keep the nav while editing other content remains a screen edit.",
+  "For a navigation edit, set navigationChange to what the person wants changed, judged by meaning rather than wording. reuse: put the accepted nav on a screen or make navs consistent; every icon, label, destination and layout stays and only the active tab changes per screen; complaints about an unwanted new nav are reuse. restyle: change only how the nav looks, keeping its tabs. redesign: a new, better, premium, creative or more fitting nav, or dissatisfaction with the current one; both its look and which tabs the app needs are open. destinations: add, remove, rename, reorder or re-icon tabs, or more or fewer tabs, while keeping the look. Write the instruction to match. For genuinely ambiguous target screens use recent conversation and read tools before asking. A request to keep the nav while editing other content remains a screen edit.",
   "When activeSelection.present is true, treat it as strong current canvas context, but not a hard mode. If the user asks to edit the selected thing, call modify_existing_ui with targetType selected_element, scope selected_element, the activeSelection drawgleId, and the activeSelection screenId when present.",
   "If activeSelection.present is true but the user clearly asks for broader work such as a new screen, a whole-screen rewrite, project planning, or general discussion, choose that broader action instead of forcing a selected-element edit.",
   "For modify_existing_ui, always choose explicit targetType, scope, and editOperation values. Use ask_clarification only when the target is genuinely ambiguous after considering activeSelection and the active screen.",
@@ -240,7 +240,7 @@ const toolDeclarations: FunctionDeclaration[] = [
   ...projectReadToolDeclarations,
   {
     name: "plan_product",
-    description: "Discuss or update durable product decisions and roadmap, or propose a new design scope/flow for a project that has a Product Blueprint. Does not edit existing UI.",
+    description: "Discuss or update durable product decisions and roadmap, or propose a new design scope/flow for a project that has a Product Blueprint. Does not edit existing UI, and is never for the bottom navigation's look or tabs.",
     parameters: { type: Type.OBJECT, properties: { instruction: stringProperty("Product change or requested design scope.") } },
   },
   {
@@ -439,6 +439,36 @@ const coerceScope = (value: unknown, fallback: AgentScope): AgentScope =>
 
 const coerceEditOperation = (value: unknown, fallback: AgentEditOperation): AgentEditOperation =>
   editOperationSchema.safeParse(value).success ? value as AgentEditOperation : fallback;
+
+/** Asks for screens or a flow to be designed: product work even when the nav is mentioned. */
+const ASKS_FOR_NEW_SCREENS = /\b(?:create|build|design|generate|draft|plan)\b[^.!?]{0,40}\b(?:screens?|pages?|flows?)\b|\b(?:add|make)\s+(?:an?|the|new|another)\s+(?:[\w-]+\s+){0,2}(?:screens?|pages?|flows?)\b/i;
+
+/**
+ * The bottom nav is a canvas component. A request about its look or its tabs is a nav edit even when the agent read
+ * it as product planning or a new screen; only an explicit request for new screens or a flow stays with the planner.
+ */
+export function keepNavigationOnTheCanvas(decision: AgentRouterDecision, input: AgentRouterInput): AgentRouterDecision {
+  if (decision.action !== "plan_product" && decision.action !== "draft_new_screen_plan") return decision;
+  const intent = navigationEditIntent(input.prompt);
+  if (!intent || ASKS_FOR_NEW_SCREENS.test(input.prompt)) return decision;
+  return {
+    ...decision,
+    action: "modify_existing_ui",
+    executionIntent: "edit",
+    reason: `A navigation request, kept on the canvas instead of ${decision.action}.`,
+    responseMessage: null,
+    clarificationQuestion: null,
+    instruction: input.prompt.trim() || decision.instruction,
+    targetType: "navigation",
+    targetScreenId: input.activeScreenId ?? null,
+    selectedElementDrawgleId: null,
+    scope: "navigation",
+    editOperation: "style_change",
+    navigationChange: intent,
+    screenSuggestion: null,
+    stateProposal: null,
+  };
+}
 
 const parseToolDecision = (input: AgentRouterInput, call: FunctionCall): AgentRouterDecision | null => {
   const name = call.name;
@@ -649,7 +679,7 @@ export async function routeAgentPrompt(input: AgentRouterInput): Promise<AgentRo
 
       if (actionCall) {
         const decision = parseToolDecision(input, actionCall) ?? fallbackDecision(input.prompt, `Unknown action tool: ${actionCall.name ?? "unnamed"}`);
-        return { ...decision, toolTrace: trace, modelCallCount };
+        return keepNavigationOnTheCanvas({ ...decision, toolTrace: trace, modelCallCount }, input);
       }
 
       const text = response.text?.trim();
