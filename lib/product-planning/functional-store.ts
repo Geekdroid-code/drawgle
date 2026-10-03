@@ -29,14 +29,15 @@ export async function saveProductPatchWithRoadmap(admin: PlanningStore, projectI
   for (const row of data ?? []) {
     if (row.status !== "planned" || !row.metadata?.functional) continue;
     const item = functionalItemSchema.parse(row.metadata.functional);
-    const remap = (ids: string[], section: "surfaces" | "journeys" | "decisions") => ids.map(id => {
-      if (!replacements.has(id)) return id;
+    const remap = (ids: string[], section: "surfaces" | "journeys" | "decisions") => ids.flatMap(id => {
+      if (!replacements.has(id)) return [id];
       const replacement = replacements.get(id);
-      if (!replacement || !activeFacts(next, section).some(fact => fact.id === replacement)) {
-        throw new ProductToolError(`Saved screen ${item.stableKey} still depends on ${id}. Replace that ${section} fact and its roadmap reference together.`,
-          "ROADMAP_FACT_REFERENCES", { outputKey: item.stableKey, factId: id });
-      }
-      return replacement;
+      if (replacement && activeFacts(next, section).some(fact => fact.id === replacement)) return [replacement];
+      // A decision link is optional context: a retired decision drops out
+      // rather than blocking the product change, as in the roadmap save.
+      if (section === "decisions") return [];
+      throw new ProductToolError(`Saved screen ${item.stableKey} still depends on ${id}. Supersede it with a ${section} replacement, or first re-point or remove that screen with update_functional_plan and retire ${id} in a later response.`,
+        "ROADMAP_FACT_REFERENCES", { outputKey: item.stableKey, factId: id });
     });
     const updated = { ...item, surfaceIds: remap(item.surfaceIds, "surfaces"),
       journeyIds: remap(item.journeyIds, "journeys"), decisionIds: remap(item.decisionIds, "decisions") };

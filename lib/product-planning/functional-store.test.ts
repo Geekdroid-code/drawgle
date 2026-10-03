@@ -95,6 +95,55 @@ describe("functional roadmap scope snapshots", () => {
     expect(saved.blueprint.facts.find(f => f.id === "purchase")?.status).toBe("superseded");
     expect(saved.scope?.status).toBe("draft");
   });
+  it("keeps only active decisions in a screen's decision links instead of failing the save", async () => {
+    const { state, tables, admin } = fixture();
+    const decided = applyProductPatch(state, { operations: [
+      ...[["guest-checkout", "Guest checkout"], ["saved-cards", "Saved cards"], ["one-size", "One size"]].map(([id, label]) => ({
+        op: "put_fact" as const, fact: { id, section: "decisions" as const, label, detail: label, source: "assumption" as const, evidence: "", links: [] } })),
+    ] }, "11111111-1111-4111-8111-111111111111");
+    const changed = applyProductPatch(decided, { operations: [
+      { op: "supersede_fact", id: "saved-cards", replacement: { id: "saved-cards-v2", section: "decisions", label: "Saved cards", detail: "Cards saved after first order", source: "assumption", evidence: "" } },
+      { op: "supersede_fact", id: "one-size", replacement: null },
+    ] }, "11111111-1111-4111-8111-111111111111");
+    // "minimal" is an active preferences fact, the shape that failed recreate planning in production.
+    const item = { ...functionalFixture("screen:shop", "Shop", 1),
+      decisionIds: ["guest-checkout", "minimal", "saved-cards", "saved-cards-v2", "one-size", "never-saved"] };
+    const saved = await updateFunctionalRoadmap(admin, "project", "owner", changed, { items: [item], removeKeys: [] });
+    const row = tables.project_screen_roadmap.find(r => r.stable_key === "screen:shop");
+    expect((row?.metadata as { functional: { decisionIds: string[] } }).functional.decisionIds).toEqual(["guest-checkout", "saved-cards-v2"]);
+    expect(saved.blueprint.facts.filter(f => f.section === "decisions" && f.status === "active").map(f => f.id))
+      .toEqual(["guest-checkout", "saved-cards-v2"]);
+  });
+  it("rejects a surface link to a fact filed under another section with an actionable message", async () => {
+    const { state, tables, admin } = fixture();
+    const before = structuredClone(tables);
+    const item = { ...functionalFixture("screen:shop", "Shop", 1), surfaceIds: ["minimal"] };
+    await expect(updateFunctionalRoadmap(admin, "project", "owner", state, { items: [item], removeKeys: [] })).rejects.toMatchObject({
+      code: "ROADMAP_FACT_REFERENCES", message: "minimal is a preferences fact, not a surfaces fact. Use an active surfaces fact ID.",
+      repair: { factId: "minimal", factSection: "preferences", expectedSection: "surfaces" },
+    });
+    expect(tables).toEqual(before);
+  });
+  it("drops a retired decision from planned screens when the product change retires it", async () => {
+    const { state, tables, admin } = fixture();
+    const decided = applyProductPatch(state, { operations: [{ op: "put_fact", fact: {
+      id: "guest-checkout", section: "decisions", label: "Guest checkout", detail: "No account needed", source: "assumption", evidence: "", links: [] } }] },
+    "11111111-1111-4111-8111-111111111111");
+    for (const row of tables.project_screen_roadmap) (row.metadata as { functional: { decisionIds: string[] } }).functional.decisionIds = ["guest-checkout"];
+    const retired = applyProductPatch(decided, { operations: [{ op: "supersede_fact", id: "guest-checkout", replacement: null }] },
+      "11111111-1111-4111-8111-111111111111");
+    const saved = await saveProductPatchWithRoadmap(admin, "project", "owner", decided, retired);
+    expect(saved.revision).toBe(decided.revision + 1);
+    expect(tables.project_screen_roadmap.map(row => (row.metadata as { functional: { decisionIds: string[] } }).functional.decisionIds)).toEqual([[], []]);
+  });
+  it("still blocks retiring a journey that planned screens depend on", async () => {
+    const { state, tables, admin } = fixture();
+    const before = structuredClone(tables);
+    const retired = applyProductPatch(state, { operations: [{ op: "supersede_fact", id: "purchase", replacement: null }] },
+      "11111111-1111-4111-8111-111111111111");
+    await expect(saveProductPatchWithRoadmap(admin, "project", "owner", state, retired)).rejects.toMatchObject({ code: "ROADMAP_FACT_REFERENCES" });
+    expect(tables).toEqual(before);
+  });
   it("normalizes kind state to screen in non-recreation mode without crashing", async () => {
     const { state, tables, admin } = fixture();
     state.input.imageReferenceMode = "style";

@@ -10,17 +10,26 @@ export function reconcileFunctionalFactReferences(state: ProductPlanning, items:
   const next = structuredClone(state);
   const byId = new Map(next.blueprint.facts.map(fact => [fact.id, fact]));
   const active = (section: ProductFact["section"]) => activeFacts(next, section);
-  const resolve = (id: string, section: "surfaces" | "journeys" | "decisions") => {
+  // Follow supersessions to the fact that holds this ID's place now.
+  const current = (id: string) => {
     let fact = byId.get(id);
     const seen = new Set<string>();
     while (fact?.status === "superseded" && fact.supersededBy && !seen.has(fact.id)) {
       seen.add(fact.id);
       fact = byId.get(fact.supersededBy);
     }
+    return fact;
+  };
+  const resolve = (id: string, section: "surfaces" | "journeys") => {
+    const fact = current(id);
     if (fact?.status === "active" && fact.section === section) return fact.id;
-    if (byId.has(id)) throw new ProductToolError(`The ${section} fact ${id} was retired or changed section. Use its current active identity.`,
-      "ROADMAP_FACT_REFERENCES", { factId: id, currentFactId: fact?.status === "active" ? fact.id : null });
-    return null;
+    if (!byId.has(id)) return null;
+    if (fact?.status === "active") throw new ProductToolError(fact.id === id
+      ? `${id} is a ${fact.section} fact, not a ${section} fact. Use an active ${section} fact ID.`
+      : `${id} was replaced by ${fact.id}, which is a ${fact.section} fact, not a ${section} fact. Use an active ${section} fact ID.`,
+    "ROADMAP_FACT_REFERENCES", { factId: id, factSection: fact.section, expectedSection: section });
+    throw new ProductToolError(`${id} was retired. Use an active ${section} fact ID.`,
+      "ROADMAP_FACT_REFERENCES", { factId: id, expectedSection: section });
   };
   const addAssumption = (id: string, section: "surfaces" | "journeys", item: FunctionalItem) => {
     const label = humanize(id);
@@ -45,13 +54,13 @@ export function reconcileFunctionalFactReferences(state: ProductPlanning, items:
         else addAssumption(ids[index], section, item);
       }
     }
-    // Decision links are optional context. Unknown IDs are never made into
-    // invented decisions; the product fact remains available to the reviewer.
-    item.decisionIds = item.decisionIds.flatMap(id => {
-      if (!byId.has(id)) return [];
-      const replacement = resolve(id, "decisions");
-      return replacement ? [replacement] : [];
-    });
+    // Decision links are optional context, so only active decisions are kept.
+    // Unknown or retired IDs and facts filed elsewhere (such as a style
+    // preference) are dropped, never invented or allowed to fail the save.
+    item.decisionIds = [...new Set(item.decisionIds.flatMap(id => {
+      const fact = current(id);
+      return fact?.status === "active" && fact.section === "decisions" ? [fact.id] : [];
+    }))];
   }
   return next;
 }
