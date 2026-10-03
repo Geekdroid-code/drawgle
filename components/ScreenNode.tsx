@@ -1707,6 +1707,18 @@ export function ScreenNode({
                 .join(' ');
             }
 
+            function findElementByDrawgleId(drawgleId) {
+              var value = String(drawgleId);
+              var css = document.defaultView && document.defaultView.CSS;
+              if (css && typeof css.escape === 'function') {
+                return document.querySelector('[data-drawgle-id="' + css.escape(value) + '"]');
+              }
+              // Older DOM implementations: compare the attribute without constructing a selector from it.
+              return Array.from(document.querySelectorAll('[data-drawgle-id]')).find(function(el) {
+                return el.getAttribute('data-drawgle-id') === value;
+              }) || null;
+            }
+
             function currentSelectionStateClasses(el) {
               if (!el || !el.classList) return [];
               return ['__drawgle-hover-outline', '__drawgle-selected-outline'].filter(function(name) {
@@ -1742,7 +1754,7 @@ export function ScreenNode({
             function applyElementPreview(payload) {
               restorePreview();
               if (!payload || !payload.drawgleId) return;
-              var target = document.querySelector('[data-drawgle-id="' + String(payload.drawgleId) + '"]');
+              var target = findElementByDrawgleId(payload.drawgleId);
               if (!target) return;
               activePreview = { el: target, originalStyle: target.getAttribute('style'), originalClass: classListWithoutSelectionState(target.getAttribute('class')), nodes: [] };
               if (payload.allowClassNamePreview === true && typeof payload.className === 'string') setClassPreservingSelectionState(target, payload.className.trim());
@@ -1754,13 +1766,13 @@ export function ScreenNode({
                 activePreview.nodes.push({ el: el, style: el.getAttribute('style'), src: el.getAttribute('src'), srcset: el.getAttribute('srcset'), children: Array.from(el.childNodes) });
               }
               Object.keys(payload.text || {}).forEach(function(id) {
-                var el = document.querySelector('[data-drawgle-id="' + String(id) + '"]');
+                var el = findElementByDrawgleId(id);
                 if (!el || el.children.length || !(el === target || target.contains(el))) return;
                 remember(el); el.textContent = String(payload.text[id]);
               });
               if (payload.image && payload.image.target) {
                 var imageTarget = payload.image.target;
-                var imageEl = document.querySelector('[data-drawgle-id="' + String(imageTarget.drawgleId) + '"]');
+                var imageEl = findElementByDrawgleId(imageTarget.drawgleId);
                 if (imageEl && (imageEl === target || target.contains(imageEl))) {
                   remember(imageEl);
                   if (imageTarget.kind === 'img' && imageEl.tagName === 'IMG') { imageEl.src = payload.image.src; imageEl.removeAttribute('srcset'); }
@@ -2238,7 +2250,7 @@ export function ScreenNode({
               clearSelected();
               currentSelectedDrawgleId = drawgleId || null;
               if (!drawgleId) return false;
-              var nextSelected = document.querySelector('[data-drawgle-id="' + String(drawgleId).replace(/"/g, '\\"') + '"]');
+              var nextSelected = findElementByDrawgleId(drawgleId);
               if (!nextSelected) {
                 if (options.notifyLost) postSelectionLost(drawgleId, options.lostReason || 'source_changed');
                 return false;

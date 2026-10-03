@@ -19,6 +19,7 @@ export function useEditorDraft({ info, revision, unavailable = false, save, uplo
   const [session, setSession] = useState(() => ({ key, revision, history: initialHistory() }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saveUnconfirmed, setSaveUnconfirmed] = useState(false);
   const requestId = useRef<string | null>(null);
   const busy = useRef(false);
   const gesture = useRef<{ field: string; at: number } | null>(null);
@@ -26,6 +27,7 @@ export function useEditorDraft({ info, revision, unavailable = false, save, uplo
   const uploaded = useRef(new WeakMap<File, string>());
   if (session.key !== key) {
     setSession({ key, revision, history: initialHistory() });
+    setSaveUnconfirmed(false);
   }
   const current = session.key === key ? session : { key, revision, history: initialHistory() };
   const draft = current.history.present;
@@ -51,7 +53,7 @@ export function useEditorDraft({ info, revision, unavailable = false, save, uplo
     const coalesce = gesture.current?.field === field && now - gesture.current.at < 700;
     gesture.current = { field, at: now };
     requestId.current = null;
-    setError(null);
+    setError(null); setSaveUnconfirmed(false);
     setSession(previous => ({ ...previous, history: advanceDraft(previous.history, next, coalesce) }));
   };
   const styles = (values: Partial<Record<DrawgleStyleProperty, string>>, field = Object.keys(values).join(",")) => {
@@ -79,17 +81,18 @@ export function useEditorDraft({ info, revision, unavailable = false, save, uplo
   const discard = () => {
     if (busy.current) return;
     setSession({ key, revision, history: initialHistory() });
-    requestId.current = null; gesture.current = null; setError(null);
+    requestId.current = null; gesture.current = null; setError(null); setSaveUnconfirmed(false);
   };
   const travel = (direction: "undo" | "redo") => {
     if (busy.current) return;
-    requestId.current = null; gesture.current = null; setError(null);
+    requestId.current = null; gesture.current = null; setError(null); setSaveUnconfirmed(false);
     setSession(previous => ({ ...previous, history: travelDraft(previous.history, direction) }));
   };
   const apply = async () => {
     if (busy.current || stale || Object.keys(errors).length) return false;
     if (!dirty) return true;
     busy.current = true; setSaving(true); onWorkingChange?.(true); setError(null);
+    let submitted = false;
     try {
       let next = draft;
       if (draft.image) {
@@ -98,12 +101,14 @@ export function useEditorDraft({ info, revision, unavailable = false, save, uplo
         next = { ...draft, image: { ...draft.image, uploadedUrl: src } };
       }
       requestId.current ??= crypto.randomUUID();
+      submitted = true;
       const result = await save(buildDraftOperations(next), { expectedRevision: current.revision, requestId: requestId.current });
       if (!result) throw new Error("Your changes were not saved. Retry after checking the connection.");
       setSession({ key, revision: result.revision, history: initialHistory() });
       requestId.current = null; gesture.current = null;
+      setSaveUnconfirmed(false);
       return true;
-    } catch (failure) { setError(failure instanceof Error ? failure.message : "Could not save changes."); return false; }
+    } catch (failure) { setSaveUnconfirmed(submitted); setError(failure instanceof Error ? failure.message : "Could not save changes."); return false; }
     finally { busy.current = false; setSaving(false); onWorkingChange?.(false); }
   };
   const preview: SelectedElementPreviewPayload | null = info?.drawgleId && dirty && !stale ? {
@@ -112,7 +117,7 @@ export function useEditorDraft({ info, revision, unavailable = false, save, uplo
     text: draft.text,
     image: draft.image ? { target: draft.image.target, src: draft.image.previewUrl } : null,
   } : null;
-  return { draft, dirty, stale, errors, saving, error, styles, text, image, discard, apply, preview,
+  return { draft, dirty, stale, errors, saving, error, saveUnconfirmed, styles, text, image, discard, apply, preview,
     canUndo: current.history.past.length > 0, canRedo: current.history.future.length > 0,
     hasLocalHistory: current.history.past.length > 0 || current.history.future.length > 0,
     undo: () => travel("undo"), redo: () => travel("redo"), endGesture: () => { gesture.current = null; },

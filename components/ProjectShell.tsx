@@ -1226,6 +1226,7 @@ export function ProjectShell({
               key={editSession?.element.targetType === "navigation" ? "navigation" : editSession?.screenId ??
                 (workspaceTab === "design" ? "tokens" : selectedScreen?.id ?? "none")}
               projectId={project.id}
+              shortcutsEnabled={isMobile ? inspectorOpen && selectionMode : selectionMode}
               refreshVersion={historyRefresh}
               viewOpen={historyOpen} onViewOpenChange={setHistoryOpen} panelTarget={historyPanelTarget}
               local={editor}

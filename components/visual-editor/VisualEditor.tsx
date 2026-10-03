@@ -66,7 +66,9 @@ export function VisualEditor({ info, editor, tokens, open, disabled, onClose, on
       </fieldset>
     </div>
     <footer className={historyOpen ? "hidden" : "ve-footer"}>
-      {(editor.stale || editor.error) && <p role="alert" className="mb-2 text-xs text-red-600">{editor.stale ? "This element changed since you started. Discard this draft to load the saved version." : editor.error}</p>}
+      {(editor.stale || editor.error) && <p role="alert" className="mb-2 text-xs text-red-600">{editor.stale ? editor.saveUnconfirmed
+        ? "The saved version changed after your save attempt. If its response was lost, your edit may already be saved. Discard clears only this local draft so you can review the saved version."
+        : "This element changed since you started. Discard this draft to load the saved version." : editor.error}</p>}
       {Object.keys(editor.errors).length > 0 && <p role="alert" className="mb-2 text-xs text-red-600">Check the highlighted values before applying.</p>}
       <div className="flex items-center gap-2"><button type="button" className="ve-discard" disabled={editor.saving || !editor.hasLocalHistory && !editor.dirty} onClick={onDiscard ?? editor.discard}>Discard</button>
         <button type="button" className="ve-apply" disabled={!editor.dirty || disabled || editor.saving || editor.stale || !!Object.keys(editor.errors).length} onClick={() => void editor.apply()}>{editor.saving ? "Saving…" : "Apply changes"}</button></div>

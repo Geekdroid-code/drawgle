@@ -29,6 +29,29 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("contextual history controls", () => {
+  it.each(["screen", "tokens"] as const)("does not intercept undo/redo for hidden %s controls", async context => {
+    const view = renderControls({ shortcutsEnabled: false, target: context === "screen" ? { context, screenId } : { context } });
+    const label = context === "screen" ? "Undo change to Profile" : "Undo design-token change";
+    await waitFor(() => expect(view.getByLabelText(label).hasAttribute("disabled")).toBe(false));
+    for (const modifiers of [{ ctrlKey: true }, { metaKey: true }]) {
+      expect(fireEvent.keyDown(document, { key: "z", ...modifiers })).toBe(true);
+      expect(fireEvent.keyDown(document, { key: "z", shiftKey: true, ...modifiers })).toBe(true);
+    }
+    fireEvent.keyDown(document, { key: "y", ctrlKey: true });
+    act(() => { window.dispatchEvent(new CustomEvent("drawgle-history-action", { detail: "undo" })); });
+    expect(calls.filter(call => call.init?.method === "POST")).toHaveLength(0);
+  });
+  it("removes shortcuts when visible controls close, including local draft undo", async () => {
+    const local = { hasLocalHistory: true, canUndo: true, canRedo: false, undo: vi.fn(), redo: vi.fn(), saving: false, stale: false };
+    const props = { projectId, target: { context: "screen" as const, screenId }, screens: [screen], onApplied: vi.fn(), local };
+    const view = render(<HistoryControls {...props} shortcutsEnabled />);
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true }); expect(local.undo).toHaveBeenCalledOnce();
+    view.rerender(<HistoryControls {...props} shortcutsEnabled={false} />);
+    fireEvent.keyDown(document, { key: "z", ctrlKey: true }); expect(local.undo).toHaveBeenCalledOnce();
+    view.rerender(<HistoryControls {...props} shortcutsEnabled />);
+    fireEvent.keyDown(document, { key: "z", metaKey: true }); expect(local.undo).toHaveBeenCalledTimes(2);
+    expect(calls.filter(call => call.init?.method === "POST")).toHaveLength(0);
+  });
   it("keeps native text undo and uses the active screen for design shortcuts", async () => {
     const view = renderControls();
     await waitFor(() => expect(view.getByLabelText("Undo change to Profile").hasAttribute("disabled")).toBe(false));

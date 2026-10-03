@@ -26,7 +26,7 @@ const query = (target: HistoryTarget) => new URLSearchParams(target.context === 
 const editingFocus = (target: EventTarget | null) => target instanceof HTMLElement &&
   (target.isContentEditable || Boolean(target.closest("input, textarea, [contenteditable], [role='textbox']")));
 
-export function HistoryControls({ projectId, target, screenName, screens, disabledReason, onApplied, local, refreshVersion = 0, onWorkingChange, onAvailabilityChange, viewOpen, onViewOpenChange, panelTarget, onCanvasPreviewChange }: {
+export function HistoryControls({ projectId, target, screenName, screens, disabledReason, onApplied, local, refreshVersion = 0, onWorkingChange, onAvailabilityChange, viewOpen, onViewOpenChange, panelTarget, onCanvasPreviewChange, shortcutsEnabled = true }: {
   projectId: string; target: HistoryTarget | null; screenName?: string;
   screens: ScreenData[];
   local?: Pick<EditorController, "hasLocalHistory" | "canUndo" | "canRedo" | "undo" | "redo" | "saving" | "stale">;
@@ -36,6 +36,8 @@ export function HistoryControls({ projectId, target, screenName, screens, disabl
   viewOpen?: boolean; onViewOpenChange?: Dispatch<SetStateAction<boolean>>; panelTarget?: HTMLElement | null;
   /** Shows the previewed version on the canvas, or the current design again with null. */
   onCanvasPreviewChange?: (preview: CanvasHistoryPreview | null) => void;
+  /** Global undo/redo is available only while its inspector controls are visible. */
+  shortcutsEnabled?: boolean;
 }) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [localOpen, setLocalOpen] = useState(false);
@@ -98,6 +100,7 @@ export function HistoryControls({ projectId, target, screenName, screens, disabl
     finally { setWorking(false); onWorkingChange?.(false); }
   }, [disabledReason, listing, onApplied, projectId, refresh, target, targetKey, working, local, onWorkingChange, setOpen]);
   useEffect(() => {
+    if (!shortcutsEnabled) return;
     const handleKey = (event: KeyboardEvent) => {
       if (!target || !(event.ctrlKey || event.metaKey) || event.altKey || editingFocus(event.target)) return;
       const key = event.key.toLowerCase();
@@ -108,12 +111,13 @@ export function HistoryControls({ projectId, target, screenName, screens, disabl
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [run, target]);
+  }, [run, target, shortcutsEnabled]);
   useEffect(() => {
+    if (!shortcutsEnabled) return;
     const handle = (event: Event) => { const action = (event as CustomEvent<"undo" | "redo">).detail; if (action === "undo" || action === "redo") void run(action); };
     window.addEventListener("drawgle-history-action", handle);
     return () => window.removeEventListener("drawgle-history-action", handle);
-  }, [run]);
+  }, [run, shortcutsEnabled]);
   useEffect(() => {
     if (!open) return;
     const dismiss = (event: KeyboardEvent) => {
