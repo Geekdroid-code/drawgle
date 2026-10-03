@@ -929,12 +929,14 @@ export function validateNavigationShell(shellCode: string, navigationPlan: Navig
 
 const summarizeCandidate = (value: string) => value.replace(/\s+/g, " ").trim().slice(0, 320);
 
-const PRIMARY_NAV_WORD_PATTERN = /bottom\s+(?:nav|navigation)|tab\s*bar|footer\s*nav|navigation\s+(?:dock|pill|bar|surface|shell)|floating\s+(?:dock|nav|navigation|tab)|dock\s+navigation|shared\s+shell\s+simulation|data-nav-item-id|data-drawgle-primary-nav/i;
+const PRIMARY_NAV_WORD_PATTERN = /bottom\s+(?:nav|navigation)|tab\s*bar|footer\s*nav|navigation\s+(?:dock|pill|bar|surface|shell)|floating\s+(?:dock|nav|navigation|tab)|dock\s+navigation|shared\s+shell\s+simulation|data-nav-item-id|data-drawgle-primary-nav|data-dg-nav\s*=\s*["']bar["']/i;
 const POSITIONED_PATTERN = /\b(?:fixed|sticky|absolute)\b|position\s*:\s*(?:fixed|sticky|absolute)/i;
 const BOTTOM_EDGE_PATTERN = /\bbottom-(?:0|px|full|\d+(?:\.\d+)?|\[[^\]]+\])(?=\s|["'])|bottom\s*:/i;
 
 const isBottomPositioned = (value: string) =>
   POSITIONED_PATTERN.test(value) && BOTTOM_EDGE_PATTERN.test(value);
+const isMarkedNavigationRoot = (value: string) =>
+  /\bdata-drawgle-primary-nav\b|\bdata-dg-nav\s*=\s*["']bar["']/i.test(value);
 
 const countNavLikeChildren = (block: string) => {
   const actionCount = (block.match(/<(?:button|a)\b/gi) ?? []).length;
@@ -1007,7 +1009,7 @@ const findBalancedFixedBottomDivBlocks = (code: string) => {
   const openDivPattern = /<div\b[^>]*>/gi;
   for (let match = openDivPattern.exec(code); match; match = openDivPattern.exec(code)) {
     const openTag = match[0];
-    if (!isBottomPositioned(openTag)) continue;
+    if (!isBottomPositioned(openTag) && !isMarkedNavigationRoot(openTag)) continue;
     const removed = removeBalancedDivAt(code, match.index);
     if (removed) blocks.push(removed.block);
   }
@@ -1021,7 +1023,7 @@ const removeHighConfidenceFixedBottomNavigationDivs = (code: string) => {
 
   for (let match = openDivPattern.exec(next); match; match = openDivPattern.exec(next)) {
     const openTag = match[0];
-    if (!isBottomPositioned(openTag)) continue;
+    if (!isBottomPositioned(openTag) && !isMarkedNavigationRoot(openTag)) continue;
     const removed = removeBalancedDivAt(next, match.index);
     if (!removed || !looksLikePrimaryBottomNavigationBlock(removed.block)) continue;
     removals.push({ start: match.index, end: removed.end });

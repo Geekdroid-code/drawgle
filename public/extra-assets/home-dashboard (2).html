@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+:root {
+  --dg-color-text-high-emphasis: #1A1C1E;
+  --dg-color-text-medium-emphasis: #626977;
+  --dg-color-action-primary: #4A80E1;
+  --dg-color-action-secondary: #E5E7EB;
+  --dg-color-border-divider: #F0F0F0;
+  --dg-color-surface-card: #FEFFFF;
+  --dg-color-background-primary: #EDEFF1;
+  --dg-radii-app: 28px;
+  --dg-radii-inner: 16px;
+  --dg-shadows-surface: 0 4px 20px rgba(0, 0, 0, 0.05);
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xs: 8px;
+  --dg-gradients-action-primary: linear-gradient(180deg, #5D91F5 0%, #4A80E1 100%);
+  --dg-typography-heading-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dg-typography-body-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dg-type-hero-title-size: 32px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 40px;
+  --dg-type-section-title-size: 18px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 24px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 24px;
+  --dg-mobile-layout-screen-margin: 16px;
+}
+
+:where(#root, #drawgle-export-root) h1,
+:where(#root, #drawgle-export-root) h2,
+:where(#root, #drawgle-export-root) h3,
+:where(#root, #drawgle-export-root) h4,
+:where(#root, #drawgle-export-root) h5,
+:where(#root, #drawgle-export-root) h6 {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+:where(#root, #drawgle-export-root) button,
+:where(#root, #drawgle-export-root) input,
+:where(#root, #drawgle-export-root) textarea,
+:where(#root, #drawgle-export-root) select {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+
+.dg-shared-nav-clearance {
+  padding-bottom: var(--dg-navigation-clearance, 0px) !important;
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  background: var(--dg-color-background-primary, #ffffff);
+  color: var(--dg-color-text-high-emphasis, #111827);
+}
+#drawgle-export-root {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--dg-color-background-primary, #ffffff);
+}
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <div class="dg-shared-nav-clearance">
+    <div class="px-[var(--dg-mobile-layout-screen-margin)] pt-[16px] flex flex-col gap-[var(--dg-mobile-layout-section-gap)]">
+      
+      <!-- header-profile -->
+      <header id="header-profile" class="flex items-center justify-between">
+        <div class="flex items-center gap-[var(--dg-spacing-sm)] min-w-0">
+          <div class="w-10 h-10 rounded-full overflow-hidden shrink-0 ring-2 ring-[var(--dg-color-background-primary)]">
+            <div class="w-full h-full bg-[var(--dg-color-action-secondary)]"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/607ae1de-6af3-4e64-8e11-10162c3c8f89/asset.webp" alt="Professional friendly doctor portrait" width="1024" height="1024" loading="lazy" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center left;"></div>
+          </div>
+          <div class="min-w-0">
+            <div class="dg-type-caption dg-text-medium">Good morning!</div>
+            <div class="dg-type-section-title truncate">Sajibur Rahman</div>
+          </div>
+        </div>
+        <button class="w-10 h-10 rounded-full bg-[var(--dg-color-surface-card)] flex items-center justify-center shadow-[var(--dg-shadows-surface)]" aria-label="Notifications">
+          <i data-lucide="bell" class="w-5 h-5"></i>
+        </button>
+      </header>
+
+      <!-- greeting -->
+      <div>
+        <h1 class="dg-type-hero-title leading-[1.1]">How are you feeling today?</h1>
+      </div>
+
+      <!-- search-rail -->
+      <div id="search-rail" class="field">
+        <div class="flex items-center gap-[var(--dg-spacing-sm)] bg-[var(--dg-color-surface-card)] border border-[var(--dg-color-border-divider)] rounded-[var(--dg-radii-app)] px-[var(--dg-spacing-md)] h-[48px] shadow-[var(--dg-shadows-surface)]">
+          <i data-lucide="search" class="w-5 h-5 dg-text-medium shrink-0"></i>
+          <input placeholder="Search a doctor, medicines, etc..." class="flex-1 bg-transparent outline-none dg-type-body placeholder:dg-text-medium">
+          <i data-lucide="mic" class="w-5 h-5 dg-text-medium shrink-0"></i>
+        </div>
+      </div>
+
+      <!-- focal-appointment -->
+      <section id="focal-appointment" class="flex flex-col gap-[var(--dg-spacing-sm)]">
+        <div class="flex items-center justify-between">
+          <h2 class="dg-type-section-title">Upcoming Appointments</h2>
+          <a class="dg-type-supporting dg-text-medium">View All</a>
+        </div>
+
+        <div class="rounded-[32px] p-[var(--dg-spacing-md)] text-white shadow-[var(--dg-shadows-surface)]" style="background-image:var(--dg-gradients-action-primary)">
+          <div class="flex items-start gap-[var(--dg-spacing-sm)]">
+            <div class="w-14 h-14 rounded-full overflow-hidden ring-2 ring-white/30 shrink-0">
+              <div class="w-full h-full bg-white/20"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/04ec8e35-420f-47db-8989-1cf1c0c938ec/asset.webp" alt="Professional medical doctor portraits" width="1024" height="1024" loading="lazy" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center left;"></div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="dg-type-section-title font-bold">Dr. Ali Khan</div>
+              <div class="dg-type-caption opacity-90">Cardiology</div>
+            </div>
+            <button class="w-10 h-10 rounded-full bg-white/15 flex items-center justify-center shrink-0">
+              <i data-lucide="video" class="w-5 h-5"></i>
+            </button>
+          </div>
+
+          <div class="mt-[var(--dg-spacing-md)] grid grid-cols-2 gap-[var(--dg-spacing-sm)]">
+            <div class="bg-white/10 rounded-[var(--dg-radii-inner)] px-[var(--dg-spacing-sm)] py-[var(--dg-spacing-xs)] flex items-center gap-[var(--dg-spacing-xs)]">
+              <i data-lucide="calendar" class="w-4 h-4"></i>
+              <div class="dg-type-caption">
+                <span class="opacity-80">Date</span><br>18 Nov, Monday
+              </div>
+            </div>
+            <div class="bg-white/10 rounded-[var(--dg-radii-inner)] px-[var(--dg-spacing-sm)] py-[var(--dg-spacing-xs)] flex items-center gap-[var(--dg-spacing-xs)]">
+              <i data-lucide="clock" class="w-4 h-4"></i>
+              <div class="dg-type-caption">
+                <span class="opacity-80">Time</span><br>8pm - 8:30 pm
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-[var(--dg-spacing-md)] grid grid-cols-2 gap-[var(--dg-spacing-sm)]">
+            <button class="h-[44px] rounded-[var(--dg-radii-inner)] bg-white text-[var(--dg-color-action-primary)] dg-type-button-label font-semibold">Re-Schedule</button>
+            <button class="h-[44px] rounded-[var(--dg-radii-inner)] bg-white/15 text-white dg-type-button-label font-semibold">View Profile</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- specialty-categories -->
+      <section id="specialty-categories" class="flex flex-col gap-[var(--dg-spacing-sm)]">
+        <div class="flex items-center justify-between">
+          <h2 class="dg-type-section-title">Popular Doctors</h2>
+          <a class="dg-type-supporting dg-text-medium">View All</a>
+        </div>
+
+        <div class="flex gap-[var(--dg-spacing-sm)] overflow-x-auto pb-2">
+          <button class="px-[var(--dg-spacing-md)] h-9 rounded-full bg-[var(--dg-color-action-primary)] text-white dg-type-caption shrink-0">All</button>
+          <button class="px-[var(--dg-spacing-md)] h-9 rounded-full bg-[var(--dg-color-surface-card)] border border-[var(--dg-color-border-divider)] dg-type-caption shrink-0">Cardiology</button>
+          <button class="px-[var(--dg-spacing-md)] h-9 rounded-full bg-[var(--dg-color-surface-card)] border border-[var(--dg-color-border-divider)] dg-type-caption shrink-0">Dermatology</button>
+          <button class="px-[var(--dg-spacing-md)] h-9 rounded-full bg-[var(--dg-color-surface-card)] border border-[var(--dg-color-border-divider)] dg-type-caption shrink-0">Dental</button>
+          <button class="px-[var(--dg-spacing-md)] h-9 rounded-full bg-[var(--dg-color-surface-card)] border border-[var(--dg-color-border-divider)] dg-type-caption shrink-0">Neurology</button>
+        </div>
+      </section>
+
+      <!-- top-doctors -->
+      <section id="top-doctors" class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+        <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] shadow-[var(--dg-shadows-surface)] flex gap-[var(--dg-spacing-md)] items-center">
+          <div class="w-16 h-16 rounded-full overflow-hidden shrink-0">
+            <div class="w-full h-full bg-[var(--dg-color-action-secondary)]"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/65d65dc6-f09f-4c24-8902-a9b254cc87f7/asset.webp" alt="Professional medical doctors smiling" width="682" height="1024" loading="lazy" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center left;"></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="dg-type-section-title">Dr. Ali Khan</div>
+            <div class="dg-type-supporting dg-text-medium">Cardiology</div>
+            <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-1">
+              <i data-lucide="star" class="w-4 h-4 text-amber-500 fill-amber-500"></i>
+              <span class="dg-type-caption">4.9</span>
+              <span class="dg-type-caption dg-text-medium">190 Reviews</span>
+            </div>
+          </div>
+          <button class="w-9 h-9 rounded-full border border-[var(--dg-color-border-divider)] flex items-center justify-center shrink-0">
+            <i data-lucide="bookmark" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="dg-surface-card rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] shadow-[var(--dg-shadows-surface)] flex gap-[var(--dg-spacing-md)] items-center">
+          <div class="w-16 h-16 rounded-full overflow-hidden shrink-0">
+            <div class="w-full h-full bg-[var(--dg-color-action-secondary)] dg-asset-placeholder" role="img" aria-label="Professional medical doctors smiling"></div>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="dg-type-section-title">Dr. Maya Chen</div>
+            <div class="dg-type-supporting dg-text-medium">Dermatology</div>
+            <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-1">
+              <i data-lucide="star" class="w-4 h-4 text-amber-500 fill-amber-500"></i>
+              <span class="dg-type-caption">4.8</span>
+              <span class="dg-type-caption dg-text-medium">342 Reviews</span>
+            </div>
+          </div>
+          <button class="w-9 h-9 rounded-full border border-[var(--dg-color-border-divider)] flex items-center justify-center shrink-0">
+            <i data-lucide="bookmark" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+      
+    </div>
+    <script>
+      function drawgleRepairLucideNames(root) {
+  var icons = window.lucide && window.lucide.icons;
+  if (!icons) return 0;
+  var byLetters = null;
+  var repaired = 0;
+  (root || document).querySelectorAll("[data-lucide]").forEach(function (node) {
+    var name = node.getAttribute("data-lucide") || "";
+    var key = name.replace(/^([A-Z])|[\s\-_]+(\w)/g, function (match, first, next) { return next ? next.toUpperCase() : first.toLowerCase(); });
+    key = key.charAt(0).toUpperCase() + key.slice(1);
+    if (icons[key]) return;
+    if (!byLetters) {
+      byLetters = {};
+      Object.keys(icons).forEach(function (iconKey) { byLetters[iconKey.toLowerCase()] = iconKey; });
+    }
+    var match = byLetters[name.replace(/[^a-z0-9]/gi, "").toLowerCase()];
+    if (match) {
+      node.setAttribute("data-lucide", match);
+      repaired += 1;
+    }
+  });
+  return repaired;
+}
+      if (window.lucide && typeof window.lucide.createIcons === "function") { drawgleRepairLucideNames(); window.lucide.createIcons(); }
+    </script>
+  </body>
+</html>

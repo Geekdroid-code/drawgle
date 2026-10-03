@@ -1,3 +1,4 @@
+import { navigationEditIntent } from "@/lib/navigation-edit-intent";
 import { Buffer } from "node:buffer";
 
 import { tasks } from "@trigger.dev/sdk";
@@ -1936,6 +1937,7 @@ export async function POST(request: Request) {
     const selectedElementRequested = routerSelectedElementUsed;
     const requestTargetsNavigation =
       routerTargetsNavigation ||
+      navigationEditIntent(prompt) !== null ||
       (activeSelection.targetType === "navigation" && selectedElementRequested);
     const selectedImageUrl = extractSingleImageUrl(prompt);
     const selectedImageTargets = normalizeImageTargetsFromPayload({
@@ -2347,9 +2349,7 @@ export async function POST(request: Request) {
     const stateScreenId = agentState?.lastKnownTarget?.screenId && screenContext.some((screen: any) => screen.id === agentState.lastKnownTarget?.screenId)
       ? agentState.lastKnownTarget.screenId
       : null;
-    const targetScreenId = requestTargetsNavigation
-      ? null
-      : routerScreenId || selectedScreenId || stateScreenId;
+    const targetScreenId = routerScreenId || selectedScreenId || stateScreenId;
     const targetScreen = targetScreenId ? screenContext.find((screen: any) => screen.id === targetScreenId) : null;
 
     if (!requestTargetsNavigation && !targetScreenId) {

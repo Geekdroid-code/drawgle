@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #6F6F6F;
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #A0A0A0;
+  --dg-color-action-primary: #2F69FF;
+  --dg-color-action-secondary: #2A2A2A;
+  --dg-color-border-divider: #2A2A2A;
+  --dg-color-surface-card: #1D1D1D;
+  --dg-color-background-primary: #121212;
+  --dg-radii-app: 26px;
+  --dg-radii-pill: 9999px;
+  --dg-radii-inner: 18px;
+  --dg-sizing-standard-input-height: 52px;
+  --dg-shadows-surface: 0 4px 12px rgba(0,0,0,0.5);
+  --dg-spacing-md: 16px;
+  --dg-spacing-xs: 8px;
+  --dg-gradients-action-primary: linear-gradient(135deg, #2F69FF 0%, #1A4BCC 100%);
+  --dg-typography-heading-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dg-typography-body-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dg-type-section-title-size: 16px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 22px;
+  --dg-type-metric-value-size: 22px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 28px;
+  --dg-type-supporting-size: 12px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 16px;
+  --dg-mobile-layout-element-gap: 16px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-screen-margin: 20px;
+}
+
+:where(#root, #drawgle-export-root) h1,
+:where(#root, #drawgle-export-root) h2,
+:where(#root, #drawgle-export-root) h3,
+:where(#root, #drawgle-export-root) h4,
+:where(#root, #drawgle-export-root) h5,
+:where(#root, #drawgle-export-root) h6 {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+:where(#root, #drawgle-export-root) button,
+:where(#root, #drawgle-export-root) input,
+:where(#root, #drawgle-export-root) textarea,
+:where(#root, #drawgle-export-root) select {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+
+.dg-shared-nav-clearance {
+  padding-bottom: var(--dg-navigation-clearance, 0px) !important;
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  background: var(--dg-color-background-primary, #ffffff);
+  color: var(--dg-color-text-high-emphasis, #111827);
+}
+#drawgle-export-root {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--dg-color-background-primary, #ffffff);
+}
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <main class="flex-1 min-h-0 overflow-y-auto px-[var(--dg-mobile-layout-screen-margin)] pt-[16px] dg-shared-nav-clearance">
+    <div class="mx-auto flex w-full max-w-[480px] flex-col gap-[var(--dg-mobile-layout-section-gap)]">
+      <header class="sticky top-0 z-20 -mx-[var(--dg-mobile-layout-screen-margin)] px-[var(--dg-mobile-layout-screen-margin)] pb-2 pt-[var(--dg-spacing-xs)] bg-[rgba(18,18,18,0.94)] backdrop-blur-xl">
+        <div class="flex items-center justify-between gap-4">
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-[var(--dg-color-border-divider)] bg-[linear-gradient(145deg,#66758b,#25344b)] text-[15px] font-semibold text-white shadow-[var(--dg-shadows-surface)]">
+              OB
+              <span class="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-[var(--dg-color-background-primary)] bg-[#61D66D]"></span>
+            </div>
+            <div class="min-w-0">
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Ready to deliver!</p>
+              <p class="truncate text-[15px] font-semibold leading-5 text-[var(--dg-color-text-high-emphasis)]">Oliver Bennett <span aria-hidden="true">👋</span></p>
+            </div>
+          </div>
+          <div class="flex shrink-0 items-center gap-2">
+            <button type="button" class="flex min-h-[48px] min-w-[48px] items-center justify-center rounded-full bg-[var(--dg-color-action-secondary)] text-[var(--dg-color-text-high-emphasis)]" aria-label="Help">
+              <i data-lucide="circle-help" class="h-5 w-5"></i>
+            </button>
+            <button type="button" class="relative flex min-h-[48px] min-w-[48px] items-center justify-center rounded-full border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] text-[var(--dg-color-text-high-emphasis)]" aria-label="Notifications">
+              <i data-lucide="bell" class="h-5 w-5"></i>
+              <span class="absolute right-2 top-2 h-2.5 w-2.5 rounded-full border-2 border-[var(--dg-color-surface-card)] bg-[var(--dg-color-action-primary)]"></span>
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-4 flex min-h-[var(--dg-sizing-standard-input-height)] items-center gap-3 rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[#0D0D0D] px-4">
+          <button type="button" class="flex min-h-[48px] min-w-0 flex-1 items-center gap-3 text-left" aria-label="Search products, stores, or deliveries">
+            <i data-lucide="search" class="h-5 w-5 shrink-0 text-[var(--dg-color-text-medium-emphasis)]"></i>
+            <span class="truncate text-[13px] text-[var(--dg-color-text-low-emphasis)]">Search products, stores, or deliveries</span>
+          </button>
+          <button type="button" class="flex min-h-[48px] min-w-[48px] items-center justify-center rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-action-secondary)] text-[var(--dg-color-text-high-emphasis)]" aria-label="Filter search">
+            <i data-lucide="sliders-horizontal" class="h-5 w-5"></i>
+          </button>
+        </div>
+      </header>
+
+      <section aria-labelledby="performance-heading">
+        <div class="mb-4 flex items-center justify-between gap-4">
+          <h2 id="performance-heading" class="dg-type-section-title">Performance overview</h2>
+          <button type="button" class="flex min-h-[48px] shrink-0 items-center gap-1 text-[13px] font-medium text-[var(--dg-color-action-primary)]">
+            Reports
+            <i data-lucide="arrow-up-right" class="h-4 w-4"></i>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-[var(--dg-mobile-layout-element-gap)]">
+          <button type="button" class="flex min-h-[164px] flex-col justify-between rounded-[var(--dg-radii-app)] border border-[rgba(89,137,255,0.7)] p-[var(--dg-spacing-md)] text-left text-white shadow-[var(--dg-shadows-surface)]" style="background-image:var(--dg-gradients-action-primary)">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex h-11 w-11 items-center justify-center rounded-[var(--dg-radii-inner)] bg-[rgba(255,255,255,0.16)]">
+                <svg viewBox="0 0 48 48" class="h-9 w-9" aria-hidden="true">
+                  <path d="M9 16.5 24 9l15 7.5v15L24 39 9 31.5z" fill="#DCA15A"></path>
+                  <path d="M24 9v15.3l15-7.8M24 24.3 9 16.5" fill="none" stroke="#FFE0A8" stroke-width="1.5"></path>
+                  <path d="m15 13.5 15 7.8v10.2l-15-7.7z" fill="#C78945"></path>
+                  <path d="m20 18 5 2.5v6l-5-2.5z" fill="#F7C979"></path>
+                </svg>
+              </div>
+              <span class="flex h-10 w-10 items-center justify-center rounded-full bg-[rgba(255,255,255,0.92)] text-[#172039]">
+                <i data-lucide="arrow-up-right" class="h-5 w-5"></i>
+              </span>
+            </div>
+            <div>
+              <p class="dg-type-supporting text-[rgba(255,255,255,0.78)]">Total products</p>
+              <p class="dg-type-metric-value mt-1 text-[28px] text-white">345</p>
+              <p class="mt-1 text-[11px] font-medium text-[#BBD0FF]">+12.4% this month</p>
+            </div>
+          </button>
+
+          <button type="button" class="flex min-h-[164px] flex-col justify-between rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-[var(--dg-spacing-md)] text-left shadow-[var(--dg-shadows-surface)]">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex h-11 w-11 items-center justify-center rounded-[var(--dg-radii-inner)] bg-[#292929]">
+                <svg viewBox="0 0 48 48" class="h-9 w-9" aria-hidden="true">
+                  <path d="m9 20 13-7 17 8-13 7z" fill="#86B88D"></path>
+                  <path d="m9 20 17 8v10L9 30z" fill="#557D5B"></path>
+                  <path d="m26 28 13-7v10l-13 7z" fill="#6B9A70"></path>
+                  <path d="M19 16.5 35 24" stroke="#D7F2D2" stroke-width="2"></path>
+                  <path d="m16 25 7 3.5v5L16 30z" fill="#D5E9C6"></path>
+                </svg>
+              </div>
+              <span class="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F0F0F] text-[var(--dg-color-text-medium-emphasis)]">
+                <i data-lucide="arrow-up-right" class="h-5 w-5"></i>
+              </span>
+            </div>
+            <div>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Payments received</p>
+              <p class="dg-type-metric-value mt-1 text-[22px] text-[var(--dg-color-text-high-emphasis)]">₹10,326.00</p>
+              <p class="mt-1 text-[11px] font-medium text-[#70D978]">+8.6% this month</p>
+            </div>
+          </button>
+
+          <button type="button" class="flex min-h-[164px] flex-col justify-between rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-[var(--dg-spacing-md)] text-left shadow-[var(--dg-shadows-surface)]">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex h-11 w-11 items-center justify-center rounded-[var(--dg-radii-inner)] bg-[#292929]">
+                <svg viewBox="0 0 48 48" class="h-9 w-9" aria-hidden="true">
+                  <path d="M10 20h28l-3-9H13z" fill="#D8AA6B"></path>
+                  <path d="M12 20h24v18H12z" fill="#B7793F"></path>
+                  <path d="M10 20h28v5H10z" fill="#F1C47F"></path>
+                  <path d="M16 25h5v13h-5zM27 25h5v13h-5z" fill="#F0D6A4"></path>
+                  <path d="M8 20h32" stroke="#FFE7B8" stroke-width="1.5"></path>
+                </svg>
+              </div>
+              <span class="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F0F0F] text-[var(--dg-color-text-medium-emphasis)]">
+                <i data-lucide="arrow-up-right" class="h-5 w-5"></i>
+              </span>
+            </div>
+            <div>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Find store</p>
+              <p class="dg-type-metric-value mt-1 text-[28px] text-[var(--dg-color-text-high-emphasis)]">112</p>
+              <p class="mt-1 text-[11px] font-medium text-[var(--dg-color-text-medium-emphasis)]">Active locations</p>
+            </div>
+          </button>
+
+          <button type="button" class="flex min-h-[164px] flex-col justify-between rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-[var(--dg-spacing-md)] text-left shadow-[var(--dg-shadows-surface)]">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex h-11 w-11 items-center justify-center rounded-[var(--dg-radii-inner)] bg-[#292929]">
+                <svg viewBox="0 0 48 48" class="h-9 w-9" aria-hidden="true">
+                  <path d="m9 31 9-5 8 4-9 5z" fill="#F0B34D"></path>
+                  <path d="m18 26 9-5 8 4-9 5z" fill="#71B4ED"></path>
+                  <path d="m27 21 8-5 7 4-8 5z" fill="#E27559"></path>
+                  <path d="m9 31 8 4v5l-8-4zM17 35l9-5v5l-9 5z" fill="#C47E2B"></path>
+                  <path d="m18 26 8 4v5l-8-4zM26 30l9-5v5l-9 5z" fill="#4289C6"></path>
+                  <path d="m27 21 7 4v5l-7-4zM34 25l8-5v5l-8 5z" fill="#B74E3B"></path>
+                </svg>
+              </div>
+              <span class="flex h-10 w-10 items-center justify-center rounded-full bg-[#0F0F0F] text-[var(--dg-color-text-medium-emphasis)]">
+                <i data-lucide="arrow-up-right" class="h-5 w-5"></i>
+              </span>
+            </div>
+            <div>
+              <p class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">Product stacks</p>
+              <p class="dg-type-metric-value mt-1 text-[28px] text-[var(--dg-color-text-high-emphasis)]">234</p>
+              <p class="mt-1 text-[11px] font-medium text-[var(--dg-color-text-medium-emphasis)]">Across all stores</p>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <section aria-labelledby="stock-heading">
+        <div class="mb-4 flex items-center justify-between gap-4">
+          <h2 id="stock-heading" class="dg-type-section-title">Stock overview</h2>
+          <span class="dg-type-supporting text-[var(--dg-color-text-medium-emphasis)]">463 total units</span>
+        </div>
+
+        <div class="rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-[var(--dg-spacing-md)] shadow-[var(--dg-shadows-surface)]">
+          <div class="flex h-3 w-full gap-1 overflow-hidden rounded-[var(--dg-radii-pill)] bg-[#303030]" aria-label="Stock health breakdown">
+            <div class="h-full w-[74%] rounded-l-[var(--dg-radii-pill)] bg-[#54C85B]"></div>
+            <div class="h-full w-[17%] bg-[#F2AD36]"></div>
+            <div class="h-full w-[9%] rounded-r-[var(--dg-radii-pill)] bg-[#F05C5C]"></div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-3 divide-x divide-[var(--dg-color-border-divider)]">
+            <div class="min-w-0 pr-3">
+              <div class="flex items-center gap-2">
+                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#54C85B] text-[#102315]">
+                  <i data-lucide="check" class="h-3 w-3"></i>
+                </span>
+                <span class="truncate text-[11px] text-[var(--dg-color-text-medium-emphasis)]">In stock</span>
+              </div>
+              <p class="mt-1 pl-7 text-[16px] font-bold text-[var(--dg-color-text-high-emphasis)]">345</p>
+            </div>
+            <div class="min-w-0 px-3">
+              <div class="flex items-center gap-2">
+                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#F2AD36] text-[#271A08]">
+                  <i data-lucide="alert-triangle" class="h-3 w-3"></i>
+                </span>
+                <span class="truncate text-[11px] text-[var(--dg-color-text-medium-emphasis)]">Low stock</span>
+              </div>
+              <p class="mt-1 pl-7 text-[16px] font-bold text-[var(--dg-color-text-high-emphasis)]">79</p>
+            </div>
+            <div class="min-w-0 pl-3">
+              <div class="flex items-center gap-2">
+                <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#F05C5C] text-[#2B1010]">
+                  <i data-lucide="x" class="h-3 w-3"></i>
+                </span>
+                <span class="truncate text-[11px] text-[var(--dg-color-text-medium-emphasis)]">Out of stock</span>
+              </div>
+              <p class="mt-1 pl-7 text-[16px] font-bold text-[var(--dg-color-text-high-emphasis)]">39</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="deliveries-heading">
+        <div class="mb-4 flex items-center justify-between gap-4">
+          <h2 id="deliveries-heading" class="dg-type-section-title">Recent deliveries</h2>
+          <button type="button" class="flex min-h-[48px] shrink-0 items-center gap-1 text-[13px] font-medium text-[var(--dg-color-action-primary)]">
+            See all
+            <i data-lucide="chevron-right" class="h-4 w-4"></i>
+          </button>
+        </div>
+
+        <div class="flex flex-col gap-[var(--dg-mobile-layout-element-gap)]">
+          <button type="button" class="grid min-h-[88px] grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-3 text-left shadow-[var(--dg-shadows-surface)]">
+            <div class="h-14 w-14 overflow-hidden rounded-[var(--dg-radii-inner)] border-[var(--dg-color-border-divider)] bg-[#29251E]" role="img" aria-label="Small product thumbnails for delivery items"></div>
+            <div class="min-w-0">
+              <p class="truncate text-[14px] font-semibold text-[var(--dg-color-text-high-emphasis)]">Fresh Mart, Kakkanad</p>
+              <p class="mt-1 truncate text-[12px] text-[var(--dg-color-text-medium-emphasis)]">12 products · Jul 17, 2025 · 10:45 AM</p>
+            </div>
+            <div class="flex shrink-0 flex-col items-end gap-1">
+              <span class="flex items-center gap-1.5 text-[12px] font-medium text-[#70D978]"><span class="h-1.5 w-1.5 rounded-full bg-[#70D978]"></span>Delivered</span>
+              <i data-lucide="chevron-right" class="h-4 w-4 text-[var(--dg-color-text-low-emphasis)]"></i>
+            </div>
+          </button>
+
+          <button type="button" class="grid min-h-[88px] grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-3 text-left shadow-[var(--dg-shadows-surface)]">
+            <div class="h-14 w-14 overflow-hidden rounded-[var(--dg-radii-inner)] border-[var(--dg-color-border-divider)] bg-[#1F292A]" role="img" aria-label="Small product thumbnails for delivery items"></div>
+            <div class="min-w-0">
+              <p class="truncate text-[14px] font-semibold text-[var(--dg-color-text-high-emphasis)]">Green Basket, Edappally</p>
+              <p class="mt-1 truncate text-[12px] text-[var(--dg-color-text-medium-emphasis)]">8 products · Jul 17, 2025 · 09:20 AM</p>
+            </div>
+            <div class="flex shrink-0 flex-col items-end gap-1">
+              <span class="flex items-center gap-1.5 text-[12px] font-medium text-[#70D978]"><span class="h-1.5 w-1.5 rounded-full bg-[#70D978]"></span>Delivered</span>
+              <i data-lucide="chevron-right" class="h-4 w-4 text-[var(--dg-color-text-low-emphasis)]"></i>
+            </div>
+          </button>
+
+          <button type="button" class="grid min-h-[88px] grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-3 text-left shadow-[var(--dg-shadows-surface)]">
+            <div class="h-14 w-14 overflow-hidden rounded-[var(--dg-radii-inner)] border-[var(--dg-color-border-divider)] bg-[#28231D]" role="img" aria-label="Small product thumbnails for delivery items"></div>
+            <div class="min-w-0">
+              <p class="truncate text-[14px] font-semibold text-[var(--dg-color-text-high-emphasis)]">Daily Needs, Vyttila</p>
+              <p class="mt-1 truncate text-[12px] text-[var(--dg-color-text-medium-emphasis)]">14 products · Jul 16, 2025 · 04:10 PM</p>
+            </div>
+            <div class="flex shrink-0 flex-col items-end gap-1">
+              <span class="flex items-center gap-1.5 text-[12px] font-medium text-[#F2B84B]"><span class="h-1.5 w-1.5 rounded-full bg-[#F2B84B]"></span>In transit</span>
+              <i data-lucide="chevron-right" class="h-4 w-4 text-[var(--dg-color-text-low-emphasis)]"></i>
+            </div>
+          </button>
+
+          <button type="button" class="grid min-h-[88px] grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-3 text-left shadow-[var(--dg-shadows-surface)]">
+            <div class="h-14 w-14 overflow-hidden rounded-[var(--dg-radii-inner)] border-[var(--dg-color-border-divider)] bg-[#24252D]" role="img" aria-label="Small product thumbnails for delivery items"></div>
+            <div class="min-w-0">
+              <p class="truncate text-[14px] font-semibold text-[var(--dg-color-text-high-emphasis)]">Urban Pantry, Kakkanad</p>
+              <p class="mt-1 truncate text-[12px] text-[var(--dg-color-text-medium-emphasis)]">6 products · Jul 16, 2025 · 11:35 AM</p>
+            </div>
+            <div class="flex shrink-0 flex-col items-end gap-1">
+              <span class="flex items-center gap-1.5 text-[12px] font-medium text-[#70D978]"><span class="h-1.5 w-1.5 rounded-full bg-[#70D978]"></span>Delivered</span>
+              <i data-lucide="chevron-right" class="h-4 w-4 text-[var(--dg-color-text-low-emphasis)]"></i>
+            </div>
+          </button>
+
+          <button type="button" class="grid min-h-[88px] grid-cols-[56px_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--dg-radii-app)] border border-[var(--dg-color-border-divider)] bg-[var(--dg-color-surface-card)] p-3 text-left shadow-[var(--dg-shadows-surface)]">
+            <div class="h-14 w-14 overflow-hidden rounded-[var(--dg-radii-inner)] border-[var(--dg-color-border-divider)] bg-[#202932]" role="img" aria-label="Small product thumbnails for delivery items"></div>
+            <div class="min-w-0">
+              <p class="truncate text-[14px] font-semibold text-[var(--dg-color-text-high-emphasis)]">Metro Store, Palarivattom</p>
+              <p class="mt-1 truncate text-[12px] text-[var(--dg-color-text-medium-emphasis)]">11 products · Jul 15, 2025 · 02:50 PM</p>
+            </div>
+            <div class="flex shrink-0 flex-col items-end gap-1">
+              <span class="flex items-center gap-1.5 text-[12px] font-medium text-[#F2B84B]"><span class="h-1.5 w-1.5 rounded-full bg-[#F2B84B]"></span>Pending</span>
+              <i data-lucide="chevron-right" class="h-4 w-4 text-[var(--dg-color-text-low-emphasis)]"></i>
+            </div>
+          </button>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+      
+    </div>
+    <script>
+      function drawgleRepairLucideNames(root) {
+  var icons = window.lucide && window.lucide.icons;
+  if (!icons) return 0;
+  var byLetters = null;
+  var repaired = 0;
+  (root || document).querySelectorAll("[data-lucide]").forEach(function (node) {
+    var name = node.getAttribute("data-lucide") || "";
+    var key = name.replace(/^([A-Z])|[\s\-_]+(\w)/g, function (match, first, next) { return next ? next.toUpperCase() : first.toLowerCase(); });
+    key = key.charAt(0).toUpperCase() + key.slice(1);
+    if (icons[key]) return;
+    if (!byLetters) {
+      byLetters = {};
+      Object.keys(icons).forEach(function (iconKey) { byLetters[iconKey.toLowerCase()] = iconKey; });
+    }
+    var match = byLetters[name.replace(/[^a-z0-9]/gi, "").toLowerCase()];
+    if (match) {
+      node.setAttribute("data-lucide", match);
+      repaired += 1;
+    }
+  });
+  return repaired;
+}
+      if (window.lucide && typeof window.lucide.createIcons === "function") { drawgleRepairLucideNames(); window.lucide.createIcons(); }
+    </script>
+  </body>
+</html>

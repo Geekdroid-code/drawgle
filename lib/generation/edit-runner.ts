@@ -10,7 +10,6 @@ import {
   buildFullScreenReconstructionCode,
   buildSectionRepairCode,
   buildSourceRegionReplacementCode,
-  editNavigationShellCode,
   editScreenStream,
 } from "@/lib/generation/service";
 import { applyEdits } from "@/lib/diff-engine";
@@ -34,11 +33,10 @@ import { persistDesignChange, readDesignTarget } from "@/lib/design-history/pers
 import { cleanUnknownError } from "@/lib/ai/error-handler";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
 import {
-  applyNavigationDesignEdit,
-  renderDeterministicNavigationShell,
   sanitizeScreenCodeForSharedNavigation,
-  validateNavigationShell,
 } from "@/lib/project-navigation";
+import { executeNavigationEdit } from "./navigation-edit-runner";
+import { navigationEditIntent } from "@/lib/navigation-edit-intent";
 import { deriveRequiresBottomNav } from "@/lib/navigation";
 import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -237,9 +235,6 @@ const buildEditAgentState = ({
   message: message ?? null,
   expiresAt: new Date(Date.now() + 1000 * 60 * 20).toISOString(),
 });
-
-const isNavigationEditPrompt = (prompt: string) =>
-  /\b(nav|navigation|tab bar|tabs|bottom bar|bottom nav|bottom navigation|floating dock|dock)\b/i.test(prompt);
 
 const isNavigationElementHtml = (html?: string | null) =>
   /data-drawgle-primary-nav|data-nav-item-id/i.test(html ?? "");
@@ -681,6 +676,31 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
   const designTokens = (project.design_tokens as DesignTokens | null) ?? null;
   const projectCharter = (project.project_charter as ProjectCharter | null) ?? null;
   const navigationArchitecture = (projectCharter?.navigationArchitecture ?? null) as NavigationArchitecture | null;
+  const requestedNavigationEdit = payload.requestTargetsNavigation || selectedElementTarget === "navigation"
+    || isNavigationElementHtml(selectedElementHtml) || navigationEditIntent(originalPrompt) !== null;
+  if (requestedNavigationEdit) {
+    await upsertActivityMessage(admin, editActivityKey, {
+      projectId: payload.projectId, ownerId: payload.ownerId, screenId: null,
+      role: "system", content: "Updating shared project navigation...", messageType: "chat",
+      metadata: { action: "navigation_edit_start", target: "project_navigation", screenName: "Navigation",
+        userMessageId: payload.userMessageId, editJob: { status: "editing", targetType: "navigation" } },
+    });
+    const result = await executeNavigationEdit(admin, {
+      ...payload,
+      prompt: prompt === originalPrompt ? prompt : `${originalPrompt}\nResolved request: ${prompt}`,
+      intent: navigationEditIntent(originalPrompt) ?? navigationEditIntent(prompt, true),
+    }, designTokens, projectCharter);
+    const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
+      projectId: payload.projectId, ownerId: payload.ownerId, screenId: payload.screenId ?? null,
+      role: "model", content: result.message, messageType: result.changed ? "edit_applied" : "chat",
+      metadata: { action: result.changed ? "edit_applied" : "edit_noop", target: "project_navigation", screenName: "Navigation",
+        userMessageId: payload.userMessageId, editJob: { status: "completed", targetType: "navigation" }, routerDecision: payload.routerDecision ?? null,
+        agentState: buildEditAgentState({ kind: "last_actionable_request", instruction: prompt, scope: "navigation", screenId: payload.screenId }) },
+    });
+    await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, result.message);
+    return { targetType: "navigation" as const, ...result };
+  }
+
   const sourceReferenceContext = await buildSourceReferenceContext({
     admin,
     projectId: payload.projectId,
@@ -688,312 +708,6 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
     references: payload.sourceReferences ?? [],
   });
   const editPrompt = sourceReferenceContext ? `${prompt}\n\n${sourceReferenceContext}` : prompt;
-  let requestedNavigationEdit =
-    payload.requestTargetsNavigation ||
-    selectedElementTarget === "navigation" ||
-    isNavigationElementHtml(selectedElementHtml);
-
-  if (requestedNavigationEdit) {
-    const { data: navData, error: navError } = await admin
-      .from("project_navigation")
-      .select("id, shell_code")
-      .eq("project_id", payload.projectId)
-      .maybeSingle();
-
-    if (navError || !navData?.shell_code) {
-      if (payload.screenId) {
-        requestedNavigationEdit = false;
-      }
-    }
-  }
-
-  let selectedNavigationElement = requestedNavigationEdit && (selectedElementTarget === "navigation" || isNavigationElementHtml(selectedElementHtml));
-
-  if (requestedNavigationEdit) {
-    const { data: projectNavigation, error: navigationError } = await admin
-      .from("project_navigation")
-      .select("id, shell_code, block_index, plan, design_revision")
-      .eq("project_id", payload.projectId)
-      .maybeSingle();
-
-    if (navigationError || !projectNavigation?.shell_code) {
-      throw new Error(navigationError?.message ?? "Shared project navigation was not found for this project.");
-    }
-    const navigationIdentity = { projectId: payload.projectId, ownerId: payload.ownerId, target: { context: "navigation" as const } };
-    const navigationSnapshot = await readDesignTarget(admin, navigationIdentity);
-    if (navigationSnapshot.revision !== projectNavigation.design_revision) {
-      throw new Error("Navigation changed while the edit was starting. Retry explicitly.");
-    }
-    const saveNavigation = async (nextCode: string, nextPlan: NavigationPlan) => {
-      const saved = await persistDesignChange(admin, navigationIdentity, {
-        expectedRevision: projectNavigation.design_revision, requestId: payload.userMessageId,
-        payload: { ...navigationSnapshot.payload as object, shellCode: nextCode, plan: nextPlan },
-        label: "Edited shared navigation", origin: "ai-edit",
-      });
-      if (saved.status !== "success") throw new Error("Navigation changed while the edit was running. Retry explicitly.");
-    };
-
-    const navigationCode = ensureDrawgleIds(projectNavigation.shell_code, "dg-nav").code;
-    const navigationPlan = projectNavigation.plan as unknown as NavigationPlan;
-    if (navigationPlan.version === 2) {
-      selectedNavigationElement = false;
-    }
-
-    if (selectedNavigationElement && selectedElementDrawgleId) {
-      const selectedNavigationTarget = findRepairTarget({
-        code: navigationCode,
-        drawgleId: selectedElementDrawgleId,
-        allowFallback: false,
-      });
-
-      if (!selectedNavigationTarget) {
-        const failureContent = "I could not locate that selected navigation item in the saved source. Please reselect it and try again.";
-        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
-          projectId: payload.projectId,
-          ownerId: payload.ownerId,
-          screenId: null,
-          role: "model",
-          content: failureContent,
-          messageType: "error",
-          metadata: {
-            action: "selected_navigation_target_not_found",
-            target: "project_navigation",
-            screenName: "Navigation",
-            userMessageId: payload.userMessageId,
-            editStrategy: "selected_element_region_replace",
-            editJob: { status: "failed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
-            routerDecision: payload.routerDecision ?? null,
-          },
-        });
-
-        await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
-        return { targetType: "navigation" as const, changed: false, message: failureContent };
-      }
-
-      await upsertActivityMessage(admin, editActivityKey, {
-        projectId: payload.projectId,
-        ownerId: payload.ownerId,
-        screenId: null,
-        role: "system",
-        content: "Editing selected navigation element...",
-        messageType: "chat",
-        metadata: {
-          action: "selected_navigation_region_replace_start",
-          target: "project_navigation",
-          screenName: "Navigation",
-          userMessageId: payload.userMessageId,
-          editStrategy: "selected_element_region_replace",
-          repairTarget: {
-            reason: selectedNavigationTarget.reason,
-            blockId: selectedNavigationTarget.blockId ?? null,
-            drawgleId: selectedNavigationTarget.drawgleId ?? selectedElementDrawgleId,
-            startOffset: selectedNavigationTarget.startOffset,
-            endOffset: selectedNavigationTarget.endOffset,
-          },
-          editJob: { status: "editing", targetType: "navigation", drawgleId: selectedElementDrawgleId },
-          routerDecision: payload.routerDecision ?? null,
-        },
-      });
-
-      let rawReplacement = "";
-      const replacement = await buildSourceRegionReplacementCode({
-        screenName: "Navigation",
-        screenPrompt: `Shared navigation shell plan:\n${JSON.stringify(navigationPlan ?? null, null, 2)}`,
-        userPrompt: editPrompt,
-        currentCode: navigationCode,
-        repairTarget: selectedNavigationTarget,
-        editOperation,
-        requiredRootDrawgleId: selectedElementDrawgleId,
-        designTokens,
-        projectCharter,
-        navigationArchitecture,
-        llmLog,
-        onRawResponse: (rawText) => {
-          rawReplacement = rawText;
-        },
-      });
-
-      let selectedMerge: ReturnType<typeof replaceSelectedDrawgleElement>;
-      try {
-        selectedMerge = replaceSelectedDrawgleElement({
-          sourceCode: navigationCode,
-          replacementHtml: replacement,
-          rawReplacementHtml: rawReplacement || replacement,
-          drawgleId: selectedElementDrawgleId,
-        });
-      } catch (error) {
-        const failureReason = errorMessage(error, "The replacement did not pass Drawgle id checks.");
-        const failureContent = `I could not safely apply that selected navigation edit. ${failureReason}`;
-        const selectedElementDiagnostics = buildSelectedElementFailureDiagnostics({
-          drawgleId: selectedElementDrawgleId,
-          sourceCode: navigationCode,
-          replacement,
-          rawReplacement: rawReplacement || replacement,
-          error,
-        });
-        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
-          projectId: payload.projectId,
-          ownerId: payload.ownerId,
-          screenId: null,
-          role: "model",
-          content: failureContent,
-          messageType: "error",
-          metadata: {
-            action: "selected_navigation_region_replace_failed_integrity",
-            target: "project_navigation",
-            screenName: "Navigation",
-            userMessageId: payload.userMessageId,
-            editStrategy: "selected_element_region_replace",
-            selectedElementDiagnostics,
-            editJob: { status: "failed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
-            routerDecision: payload.routerDecision ?? null,
-          },
-        });
-
-        await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
-        return { targetType: "navigation" as const, changed: false, message: failureContent };
-      }
-      const nextCode = selectedMerge.diagnostics.changed
-        ? ensureDrawgleIds(tokenizeStaticDrawgleHtml(selectedMerge.code, designTokens).code, "dg-nav").code
-        : navigationCode;
-      const editChanged = selectedMerge.diagnostics.changed && nextCode !== navigationCode;
-      const selectedElementDiagnostics = finalizeSelectedElementDiagnostics({
-        diagnostics: selectedMerge.diagnostics,
-        nextCode,
-        drawgleId: selectedElementDrawgleId,
-        changed: editChanged,
-      });
-
-      if (editChanged && !validateNavigationShell(nextCode, navigationPlan)) {
-        const failureContent = "I could not safely apply that selected navigation edit because the generated replacement would break the shared navigation shell.";
-        const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
-          projectId: payload.projectId,
-          ownerId: payload.ownerId,
-          screenId: null,
-          role: "model",
-          content: failureContent,
-          messageType: "error",
-          metadata: {
-            action: "selected_navigation_region_replace_blocked_by_validation",
-            target: "project_navigation",
-            screenName: "Navigation",
-            userMessageId: payload.userMessageId,
-            editStrategy: "selected_element_region_replace",
-            selectedElementDiagnostics,
-            editJob: { status: "failed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
-            routerDecision: payload.routerDecision ?? null,
-          },
-        });
-
-        await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, failureContent);
-        return { targetType: "navigation" as const, changed: false, message: failureContent };
-      }
-
-      if (editChanged) {
-        await saveNavigation(nextCode, navigationPlan);
-      }
-
-      let designSummary: any = null;
-      if (editChanged) {
-        designSummary = await generateDesignSummaryLLM(prompt, "Selected Navigation Element");
-      }
-
-      const fullResponse = !editChanged
-        ? "No material code changes were applied to the selected navigation element."
-        : "Updated selected navigation element.";
-      const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
-        projectId: payload.projectId,
-        ownerId: payload.ownerId,
-        screenId: null,
-        role: "model",
-        content: fullResponse,
-        messageType: !editChanged ? "error" : "edit_applied",
-        metadata: {
-          action: !editChanged
-            ? "selected_navigation_region_replace_noop"
-            : "selected_navigation_region_replace_applied",
-          target: "project_navigation",
-          screenName: "Navigation",
-          userMessageId: payload.userMessageId,
-          editStrategy: "selected_element_region_replace",
-          selectedElementDiagnostics,
-          editJob: { status: "completed", targetType: "navigation", drawgleId: selectedElementDrawgleId },
-          routerDecision: payload.routerDecision ?? null,
-          designSummary,
-        },
-      });
-
-      await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, fullResponse);
-      return { targetType: "navigation" as const, changed: editChanged, message: fullResponse };
-    }
-
-    await upsertActivityMessage(admin, editActivityKey, {
-      projectId: payload.projectId,
-      ownerId: payload.ownerId,
-      screenId: null,
-      role: "system",
-      content: "Editing shared project navigation...",
-      messageType: "chat",
-      metadata: {
-        action: "navigation_edit_start",
-        target: "project_navigation",
-        screenName: "Navigation",
-        userMessageId: payload.userMessageId,
-        editJob: { status: "editing", targetType: "navigation" },
-        routerDecision: payload.routerDecision ?? null,
-      },
-    });
-
-    const nextNavigationPlan = navigationPlan.version === 2
-      ? applyNavigationDesignEdit(navigationPlan, prompt)
-      : navigationPlan;
-    const editedNavigationCode = navigationPlan.version === 2
-      ? renderDeterministicNavigationShell(nextNavigationPlan)
-      : await editNavigationShellCode({
-          prompt,
-          currentShellCode: navigationCode,
-          navigationPlan,
-          designTokens,
-          projectCharter,
-          selectedElementHtml: selectedNavigationElement ? selectedElementHtml : null,
-          llmLog,
-        });
-    const nextCode = ensureDrawgleIds(tokenizeStaticDrawgleHtml(editedNavigationCode, designTokens).code, "dg-nav").code;
-    const planChanged = JSON.stringify(nextNavigationPlan) !== JSON.stringify(navigationPlan);
-    if (nextCode !== navigationCode || planChanged) {
-      await saveNavigation(nextCode, nextNavigationPlan);
-    }
-
-    const isChanged = nextCode !== navigationCode || planChanged;
-    let designSummary: any = null;
-    if (isChanged) {
-      designSummary = await generateDesignSummaryLLM(prompt, "Navigation");
-    }
-
-    const fullResponse = !isChanged
-      ? "No material code changes were applied to Navigation."
-      : "Updated shared project navigation.";
-    const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
-      projectId: payload.projectId,
-      ownerId: payload.ownerId,
-      screenId: null,
-      role: "model",
-      content: fullResponse,
-      messageType: !isChanged ? "chat" : "edit_applied",
-      metadata: {
-        action: !isChanged ? "edit_noop" : "edit_applied",
-        target: "project_navigation",
-        screenName: "Navigation",
-        userMessageId: payload.userMessageId,
-        editJob: { status: "completed", targetType: "navigation" },
-        routerDecision: payload.routerDecision ?? null,
-        designSummary,
-      },
-    });
-
-    await persistEditMemoryPair(admin, payload.userMessageId, prompt, modelMessage.id, fullResponse);
-    return { targetType: "navigation" as const, changed: nextCode !== navigationCode, message: fullResponse };
-  }
 
   if (!payload.screenId) {
     throw new Error("No screen target was provided for this edit.");

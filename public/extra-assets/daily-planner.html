@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Daily Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+:root {
+  --dg-color-text-high-emphasis: #1A1A1A;
+  --dg-color-text-medium-emphasis: #6C6C6C;
+  --dg-color-background-primary: #EEEEEE;
+  --dg-color-background-secondary: #FFFFFF;
+  --dg-radii-app: 28px;
+  --dg-shadows-overlay: 0px 8px 30px rgba(0, 0, 0, 0.08);
+  --dg-shadows-surface: 0px 4px 20px rgba(0, 0, 0, 0.03);
+  --dg-spacing-md: 16px;
+  --dg-spacing-xs: 8px;
+  --dg-typography-heading-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dg-typography-body-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dg-type-section-title-size: 18px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 24px;
+  --dg-type-body-size: 15px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 20px;
+  --dg-type-supporting-size: 13px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 18px;
+  --dg-type-caption-size: 11px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 14px;
+  --dg-mobile-layout-section-gap: 12px;
+  --dg-mobile-layout-screen-margin: 16px;
+}
+
+:where(#root, #drawgle-export-root) h1,
+:where(#root, #drawgle-export-root) h2,
+:where(#root, #drawgle-export-root) h3,
+:where(#root, #drawgle-export-root) h4,
+:where(#root, #drawgle-export-root) h5,
+:where(#root, #drawgle-export-root) h6 {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+:where(#root, #drawgle-export-root) button,
+:where(#root, #drawgle-export-root) input,
+:where(#root, #drawgle-export-root) textarea,
+:where(#root, #drawgle-export-root) select {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  background: var(--dg-color-background-primary, #ffffff);
+  color: var(--dg-color-text-high-emphasis, #111827);
+}
+#drawgle-export-root {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--dg-color-background-primary, #ffffff);
+}
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <div class="pt-[16px] px-[var(--dg-mobile-layout-screen-margin)] flex flex-col gap-[var(--dg-mobile-layout-section-gap)] pb-[120px]">
+    <div class="flex items-center justify-between text-[13px] dg-text-medium">
+      <span>9:41</span>
+      <div class="flex items-center gap-[6px]">
+        <i data-lucide="signal"></i>
+        <i data-lucide="wifi"></i>
+        <i data-lucide="battery"></i>
+      </div>
+    </div>
+
+    <div class="flex items-center justify-between">
+      <i data-lucide="grid-2x2" class="w-[20px] h-[20px] dg-text-medium"></i>
+      <div class="dg-type-section-title">OVEX</div>
+      <i data-lucide="settings" class="w-[20px] h-[20px] dg-text-medium"></i>
+    </div>
+
+    <div id="status-hero" class="bg-[var(--dg-color-background-secondary)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] p-[var(--dg-spacing-md)]">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-[28px] h-[28px] rounded-full bg-[#FFF3CD] flex items-center justify-center">
+            <i data-lucide="calendar" class="w-[16px] h-[16px] text-[#B8860B]"></i>
+          </div>
+          <span class="dg-type-section-title">Today</span>
+        </div>
+        <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+          <div class="w-[28px] h-[28px] rounded-full border-[2px] border-[#22C55E] flex items-center justify-center dg-type-caption">3</div>
+          <i data-lucide="chevrons-up-down" class="w-[16px] h-[16px] dg-text-medium"></i>
+        </div>
+      </div>
+    </div>
+
+    <div id="event-timeline" class="bg-[var(--dg-color-background-secondary)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] p-[var(--dg-spacing-md)]">
+      <div class="flex items-center justify-between mb-[var(--dg-spacing-xs)]">
+        <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+          <span class="dg-type-section-title">September</span>
+          <span class="px-[8px] py-[2px] rounded-full bg-[#F2F2F2] dg-type-caption dg-text-medium">W37</span>
+        </div>
+        <div class="flex items-center gap-[4px] dg-text-medium dg-type-supporting">
+          <i data-lucide="cloud" class="w-[16px] h-[16px]"></i>
+          <span>22°C</span>
+        </div>
+      </div>
+
+      <div class="rounded-[12px] bg-[#E8EAF6] p-[12px] mb-[8px]">
+        <div class="flex items-start justify-between gap-[12px]">
+          <div>
+            <div class="dg-type-body font-[600]">Kick-Off Call: FiDi</div>
+            <div class="dg-type-supporting dg-text-medium">09:30 – 10:00</div>
+          </div>
+          <div class="flex -space-x-[8px]">
+            <div class="w-[28px] h-[28px] rounded-full bg-[#FDE68A] border-[2px] border-white flex items-center justify-center dg-type-caption">A</div>
+            <div class="w-[28px] h-[28px] rounded-full bg-[#FBCFE8] border-[2px] border-white flex items-center justify-center dg-type-caption">B</div>
+            <div class="w-[28px] h-[28px] rounded-full bg-[#BFDBFE] border-[2px] border-white flex items-center justify-center dg-type-caption">C</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-[12px] bg-[#FDEDEC] p-[12px] mb-[12px]">
+        <div class="flex items-start justify-between gap-[12px]">
+          <div>
+            <div class="dg-type-body font-[600]">Sphere Weekly Stand-Up</div>
+            <div class="dg-type-supporting dg-text-medium">11:15 – 12:00</div>
+          </div>
+          <div class="flex items-center gap-[6px]">
+            <div class="flex -space-x-[8px]">
+              <div class="w-[28px] h-[28px] rounded-full bg-[#C7D2FE] border-[2px] border-white flex items-center justify-center dg-type-caption">D</div>
+              <div class="w-[28px] h-[28px] rounded-full bg-[#FDE68A] border-[2px] border-white flex items-center justify-center dg-type-caption">E</div>
+            </div>
+            <span class="dg-type-caption dg-text-medium">+3</span>
+          </div>
+        </div>
+      </div>
+
+      <button class="w-full h-[40px] rounded-full border border-[#EBEBEB] dg-type-body dg-text-medium flex items-center justify-center gap-[6px]">
+        View all
+        <i data-lucide="chevron-up" class="w-[14px] h-[14px]"></i>
+      </button>
+    </div>
+
+    <div id="task-management" class="bg-[var(--dg-color-background-secondary)] rounded-[var(--dg-radii-app)] shadow-[var(--dg-shadows-surface)] p-[var(--dg-spacing-md)]">
+      <div class="flex items-center gap-[12px] py-[8px]">
+        <div class="w-[20px] h-[20px] rounded-[4px] border border-[#D1D1D1]"></div>
+        <div class="flex-1 min-w-0 dg-type-body">Revise prototype for SafeGuard</div>
+        <div class="flex items-center gap-[6px] dg-text-medium dg-type-supporting text-[#B91C1C]">
+          <i data-lucide="target" class="w-[14px] h-[14px]"></i>
+          <span>9 Sep</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-[12px] py-[8px]">
+        <div class="w-[20px] h-[20px] rounded-[4px] border border-[#D1D1D1]"></div>
+        <div class="flex-1 min-w-0 dg-type-body">Weekly Sync</div>
+        <div class="flex items-center gap-[6px] dg-text-medium dg-type-supporting">
+          <i data-lucide="calendar-check" class="w-[14px] h-[14px]"></i>
+          <span>9 Sep</span>
+          <div class="flex -space-x-[8px] ml-[4px]">
+            <div class="w-[20px] h-[20px] rounded-full bg-[#C7D2FE] border-[2px] border-white"></div>
+            <div class="w-[20px] h-[20px] rounded-full bg-[#FDE68A] border-[2px] border-white"></div>
+          </div>
+          <span class="dg-type-caption">+3</span>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-[12px] py-[8px]">
+        <div class="w-[20px] h-[20px] rounded-[4px] border border-[#D1D1D1]"></div>
+        <div class="flex-1 min-w-0 dg-type-body">Wireframe for GreenLife</div>
+      </div>
+
+      <div class="flex items-center gap-[12px] py-[8px] opacity-[0.9]">
+        <div class="w-[20px] h-[20px] rounded-[4px] bg-[#4A72FF] flex items-center justify-center">
+          <i data-lucide="check" class="w-[14px] h-[14px] text-white"></i>
+        </div>
+        <div class="flex-1 min-w-0 dg-type-body line-through">Conduct usability testing</div>
+        <div class="flex -space-x-[8px]">
+          <div class="w-[20px] h-[20px] rounded-full bg-[#FDE68A] border-[2px] border-white"></div>
+          <div class="w-[20px] h-[20px] rounded-full bg-[#FBCFE8] border-[2px] border-white"></div>
+        </div>
+        <span class="dg-type-caption dg-text-medium">+3</span>
+      </div>
+
+      <div class="flex items-center gap-[12px] py-[8px] opacity-[0.9]">
+        <div class="w-[20px] h-[20px] rounded-[4px] bg-[#4A72FF] flex items-center justify-center">
+          <i data-lucide="check" class="w-[14px] h-[14px] text-white"></i>
+        </div>
+        <div class="flex-1 min-w-0 dg-type-body line-through">Daily Sport</div>
+        <i data-lucide="repeat" class="w-[14px] h-[14px] dg-text-medium"></i>
+      </div>
+
+      <div class="flex items-center gap-[12px] py-[8px] opacity-[0.9]">
+        <div class="w-[20px] h-[20px] rounded-[4px] bg-[#4A72FF] flex items-center justify-center">
+          <i data-lucide="check" class="w-[14px] h-[14px] text-white"></i>
+        </div>
+        <div class="flex-1 min-w-0 dg-type-body line-through">Wellground UI fixes</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="action-dock" class="fixed bottom-[24px] left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur rounded-full shadow-[var(--dg-shadows-overlay)] px-[16px] h-[56px] flex items-center gap-[16px]">
+    <i data-lucide="search" class="w-[20px] h-[20px] dg-text-medium"></i>
+    <div class="w-[36px] h-[36px] rounded-full bg-[#F2F2F2] flex items-center justify-center">
+      <i data-lucide="plus" class="w-[18px] h-[18px]"></i>
+    </div>
+    <div class="w-[36px] h-[36px] rounded-full bg-[#1A1A1A] flex items-center justify-center">
+      <i data-lucide="check" class="w-[18px] h-[18px] text-white"></i>
+    </div>
+  </div>
+</div>
+      
+    </div>
+    <script>
+      function drawgleRepairLucideNames(root) {
+  var icons = window.lucide && window.lucide.icons;
+  if (!icons) return 0;
+  var byLetters = null;
+  var repaired = 0;
+  (root || document).querySelectorAll("[data-lucide]").forEach(function (node) {
+    var name = node.getAttribute("data-lucide") || "";
+    var key = name.replace(/^([A-Z])|[\s\-_]+(\w)/g, function (match, first, next) { return next ? next.toUpperCase() : first.toLowerCase(); });
+    key = key.charAt(0).toUpperCase() + key.slice(1);
+    if (icons[key]) return;
+    if (!byLetters) {
+      byLetters = {};
+      Object.keys(icons).forEach(function (iconKey) { byLetters[iconKey.toLowerCase()] = iconKey; });
+    }
+    var match = byLetters[name.replace(/[^a-z0-9]/gi, "").toLowerCase()];
+    if (match) {
+      node.setAttribute("data-lucide", match);
+      repaired += 1;
+    }
+  });
+  return repaired;
+}
+      if (window.lucide && typeof window.lucide.createIcons === "function") { drawgleRepairLucideNames(); window.lucide.createIcons(); }
+    </script>
+  </body>
+</html>

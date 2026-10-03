@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gear Specification</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-high-emphasis: #FFFFFF;
+  --dg-color-text-medium-emphasis: #A0A0A0;
+  --dg-color-action-primary: #FFFFFF;
+  --dg-color-action-on-primary-text: #000000;
+  --dg-color-border-divider: #222222;
+  --dg-color-surface-card: #0E0E0E;
+  --dg-color-surface-inset: #171717;
+  --dg-color-background-primary: #000000;
+  --dg-color-background-secondary: #101010;
+  --dg-radii-app: 28px;
+  --dg-radii-pill: 9999px;
+  --dg-sizing-icon-standard: 24px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-spacing-md: 16px;
+  --dg-spacing-sm: 12px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-gradients-action-primary: linear-gradient(180deg, #FFFFFF 0%, #E6E6E6 100%);
+  --dg-typography-heading-font-family: Inter, sans-serif;
+  --dg-typography-body-font-family: Inter, sans-serif;
+  --dg-type-hero-title-size: 34px;
+  --dg-type-hero-title-weight: 700;
+  --dg-type-hero-title-line-height: 41px;
+  --dg-type-section-title-size: 14px;
+  --dg-type-section-title-weight: 500;
+  --dg-type-section-title-line-height: 20px;
+  --dg-type-metric-value-size: 32px;
+  --dg-type-metric-value-weight: 500;
+  --dg-type-metric-value-line-height: 40px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 400;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 400;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 28px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 16px;
+}
+
+:where(#root, #drawgle-export-root) h1,
+:where(#root, #drawgle-export-root) h2,
+:where(#root, #drawgle-export-root) h3,
+:where(#root, #drawgle-export-root) h4,
+:where(#root, #drawgle-export-root) h5,
+:where(#root, #drawgle-export-root) h6 {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+:where(#root, #drawgle-export-root) button,
+:where(#root, #drawgle-export-root) input,
+:where(#root, #drawgle-export-root) textarea,
+:where(#root, #drawgle-export-root) select {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+
+.dg-bg-secondary { background-color: var(--dg-color-background-secondary); }
+
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+
+.dg-surface-inset { background-color: var(--dg-color-surface-inset, var(--dg-color-surface-card)); }
+
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+
+.dg-radius-app { border-radius: var(--dg-radii-app); }
+
+.dg-radius-pill { border-radius: var(--dg-radii-pill); }
+
+.dg-shared-nav-clearance {
+  padding-bottom: var(--dg-navigation-clearance, 0px) !important;
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  background: var(--dg-color-background-primary, #ffffff);
+  color: var(--dg-color-text-high-emphasis, #111827);
+}
+#drawgle-export-root {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--dg-color-background-primary, #ffffff);
+}
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <!-- Immersive Header Area -->
+  <div class="relative w-full h-[40vh] flex-shrink-0">
+    <!-- Image Gallery -->
+    <div class="w-full h-full overflow-hidden" style="border-bottom-left-radius: var(--dg-radii-app); border-bottom-right-radius: var(--dg-radii-app);">
+      <div class="w-full h-full relative"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/5d8bceab-efc6-4037-a15b-f72df9925632/asset.webp" alt="High-end specialized hobby equipment (e.g., Leica camera or Carbon Road Bike)" width="1024" height="768" loading="lazy" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: bottom center;"></div>
+    </div>
+
+    <!-- Top Bar Navigation (Floating/Transparent over image) -->
+    <div class="absolute top-0 left-0 right-0 pt-[var(--dg-mobile-layout-safe-area-top)] px-[var(--dg-mobile-layout-screen-margin)]">
+      <div class="flex items-center justify-between h-[56px]">
+        <button class="w-[48px] h-[48px] rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center">
+          <i data-lucide="chevron-left" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] text-white"></i>
+        </button>
+        <div class="flex gap-[var(--dg-spacing-sm)]">
+          <button class="w-[48px] h-[48px] rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center">
+            <i data-lucide="share-2" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] text-white"></i>
+          </button>
+          <button class="w-[48px] h-[48px] rounded-full bg-black/40 backdrop-blur-xl border border-white/10 flex items-center justify-center">
+            <i data-lucide="heart" class="w-[var(--dg-sizing-icon-standard)] h-[var(--dg-sizing-icon-standard)] text-white"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Image Pagination Indicator -->
+    <div class="absolute bottom-[var(--dg-spacing-md)] left-1/2 -translate-x-1/2 flex gap-1.5">
+      <div class="w-6 h-1 rounded-full bg-white"></div>
+      <div class="w-1.5 h-1 rounded-full bg-white/40"></div>
+      <div class="w-1.5 h-1 rounded-full bg-white/40"></div>
+    </div>
+  </div>
+
+  <!-- Content Sheet -->
+  <main class="flex-1 flex flex-col dg-shared-nav-clearance">
+    <div class="px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-spacing-xl)] pb-[120px]">
+      
+      <!-- Primary Info Section -->
+      <section class="flex flex-col gap-[var(--dg-spacing-xs)] mb-[var(--dg-mobile-layout-section-gap)]">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="px-2 py-0.5 dg-surface-inset dg-radius-pill border border-[var(--dg-color-border-divider)] dg-type-caption uppercase tracking-widest text-amber-500 font-semibold">Premium Listing</span>
+        </div>
+        <h1 class="dg-type-hero-title leading-tight">Leica M11 Rangefinder Digital Camera</h1>
+        <div class="flex items-baseline gap-3">
+          <span class="dg-type-metric-value text-white">$8,995.00</span>
+          <span class="dg-type-supporting line-through opacity-40">$9,400.00</span>
+        </div>
+      </section>
+
+      <!-- Seller & Trust Island -->
+      <section class="mb-[var(--dg-mobile-layout-section-gap)] grid grid-cols-1 gap-[var(--dg-mobile-layout-element-gap)]">
+        <!-- User Identity -->
+        <div class="flex items-center justify-between p-[var(--dg-spacing-md)] dg-surface-card dg-radius-app border border-[var(--dg-color-border-divider)]">
+          <div class="flex items-center gap-[var(--dg-spacing-sm)]">
+            <div class="w-[52px] h-[52px] rounded-full dg-bg-secondary border border-[var(--dg-color-border-divider)] flex items-center justify-center overflow-hidden relative">
+              <i data-lucide="user" class="w-7 h-7 text-[var(--dg-color-text-medium-emphasis)]"></i>
+              <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-[var(--dg-color-surface-card)]"></div>
+            </div>
+            <div class="flex flex-col">
+              <span class="dg-type-body font-semibold">Alexander Vogt</span>
+              <div class="flex items-center gap-1.5">
+                <div class="flex text-amber-500">
+                  <i data-lucide="star" class="w-3 h-3 fill-current"></i>
+                  <i data-lucide="star" class="w-3 h-3 fill-current"></i>
+                  <i data-lucide="star" class="w-3 h-3 fill-current"></i>
+                  <i data-lucide="star" class="w-3 h-3 fill-current"></i>
+                  <i data-lucide="star" class="w-3 h-3 fill-current"></i>
+                </div>
+                <span class="dg-type-caption dg-text-medium">5.0 • Berlin, DE</span>
+              </div>
+            </div>
+          </div>
+          <button class="px-4 py-2 dg-surface-inset dg-radius-pill border border-[var(--dg-color-border-divider)]">
+            <span class="dg-type-button-label text-xs">Profile</span>
+          </button>
+        </div>
+
+        <!-- Trust / Safety Metric -->
+        <div class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] flex flex-col gap-3 border border-[var(--dg-color-border-divider)]">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <i data-lucide="shield-check" class="w-5 h-5 text-green-400"></i>
+              <span class="dg-type-section-title uppercase tracking-widest text-[var(--dg-color-text-medium-emphasis)]">Safety Score</span>
+            </div>
+            <span class="dg-type-body font-bold text-green-400">9.8/10</span>
+          </div>
+          <div class="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+            <div class="h-full bg-green-500 w-[98%] rounded-full shadow-[0_0_8px_rgba(34,197,94,0.4)]"></div>
+          </div>
+          <p class="dg-type-caption dg-text-medium">Identity verified, escrow enabled, and zero dispute history.</p>
+        </div>
+      </section>
+
+      <!-- Technical Specifications -->
+      <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+        <h2 class="dg-type-section-title mb-[var(--dg-mobile-layout-element-gap)] uppercase tracking-widest dg-text-medium">Technical Specifications</h2>
+        <div class="flex flex-col dg-surface-card dg-radius-app overflow-hidden border border-[var(--dg-color-border-divider)]">
+          <div class="p-[var(--dg-spacing-md)] border-b border-[var(--dg-color-border-divider)] flex justify-between items-center">
+            <span class="dg-type-supporting dg-text-medium">Sensor Type</span>
+            <span class="dg-type-body font-medium">60.3MP CMOS BSI</span>
+          </div>
+          <div class="p-[var(--dg-spacing-md)] border-b border-[var(--dg-color-border-divider)] flex justify-between items-center">
+            <span class="dg-type-supporting dg-text-medium">Shutter Count</span>
+            <span class="dg-type-body font-medium">4,280 Actuations</span>
+          </div>
+          <div class="p-[var(--dg-spacing-md)] border-b border-[var(--dg-color-border-divider)] flex justify-between items-center">
+            <span class="dg-type-supporting dg-text-medium">Mount Type</span>
+            <span class="dg-type-body font-medium">Leica M-Mount</span>
+          </div>
+          <div class="p-[var(--dg-spacing-md)] border-b border-[var(--dg-color-border-divider)] flex justify-between items-center">
+            <span class="dg-type-supporting dg-text-medium">Condition</span>
+            <span class="dg-type-body font-medium">Like New (Mint)</span>
+          </div>
+          <div class="p-[var(--dg-spacing-md)] flex justify-between items-center">
+            <span class="dg-type-supporting dg-text-medium">Included</span>
+            <span class="dg-type-body font-medium text-right">Box, Battery, Strap, EVF Visoflex 2</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Owner's Narrative -->
+      <section class="mb-[var(--dg-mobile-layout-section-gap)]">
+        <h2 class="dg-type-section-title mb-[var(--dg-mobile-layout-element-gap)] uppercase tracking-widest dg-text-medium">Owner's Narrative</h2>
+        <div class="dg-surface-card dg-radius-app p-[var(--dg-spacing-md)] border border-[var(--dg-color-border-divider)]">
+          <p class="dg-type-body dg-text-high leading-relaxed">
+            I'm parting with my M11 as I've recently transitioned to a medium format system for my studio work. This body has been meticulously cared for—always kept in a leather half-case and stored in a humidity-controlled dry box. No brassing, scratches, or sensor dust. 
+            <br><br>
+            Willing to trade for a Hasselblad X2D 100C or similar high-end glass. Local pickup in Berlin preferred, but happy to ship via insured courier within the EU.
+          </p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Sticky Action Stack -->
+  <div class="fixed bottom-0 left-0 right-0 p-[var(--dg-mobile-layout-screen-margin)] bg-gradient-to-t from-black via-black/90 to-transparent z-50">
+    <div class="flex flex-col gap-[var(--dg-spacing-sm)]">
+      <button class="w-full h-[var(--dg-sizing-standard-button-height)] dg-action-primary dg-radius-app flex items-center justify-center gap-2 [background-image:var(--dg-gradients-action-primary)] shadow-[0_4px_24px_rgba(255,255,255,0.1)]">
+        <i data-lucide="shopping-cart" class="w-5 h-5 text-[var(--dg-color-action-on-primary-text)]"></i>
+        <span class="dg-type-button-label text-[var(--dg-color-action-on-primary-text)]">Buy Now • $8,995</span>
+      </button>
+      <button class="w-full h-[var(--dg-sizing-standard-button-height)] dg-surface-card border border-[var(--dg-color-border-divider)] dg-radius-app flex items-center justify-center gap-2 active:bg-white/5 transition-colors">
+        <i data-lucide="arrow-left-right" class="w-5 h-5 text-white"></i>
+        <span class="dg-type-button-label">Initiate Trade</span>
+      </button>
+    </div>
+  </div>
+</div>
+      
+    </div>
+    <script>
+      function drawgleRepairLucideNames(root) {
+  var icons = window.lucide && window.lucide.icons;
+  if (!icons) return 0;
+  var byLetters = null;
+  var repaired = 0;
+  (root || document).querySelectorAll("[data-lucide]").forEach(function (node) {
+    var name = node.getAttribute("data-lucide") || "";
+    var key = name.replace(/^([A-Z])|[\s\-_]+(\w)/g, function (match, first, next) { return next ? next.toUpperCase() : first.toLowerCase(); });
+    key = key.charAt(0).toUpperCase() + key.slice(1);
+    if (icons[key]) return;
+    if (!byLetters) {
+      byLetters = {};
+      Object.keys(icons).forEach(function (iconKey) { byLetters[iconKey.toLowerCase()] = iconKey; });
+    }
+    var match = byLetters[name.replace(/[^a-z0-9]/gi, "").toLowerCase()];
+    if (match) {
+      node.setAttribute("data-lucide", match);
+      repaired += 1;
+    }
+  });
+  return repaired;
+}
+      if (window.lucide && typeof window.lucide.createIcons === "function") { drawgleRepairLucideNames(); window.lucide.createIcons(); }
+    </script>
+  </body>
+</html>

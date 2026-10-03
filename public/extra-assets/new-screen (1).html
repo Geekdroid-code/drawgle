@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New Screen</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link id="drawgle-google-font" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@600;700;800&amp;family=Inter:wght@400;500;600;700&amp;display=swap">
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #8E9794;
+  --dg-color-text-high-emphasis: #1A2421;
+  --dg-color-text-medium-emphasis: #4A5552;
+  --dg-color-action-primary: #1B4332;
+  --dg-color-action-secondary: #FF8200;
+  --dg-color-border-divider: #E5E0D8;
+  --dg-color-background-primary: #FFFFFF;
+  --dg-color-background-secondary: #F9F8F6;
+  --dg-radii-app: 24px;
+  --dg-radii-pill: 9999px;
+  --dg-radii-inner: 12px;
+  --dg-sizing-standard-button-height: 56px;
+  --dg-shadows-overlay: 0 12px 32px rgba(27, 67, 50, 0.12);
+  --dg-shadows-surface: 0 2px 8px rgba(27, 67, 50, 0.04);
+  --dg-spacing-md: 16px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-navigation-active-surface: #F0F4F2;
+  --dg-typography-heading-font-family: Outfit, sans-serif;
+  --dg-typography-body-font-family: Inter, sans-serif;
+  --dg-type-screen-title-size: 28px;
+  --dg-type-screen-title-weight: 700;
+  --dg-type-screen-title-line-height: 34px;
+  --dg-type-section-title-size: 20px;
+  --dg-type-section-title-weight: 600;
+  --dg-type-section-title-line-height: 26px;
+  --dg-type-metric-value-size: 24px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 28px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 400;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 500;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 600;
+  --dg-type-button-label-line-height: 20px;
+  --dg-mobile-layout-element-gap: 12px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-safe-area-top: 16px;
+  --dg-mobile-layout-screen-margin: 16px;
+}
+
+:where(#root, #drawgle-export-root) h1,
+:where(#root, #drawgle-export-root) h2,
+:where(#root, #drawgle-export-root) h3,
+:where(#root, #drawgle-export-root) h4,
+:where(#root, #drawgle-export-root) h5,
+:where(#root, #drawgle-export-root) h6 {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+:where(#root, #drawgle-export-root) button,
+:where(#root, #drawgle-export-root) input,
+:where(#root, #drawgle-export-root) textarea,
+:where(#root, #drawgle-export-root) select {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+
+.dg-type-screen-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-screen-title-size);
+  font-weight: var(--dg-type-screen-title-weight);
+  line-height: var(--dg-type-screen-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  background: var(--dg-color-background-primary, #ffffff);
+  color: var(--dg-color-text-high-emphasis, #111827);
+}
+#drawgle-export-root {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--dg-color-background-primary, #ffffff);
+}
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+    <!-- Top Bar -->
+    <header class="w-full flex items-center justify-between px-[var(--dg-mobile-layout-screen-margin)] pt-[var(--dg-mobile-layout-safe-area-top)] pb-[var(--dg-spacing-md)] bg-white sticky top-0 z-10">
+        <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+            <div class="w-10 h-10 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-background-secondary)] flex items-center justify-center">
+                <i data-lucide="map-pin" class="text-[var(--dg-color-action-primary)] w-5 h-5"></i>
+            </div>
+            <div class="flex flex-col">
+                <span class="dg-type-caption text-[var(--dg-color-text-low-emphasis)] uppercase tracking-wider">Deliver to</span>
+                <span class="dg-type-supporting text-[var(--dg-color-text-high-emphasis)] font-semibold">241 Market St, SF</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+            <button class="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--dg-color-background-secondary)]">
+                <i data-lucide="search" class="w-5 h-5 text-[var(--dg-color-text-medium-emphasis)]"></i>
+            </button>
+            <button class="w-10 h-10 rounded-full flex items-center justify-center bg-[var(--dg-color-background-secondary)] relative">
+                <i data-lucide="shopping-basket" class="w-5 h-5 text-[var(--dg-color-text-medium-emphasis)]"></i>
+                <span class="absolute -top-1 -right-1 bg-[var(--dg-color-action-secondary)] text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">3</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content Scroll Area -->
+    <main class="flex-1 flex flex-col gap-[var(--dg-mobile-layout-section-gap)] pb-[var(--dg-spacing-xl)]">
+        
+        <!-- Hero Section: Seasonal Spotlight -->
+        <section class="px-[var(--dg-mobile-layout-screen-margin)]">
+            <div class="relative w-full aspect-[16/10] rounded-[var(--dg-radii-app)] overflow-hidden shadow-[var(--dg-shadows-surface)]">
+                <div class="absolute inset-0 z-0"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/8ad6a8fc-e059-4fa0-9248-0a5da6348ad3/asset.webp" alt="Markett is a grocery delivery app design with a bright farmers-market look, built for founders and designers shipping a fresh-food shopping product. aesthetic: a paper-white base, New Screen premium section photo" width="1024" height="1024" loading="eager" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center;"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent z-10"></div>
+                <div class="absolute bottom-0 left-0 p-[var(--dg-spacing-md)] z-20">
+                    <span class="inline-block px-3 py-1 rounded-full bg-[var(--dg-color-action-secondary)] text-white dg-type-caption font-bold uppercase tracking-widest mb-2">Seasonal Pick</span>
+                    <h1 class="dg-type-screen-title text-white mb-1">Heirloom Harvest</h1>
+                    <p class="dg-type-supporting text-white/90">Direct from Sonoma County farms this morning.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Category Grid: Modular Workspace -->
+        <section class="px-[var(--dg-mobile-layout-screen-margin)]">
+            <div class="flex items-center justify-between mb-[var(--dg-mobile-layout-element-gap)]">
+                <h2 class="dg-type-section-title text-[var(--dg-color-action-primary)]">Browse Aisles</h2>
+                <button class="dg-type-supporting font-semibold text-[var(--dg-color-action-primary)]">See All</button>
+            </div>
+            <div class="grid grid-cols-2 gap-[var(--dg-mobile-layout-element-gap)]">
+                <!-- Category Card 1: Mint -->
+                <div class="bg-[#E8F5E9] p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] flex flex-col justify-between min-h-[140px]">
+                    <div class="w-10 h-10 rounded-[var(--dg-radii-inner)] bg-white/60 flex items-center justify-center">
+                        <i data-lucide="leaf" class="text-[#2D6A4F] w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="dg-type-supporting font-bold text-[var(--dg-color-action-primary)]">Leafy Greens</h3>
+                        <p class="dg-type-caption text-[#2D6A4F]/70">12 Items</p>
+                    </div>
+                </div>
+                <!-- Category Card 2: Sky -->
+                <div class="bg-[#E3F2FD] p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] flex flex-col justify-between min-h-[140px]">
+                    <div class="w-10 h-10 rounded-[var(--dg-radii-inner)] bg-white/60 flex items-center justify-center">
+                        <i data-lucide="droplets" class="text-[#1976D2] w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="dg-type-supporting font-bold text-[#0D47A1]">Dairy &amp; Eggs</h3>
+                        <p class="dg-type-caption text-[#1976D2]/70">8 Items</p>
+                    </div>
+                </div>
+                <!-- Category Card 3: Lemon -->
+                <div class="bg-[#FFFDE7] p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] flex flex-col justify-between min-h-[140px]">
+                    <div class="w-10 h-10 rounded-[var(--dg-radii-inner)] bg-white/60 flex items-center justify-center">
+                        <i data-lucide="citrus" class="text-[#FBC02D] w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="dg-type-supporting font-bold text-[#F57F17]">Citrus Fruits</h3>
+                        <p class="dg-type-caption text-[#FBC02D]/70">15 Items</p>
+                    </div>
+                </div>
+                <!-- Category Card 4: Peach -->
+                <div class="bg-[#FFF3E0] p-[var(--dg-spacing-md)] rounded-[var(--dg-radii-app)] flex flex-col justify-between min-h-[140px]">
+                    <div class="w-10 h-10 rounded-[var(--dg-radii-inner)] bg-white/60 flex items-center justify-center">
+                        <i data-lucide="apple" class="text-[#E65100] w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="dg-type-supporting font-bold text-[#BF360C]">Orchard Fresh</h3>
+                        <p class="dg-type-caption text-[#E65100]/70">22 Items</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Product List: Collection Browsing -->
+        <section class="flex flex-col">
+            <div class="px-[var(--dg-mobile-layout-screen-margin)] flex items-center justify-between mb-[var(--dg-mobile-layout-element-gap)]">
+                <h2 class="dg-type-section-title text-[var(--dg-color-action-primary)]">Fresh Arrivals</h2>
+                <div class="flex gap-2">
+                    <button class="w-8 h-8 rounded-full border border-[var(--dg-color-border-divider)] flex items-center justify-center">
+                        <i data-lucide="filter" class="w-4 h-4 text-[var(--dg-color-text-medium-emphasis)]"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Product Row 1 -->
+            <div class="flex flex-col bg-white border-t border-[var(--dg-color-border-divider)]">
+                <div class="flex items-center p-[var(--dg-spacing-md)] gap-[var(--dg-spacing-md)] border-b border-[var(--dg-color-border-divider)]">
+                    <div class="w-20 h-20 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-background-secondary)] flex-shrink-0 overflow-hidden">
+                        <div class="w-full h-full bg-[var(--dg-navigation-active-surface)] flex items-center justify-center">
+                            <i data-lucide="carrot" class="text-[var(--dg-color-action-primary)] opacity-20 w-10 h-10"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="dg-type-body font-bold text-[var(--dg-color-text-high-emphasis)] truncate">Organic Bunch Carrots</h4>
+                        <p class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)] mb-1">1 lb Bunch • Farm Direct</p>
+                        <div class="flex items-center justify-between">
+                            <span class="dg-type-metric-value text-[var(--dg-color-action-secondary)]">$4.50</span>
+                            <button class="h-10 px-4 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-primary)] text-white dg-type-button-label flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Row 2 -->
+                <div class="flex items-center p-[var(--dg-spacing-md)] gap-[var(--dg-spacing-md)] border-b border-[var(--dg-color-border-divider)]">
+                    <div class="w-20 h-20 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-background-secondary)] flex-shrink-0 overflow-hidden">
+                        <div class="w-full h-full bg-[#FDF8F0] flex items-center justify-center">
+                            <i data-lucide="egg" class="text-[var(--dg-color-action-secondary)] opacity-20 w-10 h-10"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="dg-type-body font-bold text-[var(--dg-color-text-high-emphasis)] truncate">Pasture-Raised Eggs</h4>
+                        <p class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)] mb-1">1 Dozen • Large Grade A</p>
+                        <div class="flex items-center justify-between">
+                            <span class="dg-type-metric-value text-[var(--dg-color-action-secondary)]">$7.25</span>
+                            <button class="h-10 px-4 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-primary)] text-white dg-type-button-label flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Row 3 -->
+                <div class="flex items-center p-[var(--dg-spacing-md)] gap-[var(--dg-spacing-md)] border-b border-[var(--dg-color-border-divider)]">
+                    <div class="w-20 h-20 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-background-secondary)] flex-shrink-0 overflow-hidden">
+                        <div class="w-full h-full bg-[#F4F9F6] flex items-center justify-center">
+                            <i data-lucide="leaf" class="text-[var(--dg-color-action-primary)] opacity-20 w-10 h-10"></i>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <h4 class="dg-type-body font-bold text-[var(--dg-color-text-high-emphasis)] truncate">Baby Spinach Mix</h4>
+                        <p class="dg-type-caption text-[var(--dg-color-text-medium-emphasis)] mb-1">5 oz Container • Pre-washed</p>
+                        <div class="flex items-center justify-between">
+                            <span class="dg-type-metric-value text-[var(--dg-color-action-secondary)]">$5.99</span>
+                            <button class="h-10 px-4 rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-primary)] text-white dg-type-button-label flex items-center gap-2">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loyalty/Status Card -->
+        <section class="px-[var(--dg-mobile-layout-screen-margin)]">
+            <div class="bg-[var(--dg-color-action-primary)] rounded-[var(--dg-radii-app)] p-[var(--dg-spacing-md)] flex items-center justify-between shadow-[var(--dg-shadows-overlay)]">
+                <div class="flex flex-col">
+                    <span class="dg-type-caption text-white/70 uppercase tracking-widest">Market Rewards</span>
+                    <div class="flex items-baseline gap-1">
+                        <span class="dg-type-metric-value text-white">1,240</span>
+                        <span class="dg-type-caption text-white/80">pts</span>
+                    </div>
+                    <p class="dg-type-caption text-white/60 mt-1">You're $12 away from free delivery</p>
+                </div>
+                <div class="w-14 h-14 rounded-full border-4 border-white/10 flex items-center justify-center relative">
+                    <svg class="w-full h-full -rotate-90">
+                        <circle cx="28" cy="28" r="24" fill="transparent" stroke="white" stroke-width="4" stroke-dasharray="150" stroke-dashoffset="40" stroke-linecap="round"></circle>
+                    </svg>
+                    <i data-lucide="star" class="absolute text-[var(--dg-color-action-secondary)] w-6 h-6 fill-[var(--dg-color-action-secondary)]"></i>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Floating Cart Summary -->
+    <div class="fixed bottom-6 left-[var(--dg-mobile-layout-screen-margin)] right-[var(--dg-mobile-layout-screen-margin)] z-30">
+        <button class="w-full h-[var(--dg-sizing-standard-button-height)] bg-[var(--dg-color-action-primary)] rounded-[var(--dg-radii-pill)] flex items-center justify-between px-6 shadow-[var(--dg-shadows-overlay)]">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                    <span class="dg-type-caption font-bold text-white">3</span>
+                </div>
+                <span class="dg-type-button-label text-white">View Basket</span>
+            </div>
+            <span class="dg-type-button-label text-[var(--dg-color-action-secondary)] font-bold">$17.74</span>
+        </button>
+    </div>
+</div>
+      
+    </div>
+    <script>
+      function drawgleRepairLucideNames(root) {
+  var icons = window.lucide && window.lucide.icons;
+  if (!icons) return 0;
+  var byLetters = null;
+  var repaired = 0;
+  (root || document).querySelectorAll("[data-lucide]").forEach(function (node) {
+    var name = node.getAttribute("data-lucide") || "";
+    var key = name.replace(/^([A-Z])|[\s\-_]+(\w)/g, function (match, first, next) { return next ? next.toUpperCase() : first.toLowerCase(); });
+    key = key.charAt(0).toUpperCase() + key.slice(1);
+    if (icons[key]) return;
+    if (!byLetters) {
+      byLetters = {};
+      Object.keys(icons).forEach(function (iconKey) { byLetters[iconKey.toLowerCase()] = iconKey; });
+    }
+    var match = byLetters[name.replace(/[^a-z0-9]/gi, "").toLowerCase()];
+    if (match) {
+      node.setAttribute("data-lucide", match);
+      repaired += 1;
+    }
+  });
+  return repaired;
+}
+      if (window.lucide && typeof window.lucide.createIcons === "function") { drawgleRepairLucideNames(); window.lucide.createIcons(); }
+    </script>
+  </body>
+</html>

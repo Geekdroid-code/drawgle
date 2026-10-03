@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Home/Search</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+:root {
+  --dg-color-text-low-emphasis: #88837E;
+  --dg-color-text-high-emphasis: #2D2926;
+  --dg-color-text-medium-emphasis: #635F5C;
+  --dg-color-action-primary: #FF6B6B;
+  --dg-color-action-secondary: #4ECDC4;
+  --dg-color-action-on-primary-text: #FFFFFF;
+  --dg-color-border-divider: #EBE7E0;
+  --dg-color-border-focused: #FFE66D;
+  --dg-color-surface-card: #FFFFFC;
+  --dg-color-background-primary: #F1EEE9;
+  --dg-radii-app: 32px;
+  --dg-radii-pill: 9999px;
+  --dg-radii-inner: 24px;
+  --dg-sizing-standard-input-height: 56px;
+  --dg-shadows-surface: 0px 8px 24px rgba(45, 41, 38, 0.06);
+  --dg-spacing-md: 16px;
+  --dg-spacing-xl: 32px;
+  --dg-spacing-xs: 8px;
+  --dg-spacing-xxs: 4px;
+  --dg-typography-heading-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dg-typography-body-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --dg-type-nav-title-size: 18px;
+  --dg-type-nav-title-weight: 700;
+  --dg-type-nav-title-line-height: 24px;
+  --dg-type-hero-title-size: 40px;
+  --dg-type-hero-title-weight: 800;
+  --dg-type-hero-title-line-height: 46px;
+  --dg-type-section-title-size: 22px;
+  --dg-type-section-title-weight: 700;
+  --dg-type-section-title-line-height: 28px;
+  --dg-type-metric-value-size: 24px;
+  --dg-type-metric-value-weight: 700;
+  --dg-type-metric-value-line-height: 30px;
+  --dg-type-body-size: 16px;
+  --dg-type-body-weight: 500;
+  --dg-type-body-line-height: 24px;
+  --dg-type-supporting-size: 14px;
+  --dg-type-supporting-weight: 500;
+  --dg-type-supporting-line-height: 20px;
+  --dg-type-caption-size: 12px;
+  --dg-type-caption-weight: 600;
+  --dg-type-caption-line-height: 16px;
+  --dg-type-button-label-size: 16px;
+  --dg-type-button-label-weight: 700;
+  --dg-type-button-label-line-height: 20px;
+  --dg-border-widths-standard: 2px;
+  --dg-mobile-layout-section-gap: 32px;
+  --dg-mobile-layout-screen-margin: 24px;
+}
+
+:where(#root, #drawgle-export-root) h1,
+:where(#root, #drawgle-export-root) h2,
+:where(#root, #drawgle-export-root) h3,
+:where(#root, #drawgle-export-root) h4,
+:where(#root, #drawgle-export-root) h5,
+:where(#root, #drawgle-export-root) h6 {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+:where(#root, #drawgle-export-root) button,
+:where(#root, #drawgle-export-root) input,
+:where(#root, #drawgle-export-root) textarea,
+:where(#root, #drawgle-export-root) select {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+}
+
+.dg-bg-primary { background-color: var(--dg-color-background-primary); }
+
+.dg-surface-card { background-color: var(--dg-color-surface-card); }
+
+.dg-text-high { color: var(--dg-color-text-high-emphasis); }
+
+.dg-text-medium { color: var(--dg-color-text-medium-emphasis); }
+
+.dg-action-primary {
+  background-color: var(--dg-color-action-primary);
+  color: var(--dg-color-action-on-primary-text);
+}
+
+.dg-action-secondary { background-color: var(--dg-color-action-secondary); }
+
+.dg-type-nav-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-nav-title-size);
+  font-weight: var(--dg-type-nav-title-weight);
+  line-height: var(--dg-type-nav-title-line-height);
+}
+
+.dg-type-hero-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-hero-title-size);
+  font-weight: var(--dg-type-hero-title-weight);
+  line-height: var(--dg-type-hero-title-line-height);
+}
+
+.dg-type-section-title {
+  font-family: var(--dg-typography-heading-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-section-title-size);
+  font-weight: var(--dg-type-section-title-weight);
+  line-height: var(--dg-type-section-title-line-height);
+}
+
+.dg-type-metric-value {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-metric-value-size);
+  font-weight: var(--dg-type-metric-value-weight);
+  line-height: var(--dg-type-metric-value-line-height);
+}
+
+.dg-type-body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-body-size);
+  font-weight: var(--dg-type-body-weight);
+  line-height: var(--dg-type-body-line-height);
+}
+
+.dg-type-supporting {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-supporting-size);
+  font-weight: var(--dg-type-supporting-weight);
+  line-height: var(--dg-type-supporting-line-height);
+}
+
+.dg-type-caption {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-caption-size);
+  font-weight: var(--dg-type-caption-weight);
+  line-height: var(--dg-type-caption-line-height);
+}
+
+.dg-type-button-label {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: var(--dg-type-button-label-size);
+  font-weight: var(--dg-type-button-label-weight);
+  line-height: var(--dg-type-button-label-line-height);
+}
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: var(--dg-typography-body-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  background: var(--dg-color-background-primary, #ffffff);
+  color: var(--dg-color-text-high-emphasis, #111827);
+}
+#drawgle-export-root {
+  position: relative;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: var(--dg-color-background-primary, #ffffff);
+}
+    </style>
+  </head>
+  <body>
+    <div id="drawgle-export-root">
+<div class="w-full min-h-screen dg-bg-primary dg-text-high flex flex-col relative overflow-x-hidden">
+  <div class="absolute inset-0 pointer-events-none" aria-hidden="true">
+    <div class="absolute inset-0 bg-[linear-gradient(180deg,#E6E6FA_0%,#F7FBFC_42%,#FAF7F2_100%)]"></div>
+    <svg class="absolute -top-8 -right-20 w-[330px] h-[270px] opacity-70" viewBox="0 0 330 270" fill="none">
+      <path d="M315 32C281 4 232 20 201 48C170 76 142 92 101 87C60 82 25 102 15 142C5 182 25 226 71 247C117 268 169 253 204 224C239 195 266 171 294 144C322 117 349 60 315 32Z" fill="#DDEFF5"></path>
+      <path d="M282 20C257 33 247 66 259 91C271 116 296 121 318 107C340 93 346 59 330 37C318 21 300 11 282 20Z" fill="#FFCCAA" opacity=".52"></path>
+    </svg>
+    <svg class="absolute top-[330px] -left-20 w-[270px] h-[250px] opacity-60" viewBox="0 0 270 250" fill="none">
+      <path d="M12 57C44 19 89 18 126 39C163 60 192 90 219 126C246 162 258 204 226 232C194 260 141 240 99 223C57 206 16 194 5 154C-2 129 -12 85 12 57Z" fill="#F1E2FB"></path>
+      <path d="M24 88C51 64 89 75 102 104C115 133 99 168 66 174C33 180 3 147 5 119C6 106 13 97 24 88Z" fill="#BFEDE3" opacity=".68"></path>
+    </svg>
+  </div>
+
+  <header class="relative z-10 px-[var(--dg-mobile-layout-screen-margin)] pt-[16px] pb-[var(--dg-spacing-md)]">
+    <div class="flex items-center justify-between min-h-[48px]">
+      <div class="flex items-center gap-[var(--dg-spacing-xs)]">
+        <div class="w-10 h-10 rounded-[var(--dg-radii-inner)] bg-[var(--dg-color-action-primary)] flex items-center justify-center shadow-[var(--dg-shadows-surface)] rotate-[-5deg]">
+          <i data-lucide="home" class="w-5 h-5 text-white"></i>
+        </div>
+        <span class="dg-type-nav-title dg-text-high tracking-[-0.03em]">nestie</span>
+      </div>
+      <button type="button" class="min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.76)] border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] flex items-center justify-center shadow-[var(--dg-shadows-surface)] transition-transform duration-300 active:scale-90" aria-label="Open saved homes">
+        <i data-lucide="heart" class="w-5 h-5 dg-text-high"></i>
+      </button>
+    </div>
+
+    <div class="mt-[var(--dg-spacing-xl)] max-w-[350px]">
+      <p class="dg-type-supporting dg-text-medium mb-[var(--dg-spacing-xs)]">A happier way home <span class="text-[var(--dg-color-action-primary)]">✦</span></p>
+      <h1 class="dg-type-hero-title dg-text-high tracking-[-0.045em]">
+        Find your next<br>
+        <span class="italic text-[var(--dg-color-action-primary)]">happy place.</span>
+      </h1>
+      <p class="dg-type-body dg-text-medium mt-[var(--dg-spacing-md)] max-w-[310px]">
+        Friendly homes, lovely neighborhoods, and zero pressure to know it all yet.
+      </p>
+    </div>
+  </header>
+
+  <main class="relative z-10 flex flex-1 flex-col gap-[var(--dg-mobile-layout-section-gap)] pb-[16px]">
+    <section class="sticky top-0 z-30 px-[var(--dg-mobile-layout-screen-margin)] py-[var(--dg-spacing-xs)] bg-[rgba(241,238,233,0.78)] backdrop-blur-xl">
+      <form class="w-full" role="search">
+        <div class="min-h-[var(--dg-sizing-standard-input-height)] rounded-[var(--dg-radii-app)] bg-[var(--dg-color-border-focused)] border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] flex items-center gap-[var(--dg-spacing-xs)] px-[var(--dg-spacing-xs)] shadow-[inset_0_4px_12px_rgba(120,92,20,0.12),0_8px_24px_rgba(45,41,38,0.06)]">
+          <div class="w-10 h-10 rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.58)] flex items-center justify-center shrink-0">
+            <i data-lucide="search" class="w-5 h-5 dg-text-high"></i>
+          </div>
+          <input type="search" class="min-w-0 flex-1 bg-transparent outline-none border-0 dg-type-body dg-text-high placeholder:text-[var(--dg-color-text-medium-emphasis)]" placeholder="Try a neighborhood or home type" aria-label="Search homes">
+          <button type="button" class="min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] dg-action-secondary flex items-center justify-center shadow-[var(--dg-shadows-surface)] transition-transform duration-300 active:scale-90" aria-label="Filter search results">
+            <i data-lucide="sliders-horizontal" class="w-5 h-5 text-white"></i>
+          </button>
+          <button type="submit" class="min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] dg-action-primary flex items-center justify-center shadow-[var(--dg-shadows-surface)] transition-transform duration-300 active:scale-90" aria-label="Search homes">
+            <i data-lucide="arrow-right" class="w-5 h-5 text-[var(--dg-color-action-on-primary-text)]"></i>
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="px-[var(--dg-mobile-layout-screen-margin)]">
+      <div class="flex items-end justify-between gap-[var(--dg-spacing-md)] mb-[var(--dg-spacing-md)]">
+        <div class="min-w-0">
+          <p class="dg-type-caption text-[var(--dg-color-action-secondary)] uppercase tracking-[0.12em]">Quick picks</p>
+          <h2 class="dg-type-section-title dg-text-high tracking-[-0.025em] mt-[var(--dg-spacing-xxs)]">Around your kind of place</h2>
+        </div>
+        <button type="button" class="shrink-0 min-h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-inner)] bg-[rgba(255,255,252,0.72)] border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] dg-type-supporting dg-text-high transition-transform duration-300 active:scale-90" aria-label="View all neighborhoods">
+          View all
+        </button>
+      </div>
+
+      <div class="flex gap-[var(--dg-spacing-xs)] overflow-x-auto pb-[var(--dg-spacing-xs)] -mx-[var(--dg-spacing-xs)] px-[var(--dg-spacing-xs)]">
+        <button type="button" class="shrink-0 min-h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-border-focused)] dg-type-button-label dg-text-high shadow-[var(--dg-shadows-surface)] transition-transform duration-300 hover:scale-[1.03] active:scale-[0.9]" aria-pressed="true">
+          <i data-lucide="locate-fixed" class="w-4 h-4 inline-block mr-[var(--dg-spacing-xxs)] align-[-2px]"></i>
+          Near me
+        </button>
+        <button type="button" class="shrink-0 min-h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-secondary)] text-white dg-type-button-label shadow-[var(--dg-shadows-surface)] transition-transform duration-300 hover:scale-[1.03] active:scale-[0.9]" aria-pressed="false">
+          Silver Lake
+        </button>
+        <button type="button" class="shrink-0 min-h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-pill)] bg-[#FFCCAA] dg-type-button-label dg-text-high shadow-[var(--dg-shadows-surface)] transition-transform duration-300 hover:scale-[1.03] active:scale-[0.9]" aria-pressed="false">
+          Riverside
+        </button>
+        <button type="button" class="shrink-0 min-h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-pill)] bg-[#E6E6FA] dg-type-button-label dg-text-high shadow-[var(--dg-shadows-surface)] transition-transform duration-300 hover:scale-[1.03] active:scale-[0.9]" aria-pressed="false">
+          Maplewood
+        </button>
+        <button type="button" class="shrink-0 min-h-[48px] px-[var(--dg-spacing-md)] rounded-[var(--dg-radii-pill)] bg-[#DDEFF5] dg-type-button-label dg-text-high shadow-[var(--dg-shadows-surface)] transition-transform duration-300 hover:scale-[1.03] active:scale-[0.9]" aria-pressed="false">
+          North Loop
+        </button>
+      </div>
+    </section>
+
+    <section class="px-[var(--dg-mobile-layout-screen-margin)]">
+      <div class="flex items-center justify-between gap-[var(--dg-spacing-md)] mb-[var(--dg-spacing-md)]">
+        <div class="min-w-0">
+          <h2 class="dg-type-section-title dg-text-high tracking-[-0.025em]">Homes worth a peek</h2>
+          <p class="dg-type-supporting dg-text-medium mt-[var(--dg-spacing-xxs)]">12 friendly matches nearby</p>
+        </div>
+        <button type="button" class="min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.76)] border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] flex items-center justify-center transition-transform duration-300 active:scale-90" aria-label="Sort homes">
+          <i data-lucide="list-filter" class="w-5 h-5 dg-text-high"></i>
+        </button>
+      </div>
+
+      <div class="flex flex-col gap-[var(--dg-mobile-layout-section-gap)]">
+        <article class="overflow-hidden rounded-[var(--dg-radii-app)] dg-surface-card border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] shadow-[var(--dg-shadows-surface)]">
+          <div class="relative h-[224px] overflow-hidden bg-[linear-gradient(135deg,#BDEDE4_0%,#E7F8F3_46%,#FFF0D4_100%)]">
+            <div class="absolute -right-8 -top-12 w-44 h-44 rounded-full bg-[rgba(255,255,252,0.44)]"></div>
+            <div class="absolute left-8 bottom-[-38px] w-40 h-40 rounded-full bg-[rgba(78,205,196,0.2)]"></div>
+            <div class="absolute right-12 bottom-5 w-16 h-16 rounded-[28px] bg-[rgba(255,230,109,0.7)] rotate-12"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,252,0.05)_35%,rgba(45,41,38,0.16)_100%)]"></div>
+            <div class="absolute left-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 flex items-center gap-[var(--dg-spacing-xs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.86)] backdrop-blur-md shadow-[var(--dg-shadows-surface)]">
+              <span class="w-9 h-9 rounded-[var(--dg-radii-pill)] flex items-center justify-center bg-[linear-gradient(145deg,#fff6b7_0%,#FFE66D_100%)] shadow-[inset_0_2px_3px_rgba(255,255,255,0.8),0_3px_8px_rgba(45,41,38,0.12)]">
+                <i data-lucide="house" class="w-5 h-5 dg-text-high"></i>
+              </span>
+              <span class="dg-type-caption dg-text-high pr-[var(--dg-spacing-xxs)]">Family Home</span>
+            </div>
+            <button type="button" class="absolute right-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.88)] flex items-center justify-center shadow-[var(--dg-shadows-surface)] transition-transform duration-300 active:scale-90" aria-label="Save Maplewood family home">
+              <i data-lucide="heart" class="w-5 h-5 dg-text-high"></i>
+            </button>
+            <div class="absolute bottom-[var(--dg-spacing-md)] left-[var(--dg-spacing-md)] z-10 px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-primary)] dg-type-caption text-white shadow-[var(--dg-shadows-surface)]">98% match</div>
+            <div class="absolute inset-x-10 bottom-0 h-28 rounded-t-[45%] bg-[rgba(255,255,252,0.2)] blur-xl"></div>
+            <div class="absolute inset-0 z-[1]">
+              <div class="absolute left-1/2 top-1/2 w-28 h-20 -translate-x-1/2 translate-y-[-10%] rounded-[24px] bg-[rgba(255,255,252,0.28)] rotate-[-4deg]"></div>
+            </div>
+            <div class="absolute inset-0 z-0"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/a7e96d14-e656-4482-821e-562376ecd8ba/asset.webp" alt="Bright, modern, friendly-looking home interiors and exteriors" width="1024" height="1024" loading="eager" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center;"></div>
+          </div>
+          <a href="#" class="block p-[var(--dg-spacing-md)]">
+            <div class="flex items-start justify-between gap-[var(--dg-spacing-md)]">
+              <div class="min-w-0">
+                <h3 class="dg-type-section-title dg-text-high truncate">Maplewood light-filled home</h3>
+                <p class="dg-type-supporting dg-text-medium mt-[var(--dg-spacing-xxs)] flex items-center gap-[var(--dg-spacing-xxs)]">
+                  <i data-lucide="map-pin" class="w-4 h-4 shrink-0"></i>
+                  <span class="truncate">Maplewood · Portland</span>
+                </p>
+              </div>
+              <span class="shrink-0 dg-type-metric-value dg-text-high">$3,250<span class="dg-type-caption dg-text-medium">/mo</span></span>
+            </div>
+            <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-[var(--dg-spacing-md)]">
+              <span class="dg-type-supporting dg-text-medium">3 bd</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">2 ba</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">Garden</span>
+              <span class="ml-auto dg-type-supporting text-[var(--dg-color-action-secondary)]">View home <i data-lucide="arrow-up-right" class="w-4 h-4 inline-block align-[-3px]"></i></span>
+            </div>
+          </a>
+        </article>
+
+        <article class="overflow-hidden rounded-[var(--dg-radii-app)] dg-surface-card border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] shadow-[var(--dg-shadows-surface)]">
+          <div class="relative h-[224px] overflow-hidden bg-[linear-gradient(135deg,#E6E6FA_0%,#F4EEFF_48%,#FFD8C5_100%)]">
+            <div class="absolute left-[-30px] top-[-42px] w-48 h-48 rounded-full bg-[rgba(177,177,245,0.25)]"></div>
+            <div class="absolute right-[-22px] bottom-[-45px] w-48 h-48 rounded-full bg-[rgba(255,204,170,0.48)]"></div>
+            <div class="absolute left-16 bottom-7 w-20 h-12 rounded-[22px] bg-[rgba(255,255,252,0.42)] rotate-[-14deg]"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,252,0.08)_32%,rgba(45,41,38,0.15)_100%)]"></div>
+            <div class="absolute left-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 flex items-center gap-[var(--dg-spacing-xs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.86)] backdrop-blur-md shadow-[var(--dg-shadows-surface)]">
+              <span class="w-9 h-9 rounded-[var(--dg-radii-pill)] flex items-center justify-center bg-[linear-gradient(145deg,#f7f5ff_0%,#B1B1F5_100%)] shadow-[inset_0_2px_3px_rgba(255,255,255,0.8),0_3px_8px_rgba(45,41,38,0.12)]">
+                <i data-lucide="building-2" class="w-5 h-5 dg-text-high"></i>
+              </span>
+              <span class="dg-type-caption dg-text-high pr-[var(--dg-spacing-xxs)]">Loft</span>
+            </div>
+            <button type="button" class="absolute right-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.88)] flex items-center justify-center shadow-[var(--dg-shadows-surface)] transition-transform duration-300 active:scale-90" aria-label="Save Riverside loft">
+              <i data-lucide="heart" class="w-5 h-5 dg-text-high"></i>
+            </button>
+            <div class="absolute bottom-[var(--dg-spacing-md)] left-[var(--dg-spacing-md)] z-10 px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-secondary)] dg-type-caption text-white shadow-[var(--dg-shadows-surface)]">94% match</div>
+            <div class="absolute right-12 bottom-8 w-24 h-24 rounded-[32px] border-[10px] border-[rgba(255,255,252,0.28)] rotate-12"></div>
+            <div class="absolute inset-0 z-0"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/a7e96d14-e656-4482-821e-562376ecd8ba/asset.webp" alt="Bright, modern, friendly-looking home interiors and exteriors" width="1024" height="1024" loading="eager" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center;"></div>
+          </div>
+          <a href="#" class="block p-[var(--dg-spacing-md)]">
+            <div class="flex items-start justify-between gap-[var(--dg-spacing-md)]">
+              <div class="min-w-0">
+                <h3 class="dg-type-section-title dg-text-high truncate">The Skylark city loft</h3>
+                <p class="dg-type-supporting dg-text-medium mt-[var(--dg-spacing-xxs)] flex items-center gap-[var(--dg-spacing-xxs)]">
+                  <i data-lucide="map-pin" class="w-4 h-4 shrink-0"></i>
+                  <span class="truncate">Riverside · Austin</span>
+                </p>
+              </div>
+              <span class="shrink-0 dg-type-metric-value dg-text-high">$489k</span>
+            </div>
+            <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-[var(--dg-spacing-md)]">
+              <span class="dg-type-supporting dg-text-medium">2 bd</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">2 ba</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">Rooftop</span>
+              <span class="ml-auto dg-type-supporting text-[var(--dg-color-action-secondary)]">View home <i data-lucide="arrow-up-right" class="w-4 h-4 inline-block align-[-3px]"></i></span>
+            </div>
+          </a>
+        </article>
+
+        <article class="overflow-hidden rounded-[var(--dg-radii-app)] dg-surface-card border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] shadow-[var(--dg-shadows-surface)]">
+          <div class="relative h-[224px] overflow-hidden bg-[linear-gradient(135deg,#FFE9D5_0%,#FFF7DF_50%,#BFEDE3_100%)]">
+            <div class="absolute right-[-28px] top-[-40px] w-48 h-48 rounded-full bg-[rgba(255,230,109,0.36)]"></div>
+            <div class="absolute left-[-20px] bottom-[-50px] w-44 h-44 rounded-full bg-[rgba(78,205,196,0.27)]"></div>
+            <div class="absolute left-20 top-16 w-16 h-16 rounded-[24px] bg-[rgba(255,255,252,0.38)] rotate-12"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,252,0.08)_32%,rgba(45,41,38,0.16)_100%)]"></div>
+            <div class="absolute left-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 flex items-center gap-[var(--dg-spacing-xs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.86)] backdrop-blur-md shadow-[var(--dg-shadows-surface)]">
+              <span class="w-9 h-9 rounded-[var(--dg-radii-pill)] flex items-center justify-center bg-[linear-gradient(145deg,#fff9ed_0%,#FFCCAA_100%)] shadow-[inset_0_2px_3px_rgba(255,255,255,0.8),0_3px_8px_rgba(45,41,38,0.12)]">
+                <i data-lucide="layout-grid" class="w-5 h-5 dg-text-high"></i>
+              </span>
+              <span class="dg-type-caption dg-text-high pr-[var(--dg-spacing-xxs)]">Studio</span>
+            </div>
+            <button type="button" class="absolute right-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.88)] flex items-center justify-center shadow-[var(--dg-shadows-surface)] transition-transform duration-300 active:scale-90" aria-label="Save North Loop studio">
+              <i data-lucide="heart" class="w-5 h-5 dg-text-high"></i>
+            </button>
+            <div class="absolute bottom-[var(--dg-spacing-md)] left-[var(--dg-spacing-md)] z-10 px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-border-focused)] dg-type-caption dg-text-high shadow-[var(--dg-shadows-surface)]">91% match</div>
+            <div class="absolute bottom-7 right-14 w-20 h-10 rounded-[50%] bg-[rgba(255,255,252,0.32)] rotate-[-8deg]"></div>
+            <div class="absolute inset-0 z-0"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/a7e96d14-e656-4482-821e-562376ecd8ba/asset.webp" alt="Bright, modern, friendly-looking home interiors and exteriors" width="1024" height="1024" loading="eager" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center;"></div>
+          </div>
+          <a href="#" class="block p-[var(--dg-spacing-md)]">
+            <div class="flex items-start justify-between gap-[var(--dg-spacing-md)]">
+              <div class="min-w-0">
+                <h3 class="dg-type-section-title dg-text-high truncate">Clover Corner studio</h3>
+                <p class="dg-type-supporting dg-text-medium mt-[var(--dg-spacing-xxs)] flex items-center gap-[var(--dg-spacing-xxs)]">
+                  <i data-lucide="map-pin" class="w-4 h-4 shrink-0"></i>
+                  <span class="truncate">North Loop · Minneapolis</span>
+                </p>
+              </div>
+              <span class="shrink-0 dg-type-metric-value dg-text-high">$1,640<span class="dg-type-caption dg-text-medium">/mo</span></span>
+            </div>
+            <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-[var(--dg-spacing-md)]">
+              <span class="dg-type-supporting dg-text-medium">1 bd</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">1 ba</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">Pet-friendly</span>
+              <span class="ml-auto dg-type-supporting text-[var(--dg-color-action-secondary)]">View home <i data-lucide="arrow-up-right" class="w-4 h-4 inline-block align-[-3px]"></i></span>
+            </div>
+          </a>
+        </article>
+
+        <article class="overflow-hidden rounded-[var(--dg-radii-app)] dg-surface-card border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] shadow-[var(--dg-shadows-surface)]">
+          <div class="relative h-[224px] overflow-hidden bg-[linear-gradient(135deg,#DDEFF5_0%,#E8E6FA_54%,#FFD8C5_100%)]">
+            <div class="absolute left-[-30px] top-[-40px] w-48 h-48 rounded-full bg-[rgba(221,239,245,0.8)]"></div>
+            <div class="absolute right-[-38px] bottom-[-34px] w-48 h-48 rounded-full bg-[rgba(255,107,107,0.2)]"></div>
+            <div class="absolute left-24 bottom-8 w-12 h-20 rounded-[24px] bg-[rgba(255,230,109,0.46)] rotate-[-18deg]"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,252,0.08)_32%,rgba(45,41,38,0.16)_100%)]"></div>
+            <div class="absolute left-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 flex items-center gap-[var(--dg-spacing-xs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.86)] backdrop-blur-md shadow-[var(--dg-shadows-surface)]">
+              <span class="w-9 h-9 rounded-[var(--dg-radii-pill)] flex items-center justify-center bg-[linear-gradient(145deg,#eefbff_0%,#9ddce9_100%)] shadow-[inset_0_2px_3px_rgba(255,255,255,0.8),0_3px_8px_rgba(45,41,38,0.12)]">
+                <i data-lucide="home" class="w-5 h-5 dg-text-high"></i>
+              </span>
+              <span class="dg-type-caption dg-text-high pr-[var(--dg-spacing-xxs)]">Bungalow</span>
+            </div>
+            <button type="button" class="absolute right-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.88)] flex items-center justify-center shadow-[var(--dg-shadows-surface)] transition-transform duration-300 active:scale-90" aria-label="Save Oak Park bungalow">
+              <i data-lucide="heart" class="w-5 h-5 dg-text-high"></i>
+            </button>
+            <div class="absolute bottom-[var(--dg-spacing-md)] left-[var(--dg-spacing-md)] z-10 px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-primary)] dg-type-caption text-white shadow-[var(--dg-shadows-surface)]">89% match</div>
+            <div class="absolute right-20 top-20 w-24 h-16 rounded-[50%] border-[10px] border-[rgba(255,255,252,0.3)] rotate-[-12deg]"></div>
+            <div class="absolute inset-0 z-0"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/a7e96d14-e656-4482-821e-562376ecd8ba/asset.webp" alt="Bright, modern, friendly-looking home interiors and exteriors" width="1024" height="1024" loading="eager" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center;"></div>
+          </div>
+          <a href="#" class="block p-[var(--dg-spacing-md)]">
+            <div class="flex items-start justify-between gap-[var(--dg-spacing-md)]">
+              <div class="min-w-0">
+                <h3 class="dg-type-section-title dg-text-high truncate">Sunbeam backyard bungalow</h3>
+                <p class="dg-type-supporting dg-text-medium mt-[var(--dg-spacing-xxs)] flex items-center gap-[var(--dg-spacing-xxs)]">
+                  <i data-lucide="map-pin" class="w-4 h-4 shrink-0"></i>
+                  <span class="truncate">Oak Park · Chicago</span>
+                </p>
+              </div>
+              <span class="shrink-0 dg-type-metric-value dg-text-high">$365k</span>
+            </div>
+            <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-[var(--dg-spacing-md)]">
+              <span class="dg-type-supporting dg-text-medium">2 bd</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">1 ba</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">Big yard</span>
+              <span class="ml-auto dg-type-supporting text-[var(--dg-color-action-secondary)]">View home <i data-lucide="arrow-up-right" class="w-4 h-4 inline-block align-[-3px]"></i></span>
+            </div>
+          </a>
+        </article>
+
+        <article class="overflow-hidden rounded-[var(--dg-radii-app)] dg-surface-card border-[var(--dg-border-widths-standard)] border-[var(--dg-color-border-divider)] shadow-[var(--dg-shadows-surface)]">
+          <div class="relative h-[224px] overflow-hidden bg-[linear-gradient(135deg,#FFDCCB_0%,#FFF0D7_48%,#D8F3ED_100%)]">
+            <div class="absolute right-[-32px] top-[-42px] w-48 h-48 rounded-full bg-[rgba(255,204,170,0.58)]"></div>
+            <div class="absolute left-[-28px] bottom-[-52px] w-48 h-48 rounded-full bg-[rgba(78,205,196,0.22)]"></div>
+            <div class="absolute left-28 top-12 w-14 h-14 rounded-[22px] bg-[rgba(255,230,109,0.56)] rotate-[-15deg]"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,252,0.08)_32%,rgba(45,41,38,0.16)_100%)]"></div>
+            <div class="absolute left-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 flex items-center gap-[var(--dg-spacing-xs)] px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xs)] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.86)] backdrop-blur-md shadow-[var(--dg-shadows-surface)]">
+              <span class="w-9 h-9 rounded-[var(--dg-radii-pill)] flex items-center justify-center bg-[linear-gradient(145deg,#fff7ef_0%,#FF9E83_100%)] shadow-[inset_0_2px_3px_rgba(255,255,255,0.8),0_3px_8px_rgba(45,41,38,0.12)]">
+                <i data-lucide="trees" class="w-5 h-5 dg-text-high"></i>
+              </span>
+              <span class="dg-type-caption dg-text-high pr-[var(--dg-spacing-xxs)]">Garden Flat</span>
+            </div>
+            <button type="button" class="absolute right-[var(--dg-spacing-md)] top-[var(--dg-spacing-md)] z-10 min-h-[48px] min-w-[48px] rounded-[var(--dg-radii-pill)] bg-[rgba(255,255,252,0.88)] flex items-center justify-center shadow-[var(--dg-shadows-surface)] transition-transform duration-300 active:scale-90" aria-label="Save Harborview garden flat">
+              <i data-lucide="heart" class="w-5 h-5 dg-text-high"></i>
+            </button>
+            <div class="absolute bottom-[var(--dg-spacing-md)] left-[var(--dg-spacing-md)] z-10 px-[var(--dg-spacing-xs)] py-[var(--dg-spacing-xxs)] rounded-[var(--dg-radii-pill)] bg-[var(--dg-color-action-secondary)] dg-type-caption text-white shadow-[var(--dg-shadows-surface)]">87% match</div>
+            <div class="absolute left-14 bottom-10 w-28 h-10 rounded-[50%] bg-[rgba(255,255,252,0.3)] rotate-12"></div>
+            <div class="absolute inset-0 z-0"><img src="https://pub-7c8c3c7444724a39ba3eeb8accbbca4a.r2.dev/visual-assets/a7e96d14-e656-4482-821e-562376ecd8ba/asset.webp" alt="Bright, modern, friendly-looking home interiors and exteriors" width="1024" height="1024" loading="eager" decoding="async" class="w-full h-full object-cover" style="object-fit: cover; object-position: center;"></div>
+          </div>
+          <a href="#" class="block p-[var(--dg-spacing-md)]">
+            <div class="flex items-start justify-between gap-[var(--dg-spacing-md)]">
+              <div class="min-w-0">
+                <h3 class="dg-type-section-title dg-text-high truncate">Peach Tree garden flat</h3>
+                <p class="dg-type-supporting dg-text-medium mt-[var(--dg-spacing-xxs)] flex items-center gap-[var(--dg-spacing-xxs)]">
+                  <i data-lucide="map-pin" class="w-4 h-4 shrink-0"></i>
+                  <span class="truncate">Harborview · San Diego</span>
+                </p>
+              </div>
+              <span class="shrink-0 dg-type-metric-value dg-text-high">$2,480<span class="dg-type-caption dg-text-medium">/mo</span></span>
+            </div>
+            <div class="flex items-center gap-[var(--dg-spacing-xs)] mt-[var(--dg-spacing-md)]">
+              <span class="dg-type-supporting dg-text-medium">2 bd</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">1 ba</span>
+              <span class="w-1 h-1 rounded-full bg-[var(--dg-color-text-low-emphasis)]"></span>
+              <span class="dg-type-supporting dg-text-medium">Balcony</span>
+              <span class="ml-auto dg-type-supporting text-[var(--dg-color-action-secondary)]">View home <i data-lucide="arrow-up-right" class="w-4 h-4 inline-block align-[-3px]"></i></span>
+            </div>
+          </a>
+        </article>
+      </div>
+    </section>
+  </main>
+</div>
+      
+    </div>
+    <script>
+      function drawgleRepairLucideNames(root) {
+  var icons = window.lucide && window.lucide.icons;
+  if (!icons) return 0;
+  var byLetters = null;
+  var repaired = 0;
+  (root || document).querySelectorAll("[data-lucide]").forEach(function (node) {
+    var name = node.getAttribute("data-lucide") || "";
+    var key = name.replace(/^([A-Z])|[\s\-_]+(\w)/g, function (match, first, next) { return next ? next.toUpperCase() : first.toLowerCase(); });
+    key = key.charAt(0).toUpperCase() + key.slice(1);
+    if (icons[key]) return;
+    if (!byLetters) {
+      byLetters = {};
+      Object.keys(icons).forEach(function (iconKey) { byLetters[iconKey.toLowerCase()] = iconKey; });
+    }
+    var match = byLetters[name.replace(/[^a-z0-9]/gi, "").toLowerCase()];
+    if (match) {
+      node.setAttribute("data-lucide", match);
+      repaired += 1;
+    }
+  });
+  return repaired;
+}
+      if (window.lucide && typeof window.lucide.createIcons === "function") { drawgleRepairLucideNames(); window.lucide.createIcons(); }
+    </script>
+  </body>
+</html>

@@ -16,7 +16,7 @@ import {
 } from "@/lib/mobile-transpiler";
 import { normalizeDesignTokens } from "@/lib/design-tokens";
 import { normalizeSharedNavigationClearanceMarkup } from "@/lib/navigation-clearance";
-import { resolveProjectNavigationShell } from "@/lib/project-navigation";
+import { resolveProjectNavigationShell, sanitizeScreenCodeForSharedNavigation } from "@/lib/project-navigation";
 import { buildDrawgleTokenCss, buildGoogleFontAssetLinks, normalizeLegacyTypographyFontMarkup } from "@/lib/token-runtime";
 import type {
   DesignTokens,
@@ -119,76 +119,11 @@ export function resolveScreenNavigationCode(
   return resolveProjectNavigationShell(projectNavigation);
 }
 
-const NAV_SPACER_PATTERN = /<!--\s*(?:floating\s+dock|bottom\s+nav|navigation)[\s\S]*?placeholder[\s\S]*?-->\s*<div\b[^>]*(?:h-\[[^\]]*(?:8[0-9]|9[0-9]|1[0-9]{2})px\]|height\s*:\s*(?:8[0-9]|9[0-9]|1[0-9]{2})px)[^>]*>\s*<\/div>/gi;
-
-const isLikelySharedNavigationElement = (element: Element) => {
-  const tag = element.tagName.toLowerCase();
-  const id = element.getAttribute("id") ?? "";
-  const cls = element.getAttribute("class") ?? "";
-  const style = element.getAttribute("style") ?? "";
-  const text = element.textContent ?? "";
-
-  if (element.hasAttribute("data-drawgle-primary-nav")) return true;
-  if (/drawgle-(?:export-)?navigation|navigation-shell/i.test(id)) return true;
-  if (element.querySelector("[data-drawgle-primary-nav]")) return true;
-
-  const hasNavItems = element.querySelectorAll("[data-nav-item-id]").length > 0;
-  const looksFixedBottom = /(?:^|\s)(?:fixed|bottom-0|inset-x-0|z-\[?80\]?)(?:\s|$)/i.test(cls)
-    || /position\s*:\s*fixed/i.test(style)
-    || /bottom\s*:\s*0/i.test(style);
-  const looksNavigation = /bottom|tab|navigation|navbar|nav|dock/i.test([id, cls, text].join(" "));
-
-  if (hasNavItems && (looksFixedBottom || looksNavigation || tag === "nav" || tag === "footer")) {
-    return true;
-  }
-
-  if ((tag === "nav" || tag === "footer") && looksNavigation) {
-    return true;
-  }
-
-  return looksFixedBottom && looksNavigation;
-};
-
 const stripSharedNavigationMarkup = (code: string, navigationActive = true) => {
-  const clearanceNormalized = normalizeSharedNavigationClearanceMarkup({
-    code,
-    enabled: navigationActive,
-  }).code;
-  const withoutKnownSpacer = clearanceNormalized.replace(NAV_SPACER_PATTERN, "");
-
-  if (typeof DOMParser !== "undefined") {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(`<div data-drawgle-strip-root>${withoutKnownSpacer}</div>`, "text/html");
-    const root = doc.body.firstElementChild;
-    if (root) {
-      const candidates = Array.from(root.querySelectorAll("*"))
-        .filter((element) => isLikelySharedNavigationElement(element))
-        .sort((a, b) => {
-          if (a.contains(b)) return -1;
-          if (b.contains(a)) return 1;
-          return 0;
-        });
-
-      for (const element of candidates) {
-        if (element.isConnected && root.contains(element)) {
-          element.remove();
-        }
-      }
-
-      return root.innerHTML.trim();
-    }
-  }
-
-  return withoutKnownSpacer
-    .replace(NAV_SPACER_PATTERN, "")
-    .replace(/<div\b[^>]*(?:drawgle-(?:export-)?navigation|navigation-shell)[^>]*>[\s\S]*?<\/div>/gi, "")
-    .replace(/<nav\b[\s\S]*?<\/nav>/gi, (match) =>
-      /bottom|tab|navigation|nav|dock|data-drawgle-primary-nav|data-nav-item-id/i.test(match) ? "" : match,
-    )
-    .replace(/<footer\b[\s\S]*?<\/footer>/gi, (match) =>
-      /bottom|tab|navigation|nav|dock|data-nav-item-id/i.test(match) ? "" : match,
-    )
-    .trim();
+  const normalized = normalizeSharedNavigationClearanceMarkup({ code, enabled: navigationActive }).code;
+  return navigationActive
+    ? sanitizeScreenCodeForSharedNavigation(normalized, { name: "", type: "root", description: "" }, { projectNavigationEnabled: true })
+    : normalized;
 };
 
 export function buildCompiledExportSnapshot({
