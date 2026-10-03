@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { trackCheckoutReturn } from '@/lib/analytics'
 
 /**
  * After returning from hosted checkout (e.g., ?subscribed=1) or short PM flow,
@@ -27,6 +28,8 @@ export default function SubscribeAutoRefresh({ userId }: { userId?: string }) {
             params.has('subscribed') ||
             params.has('pm_updated') ||
             params.get('return') === 'billing'
+
+        trackCheckoutReturn(params)
 
         if (!shouldRefresh) return
 

@@ -5,6 +5,7 @@ import { Check, Loader2, Zap, X, Info } from "lucide-react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { track } from "@/lib/analytics";
 import { checkout } from "@/lib/dodopayments";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
@@ -61,6 +62,10 @@ export function PricingDialog({
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
+    if (open) track("pricing_opened", { reason: triggerReason });
+  }, [open, triggerReason]);
+
+  useEffect(() => {
     if (!open) return;
 
     const supabase = createClient() as any;
@@ -92,6 +97,7 @@ export function PricingDialog({
       }
 
       setCheckoutProductId(productId);
+      track("checkout_started", { source: "pricing_dialog", product_id: productId, reason: triggerReason });
       const origin = typeof window !== "undefined" ? window.location.origin : "";
       const return_url = `${origin}${window.location.pathname}?subscribed=1`;
 
@@ -118,7 +124,7 @@ export function PricingDialog({
       alert(e?.message ?? "Failed to initiate checkout");
       setCheckoutProductId(null);
     }
-  }, [user]);
+  }, [user, triggerReason]);
 
   return (
     <TooltipProvider>

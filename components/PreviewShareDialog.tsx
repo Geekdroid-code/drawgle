@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { track } from "@/lib/analytics";
 
 type PreviewShareState = {
   enabled: boolean;
@@ -100,6 +101,7 @@ export function PreviewShareDialog({
         throw new Error(payload.error ?? "Could not update sharing.");
       }
       setShareState(payload as PreviewShareState);
+      if (enabled) track("preview_share_enabled");
       if (!enabled) {
         setCopied(false);
       }
@@ -115,6 +117,7 @@ export function PreviewShareDialog({
     try {
       await navigator.clipboard.writeText(shareState.url);
       setCopied(true);
+      track("preview_link_copied");
       window.setTimeout(() => setCopied(false), 1800);
     } catch {
       setError("Could not copy the preview link.");

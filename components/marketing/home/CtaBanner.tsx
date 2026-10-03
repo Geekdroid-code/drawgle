@@ -44,7 +44,7 @@ export function CtaBanner({ secondary }: { secondary?: { label: string; href: st
             </p>
 
             <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <MkButton href="/project/new" size="lg">
+              <MkButton href="/project/new" size="lg" data-oa-event="cta_click" data-oa-prop-location="cta_banner">
                 Start Building Now
               </MkButton>
               {secondary ? (
@@ -52,7 +52,7 @@ export function CtaBanner({ secondary }: { secondary?: { label: string; href: st
                   {secondary.label}
                 </MkButton>
               ) : (
-                <MkButton variant="secondary" size="lg" onClick={watchDemo}>
+                <MkButton variant="secondary" size="lg" onClick={watchDemo} data-oa-event="demo_play_click" data-oa-prop-location="cta_banner">
                   Watch Demo
                 </MkButton>
               )}
