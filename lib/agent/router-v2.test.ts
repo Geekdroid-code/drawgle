@@ -128,4 +128,14 @@ describe("bounded project agent loop", () => {
     expect(decision.instruction).toBe("Add a detailed subscription comparison screen with annual billing.");
     expect(decision.screenSuggestion).toEqual({ name: "Plan Comparison", role: "Compare monthly and annual plans before checkout." });
     expect(mocks.generateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("carries the agent's reading of a navigation request, and drops one it cannot name", async () => {
+    const navigationCall = (navigationChange: string) => ({ functionCalls: [{ name: "modify_existing_ui", args: {
+      instruction: "Redesign the shared nav for this habit tracker.", targetType: "navigation", scope: "navigation", editOperation: "restyle_region", navigationChange,
+    } }] });
+    mocks.generateContent.mockResolvedValueOnce(navigationCall("redesign"));
+    expect((await routeAgentPrompt({ ...input(), prompt: "this nav looks filthy" })).navigationChange).toBe("redesign");
+    mocks.generateContent.mockResolvedValueOnce(navigationCall("make it pretty"));
+    expect((await routeAgentPrompt({ ...input(), prompt: "this nav looks filthy" })).navigationChange).toBeNull();
   });});

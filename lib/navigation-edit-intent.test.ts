@@ -12,7 +12,16 @@ describe("navigation edit routing", () => {
     expect(navigationEditIntent(prompt, true)).toBe("redesign");
   });
   it("does not mistake an edit to shared navigation for a reuse request", () => {
-    expect(navigationEditIntent("change the shared nav color")).toBe("edit");
+    expect(navigationEditIntent("change the shared nav color")).toBe("restyle");
+  });
+  it("reads something creative as a redesign", () => {
+    expect(navigationEditIntent("create a new premium nav wiht modern style. something creative")).toBe("redesign");
+  });
+  it.each(["add a profile tab to the nav", "remove the history tab", 'rename "Today" to "Habits"'])("recognizes a tab change: %s", prompt => {
+    expect(navigationEditIntent(prompt, true)).toBe("destinations");
+  });
+  it("still reads adding a tab bar to a screen as reuse", () => {
+    expect(navigationEditIntent("add the tab bar to this screen")).toBe("reuse");
   });
   it.each(["Make the card premium", "Change the chart tabs", "Keep the nav and redesign the screen", "Change the background without changing navigation", "Redesign the entire screen including the nav", "Make the button the same color as the nav", "Change the header above the nav", "Add a card above the bottom nav"])("leaves unrelated screen edits alone: %s", prompt => {
     expect(navigationEditIntent(prompt)).toBeNull();

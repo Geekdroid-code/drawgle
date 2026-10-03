@@ -1,4 +1,4 @@
-import { navigationEditIntent } from "@/lib/navigation-edit-intent";
+import { navigationEditIntent, type NavigationEditIntent } from "@/lib/navigation-edit-intent";
 import { Buffer } from "node:buffer";
 
 import { tasks } from "@trigger.dev/sdk";
@@ -268,12 +268,22 @@ const buildVisibleThinkingText = ({
   return "I read the recent conversation and canvas context before replying.";
 };
 
+/** A nav edit says what it is doing: a redesign is not "a precise edit". */
+const NAVIGATION_PRE_ACTION: Record<NavigationEditIntent, string> = {
+  reuse: "Okay, I'm applying the shared navigation now.",
+  restyle: "Okay, I'm restyling the shared navigation now.",
+  redesign: "Okay, I'm redesigning the shared navigation for this app now.",
+  destinations: "Okay, I'm updating the navigation tabs now.",
+};
+
 const fallbackPreActionMessage = ({
   action,
   targetLabel,
+  navigationChange,
 }: {
   action: AgentRouterDecision["action"];
   targetLabel?: string | null;
+  navigationChange?: NavigationEditIntent | null;
 }) => {
   if (action === "draft_new_screen_plan") {
     return "Okay, I'm shaping that into a screen plan for this project.";
@@ -284,7 +294,9 @@ const fallbackPreActionMessage = ({
   }
 
   if (action === "modify_existing_ui") {
-    return `Okay, I'm applying a precise edit to ${targetLabel ?? "the selected UI"} now.`;
+    return navigationChange
+      ? NAVIGATION_PRE_ACTION[navigationChange]
+      : `Okay, I'm applying a precise edit to ${targetLabel ?? "the selected UI"} now.`;
   }
 
   return null;
@@ -396,7 +408,11 @@ async function insertPreActionMessage({
   routerMetadata: Record<string, unknown>;
   targetLabel?: string | null;
 }) {
-  const fallback = fallbackPreActionMessage({ action: routerDecision.action, targetLabel });
+  const fallback = fallbackPreActionMessage({
+    action: routerDecision.action,
+    targetLabel,
+    navigationChange: routerDecision.targetType === "navigation" ? routerDecision.navigationChange : null,
+  });
   const content = whiteLabelAgentMessage(prompt, routerDecision.responseMessage || fallback);
 
   if (!fallback && !routerDecision.responseMessage) {
@@ -598,6 +614,7 @@ const makeRouterMetadata = (decision: AgentRouterDecision) => ({
     scope: decision.scope,
     selectedElementDrawgleId: decision.selectedElementDrawgleId ?? null,
     editOperation: decision.editOperation,
+    navigationChange: decision.navigationChange ?? null,
     source: decision.routerSource,
     failureReason: decision.routerFailureReason ?? null,
     sourceReferences: decision.sourceReferences ?? [],
@@ -2822,6 +2839,7 @@ export async function POST(request: Request) {
         selectedElementDrawgleId: shouldUseSelectedElement ? activeSelectionDrawgleId : null,
         selectedElementTarget: requestTargetsNavigation ? "navigation" : "screen",
         requestTargetsNavigation,
+        navigationIntent: requestTargetsNavigation ? routerDecision.navigationChange ?? null : null,
         targetScope: resolvedScope,
         editStrategy,
         editOperation,
