@@ -9,6 +9,18 @@ const end = screenNode.indexOf("            /* Tags that should bubble", start);
 const preview = () => new Function("document", `var activePreview = null; ${screenNode.slice(start, end)}; return { apply: applyElementPreview, discard: restorePreview };`)(document) as { apply: (payload: unknown) => void; discard: () => void };
 afterEach(() => { document.body.innerHTML = ""; });
 describe("iframe draft restoration", () => {
+  it("targets IDs containing quotes, slashes, brackets, and newlines without selector errors", () => {
+    document.body.innerHTML = '<main><span>Original</span><img src="/original.png"></main><aside>Untouched</aside>';
+    const card = document.querySelector("main")!, label = document.querySelector("span")!, image = document.querySelector("img")!;
+    const ids = ['card"\\] ', 'label"\\\n]', 'image"\\]'];
+    [card, label, image].forEach((element, index) => element.setAttribute("data-drawgle-id", ids[index]));
+    const original = document.body.innerHTML, controller = preview();
+    expect(() => controller.apply({ drawgleId: ids[0], styles: { "border-radius": "12px" }, text: { [ids[1]]: "Updated" },
+      image: { target: { kind: "img", drawgleId: ids[2] }, src: "/new.png" } })).not.toThrow();
+    expect(card.style.borderRadius).toBe("12px"); expect(label.textContent).toBe("Updated");
+    expect(image.getAttribute("src")).toBe("/new.png"); expect(document.querySelector("aside")!.textContent).toBe("Untouched");
+    controller.discard(); expect(document.body.innerHTML).toBe(original);
+  });
   it("previews text, styles, and media together, and discard restores original nodes and attributes", () => {
     const original = '<main data-drawgle-id="card"><button data-drawgle-id="button"><svg></svg><span data-drawgle-id="label">Original</span></button><img data-drawgle-id="image" src="https://example.com/original.png" srcset="https://example.com/original-2x.png 2x"></main>';
     document.body.innerHTML = original;

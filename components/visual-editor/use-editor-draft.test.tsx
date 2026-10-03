@@ -4,6 +4,22 @@ import { useEditorDraft } from "./use-editor-draft";
 import { selectionFixture } from "@/lib/visual-editor/test-fixtures";
 
 describe("visual edit session", () => {
+  it("distinguishes an unconfirmed save from an unrelated stale draft after realtime updates", async () => {
+    let rejectSave!: (error: Error) => void;
+    const save = vi.fn(() => new Promise<never>((_, reject) => { rejectSave = reject; }));
+    const { result, rerender } = renderHook(({ revision }) => useEditorDraft({ info: selectionFixture(), revision, save, upload: vi.fn() }), { initialProps: { revision: 1 } });
+    act(() => result.current.styles({ "border-radius": "12px" }));
+    let submitted!: Promise<boolean>;
+    act(() => { submitted = result.current.apply(); });
+    rerender({ revision: 2 });
+    await act(async () => { rejectSave(new Error("Connection lost")); expect(await submitted).toBe(false); });
+    expect(result.current.stale).toBe(true); expect(result.current.saveUnconfirmed).toBe(true); expect(result.current.dirty).toBe(true);
+    await act(async () => { expect(await result.current.apply()).toBe(false); });
+    expect(save).toHaveBeenCalledOnce(); // A newer revision still cannot be overwritten.
+    act(() => result.current.discard()); expect(result.current.dirty).toBe(false); expect(result.current.saveUnconfirmed).toBe(false);
+    act(() => result.current.styles({ "border-radius": "24px" })); rerender({ revision: 3 });
+    expect(result.current.stale).toBe(true); expect(result.current.saveUnconfirmed).toBe(false);
+  });
   it("preserves pending changes on rehydration and disables stale saves", async () => {
     const save = vi.fn(); const info = selectionFixture();
     const { result, rerender } = renderHook(({ revision, selected }) => useEditorDraft({ info: selected, revision, save, upload: vi.fn() }), { initialProps: { revision: 1, selected: info } });
