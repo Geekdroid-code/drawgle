@@ -2,11 +2,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
 import { RotateCcw, RotateCw, History } from "lucide-react";
-import { buildStandaloneHtmlExport, resolveScreenNavigationCode } from "@/lib/export-pipeline";
 import type { EditorController } from "@/components/visual-editor/use-editor-draft";
 import type { HistoryTarget } from "@/lib/design-history/types";
-import type { DesignTokens, ProjectNavigationData, ScreenData } from "@/lib/types";
+import type { DesignTokens, ScreenData } from "@/lib/types";
 import { HistoryPanel, type HistoryEntry as Entry, type HistoryPreview as Preview } from "@/components/visual-editor/HistoryPanel";
+
+/**
+ * A saved version the canvas shows in place of the current design while it is previewed: one screen's code, the
+ * project styles, or the navigation with its screen assignments. Nothing is saved until it is restored.
+ */
+export type CanvasHistoryPreview = { label: string; side: "before" | "after" } & (
+  | { context: "screen"; screenId: string; code: string }
+  | { context: "tokens"; tokens: DesignTokens | null }
+  | { context: "navigation"; navigation: Record<string, unknown> }
+);
+export const EXIT_HISTORY_PREVIEW_EVENT = "drawgle-history-exit-preview";
+/** Restores the previewed version from outside the panel: the canvas's preview bar on a phone, where the panel is closed. */
+export const RESTORE_HISTORY_PREVIEW_EVENT = "drawgle-history-restore-preview";
 
 type Listing = { revision: number; canUndo: boolean; canRedo: boolean; entries: Entry[] };
 const query = (target: HistoryTarget) => new URLSearchParams(target.context === "screen"
@@ -14,14 +26,16 @@ const query = (target: HistoryTarget) => new URLSearchParams(target.context === 
 const editingFocus = (target: EventTarget | null) => target instanceof HTMLElement &&
   (target.isContentEditable || Boolean(target.closest("input, textarea, [contenteditable], [role='textbox']")));
 
-export function HistoryControls({ projectId, target, screenName, screens, navigation, tokens, disabledReason, onApplied, local, refreshVersion = 0, onWorkingChange, onAvailabilityChange, viewOpen, onViewOpenChange, panelTarget }: {
+export function HistoryControls({ projectId, target, screenName, screens, disabledReason, onApplied, local, refreshVersion = 0, onWorkingChange, onAvailabilityChange, viewOpen, onViewOpenChange, panelTarget, onCanvasPreviewChange }: {
   projectId: string; target: HistoryTarget | null; screenName?: string;
-  screens: ScreenData[]; navigation: ProjectNavigationData | null; tokens: DesignTokens | null;
+  screens: ScreenData[];
   local?: Pick<EditorController, "hasLocalHistory" | "canUndo" | "canRedo" | "undo" | "redo" | "saving" | "stale">;
   refreshVersion?: number; onWorkingChange?: (working: boolean) => void;
   onAvailabilityChange?: (available: { undo: boolean; redo: boolean }) => void;
   disabledReason?: string | null; onApplied: () => void | Promise<void>;
   viewOpen?: boolean; onViewOpenChange?: Dispatch<SetStateAction<boolean>>; panelTarget?: HTMLElement | null;
+  /** Shows the previewed version on the canvas, or the current design again with null. */
+  onCanvasPreviewChange?: (preview: CanvasHistoryPreview | null) => void;
 }) {
   const [listing, setListing] = useState<Listing | null>(null);
   const [localOpen, setLocalOpen] = useState(false);
@@ -128,28 +142,48 @@ export function HistoryControls({ projectId, target, screenName, screens, naviga
     } catch (err) { setError(err instanceof Error ? err.message : "Could not restore the last good design."); }
     finally { setWorking(false); onWorkingChange?.(false); }
   };
-  const visual = useMemo(() => {
-    if (!preview || !target) return null;
-    const sample = target.context === "screen" ? screens.find(s => s.id === target.screenId) : screens.find(s => s.sourceLoaded);
-    if (!sample) return null;
+  // The canvas shows a previewed version only while nothing else is pending: an unsaved adjustment, a token draft or a
+  // design job would otherwise be drawn over, or draw over it.
+  const previewBlocked = Boolean(local?.hasLocalHistory || disabledReason);
+  // The shell passes a new target object on every render; the preview follows its context and screen only.
+  const targetContext = target?.context ?? null;
+  const targetScreenId = target?.context === "screen" ? target.screenId : null;
+  const canvasPreview = useMemo<CanvasHistoryPreview | null>(() => {
+    if (!open || !preview || !targetContext || previewBlocked) return null;
     const payload = previewSide === "before" ? preview.beforePayload : preview.payload;
-    const code = target.context === "screen" ? payload.code : sample.code;
-    if (typeof code !== "string" || !code.trim()) return null;
-    const candidateTokens = target.context === "tokens" ? payload.tokens as DesignTokens | null : tokens;
-    const navigationCode = target.context === "navigation" ? payload.shellCode as string : resolveScreenNavigationCode(sample, navigation);
-    return buildStandaloneHtmlExport({ screen: { ...sample, code }, navigationCode, designTokens: candidateTokens,
-      activeNavigationItemId: sample.navigationItemId });
-  }, [navigation, preview, previewSide, screens, target, tokens]);
+    const shown = { label: preview.label, side: previewSide };
+    if (targetContext === "screen") {
+      return targetScreenId && typeof payload.code === "string" && payload.code.trim() ? { ...shown, context: "screen", screenId: targetScreenId, code: payload.code } : null;
+    }
+    if (targetContext === "tokens") return { ...shown, context: "tokens", tokens: (payload.tokens ?? null) as DesignTokens | null };
+    return { ...shown, context: "navigation", navigation: payload };
+  }, [open, preview, previewBlocked, previewSide, targetContext, targetScreenId]);
+  const reportPreview = useRef(onCanvasPreviewChange);
+  useEffect(() => { reportPreview.current = onCanvasPreviewChange; }, [onCanvasPreviewChange]);
+  useEffect(() => { reportPreview.current?.(canvasPreview); }, [canvasPreview]);
+  useEffect(() => () => reportPreview.current?.(null), []);
+  useEffect(() => {
+    const exit = () => setPreview(null);
+    window.addEventListener(EXIT_HISTORY_PREVIEW_EVENT, exit);
+    return () => window.removeEventListener(EXIT_HISTORY_PREVIEW_EVENT, exit);
+  }, []);
+  useEffect(() => {
+    if (!canvasPreview || !preview) return;
+    const restore = () => { void run("restore", preview.id, previewSide); };
+    window.addEventListener(RESTORE_HISTORY_PREVIEW_EVENT, restore);
+    return () => window.removeEventListener(RESTORE_HISTORY_PREVIEW_EVENT, restore);
+  }, [canvasPreview, preview, previewSide, run]);
   if (!target) return null;
   const historyView = open ? <HistoryPanel label={target.context === "screen" ? screenName || "Selected screen" : target.context === "navigation" ? "Shared navigation" : "Project styles"}
-    entries={listing?.entries ?? []} preview={preview} visual={visual} error={error} disabledReason={local?.hasLocalHistory ? "Apply or discard your adjustments before restoring a saved change." : disabledReason} working={working}
+    entries={listing?.entries ?? []} preview={preview} onCanvas={Boolean(canvasPreview)} error={error} disabledReason={local?.hasLocalHistory ? "Apply or discard your adjustments before restoring a saved change." : disabledReason} working={working}
     failedScreen={!!failedScreen} onBack={() => { setOpen(false); setPreview(null); historyButton.current?.focus(); }}
     side={previewSide} scope={target.context} onSideChange={side => { setPreviewSide(side); setError(null); }}
     onClearPreview={() => setPreview(null)} onRestore={() => { if (preview) void run("restore", preview.id, previewSide); }}
     onRestoreLastGood={() => void restoreLastGood()} onPreview={entry => {
       void fetch(`/api/projects/${projectId}/history/${entry.id}?${targetKey}`, { cache: "no-store" })
         .then(async response => { if (!response.ok) { const failure = await response.json().catch(() => null); throw new Error(failure?.error || "Preview unavailable."); } const result = await response.json() as Preview;
-          if (!result.beforePayload) throw new Error("Before-change history is unavailable. Install the latest history migration before restoring.");
+          // Only a server without the before-snapshot migration answers without it.
+          if (!result.beforePayload) throw new Error("This change can’t be previewed right now. Refresh Recent changes and try again.");
           setPreviewSide("before"); setPreview(result); setError(null); })
         .catch(err => setError(err.message));
     }} /> : null;

@@ -4,9 +4,21 @@ import { ArrowLeft, Check, History } from "lucide-react";
 export type HistoryEntry = { id: string; label: string; createdAt: string; isCurrent: boolean };
 export type HistoryPreview = { id: string; label: string; payload: Record<string, unknown>; beforePayload: Record<string, unknown> };
 
-export function HistoryPanel({ label, entries, preview, visual, error, disabledReason, working, failedScreen,
+const SHOWN: Record<"screen" | "navigation" | "tokens", (side: "before" | "after") => string> = {
+  screen: (side) => `The canvas shows this screen ${side} the change. Restoring makes this version current. Shared styles and navigation stay as they are.`,
+  navigation: (side) => `The canvas shows the navigation ${side} the change. Restoring brings back this navigation and which screens show it. Screen contents stay as they are.`,
+  tokens: (side) => `The canvas shows the project styles ${side} the change. Restoring brings back these styles. Screen contents and navigation stay as they are.`,
+};
+
+/**
+ * Saved changes for the selected screen, the navigation or the project styles. A previewed version is shown on the
+ * canvas itself, at full size where it lives, while this panel keeps the list, the Before/After switch and Restore.
+ */
+export function HistoryPanel({ label, entries, preview, onCanvas, error, disabledReason, working, failedScreen,
   side, scope, onSideChange, onBack, onPreview, onClearPreview, onRestore, onRestoreLastGood }: {
-  label: string; entries: HistoryEntry[]; preview: HistoryPreview | null; visual: string | null;
+  label: string; entries: HistoryEntry[]; preview: HistoryPreview | null;
+  /** Whether the canvas is showing the previewed version; it does not while another change is pending. */
+  onCanvas: boolean;
   error: string | null; disabledReason?: string | null; working: boolean; failedScreen: boolean;
   onBack: () => void; onPreview: (entry: HistoryEntry) => void; onClearPreview: () => void;
   onRestore: () => void; onRestoreLastGood: () => void;
@@ -31,8 +43,7 @@ export function HistoryPanel({ label, entries, preview, visual, error, disabledR
           <button type="button" className="ve-segment" aria-pressed={side === "before"} onClick={() => onSideChange("before")}>Before change</button>
           <button type="button" className="ve-segment" aria-pressed={side === "after"} onClick={() => onSideChange("after")}>After change</button>
         </div>
-        {visual && <iframe title="History preview" sandbox="allow-scripts" srcDoc={visual} className="h-72 w-full rounded-lg border border-[var(--dg-border)] bg-white" />}
-        <p className="mt-3 text-xs leading-relaxed text-[var(--dg-text-muted)]">{scope === "screen" ? `You are viewing the screen ${side} this change. Restoring replaces this screen with the previewed version. Shared tokens and navigation stay current.` : scope === "navigation" ? `You are viewing shared navigation ${side} this change. Restoring updates navigation and its screen assignments. Screen contents stay current.` : `You are viewing project styles ${side} this change. Restoring replaces the project styles. Screen contents and navigation stay current.`}</p>
+        <p className="text-xs leading-relaxed text-[var(--dg-text-muted)]">{onCanvas ? SHOWN[scope](side) : "Finish or discard the pending change to see this version on the canvas."}</p>
       </div> : entries.length ? <ol className="space-y-1 p-3">{entries.map(entry => <li key={entry.id}>
         <button type="button" onClick={() => onPreview(entry)} className="ve-history-entry">
           <span className="flex items-start justify-between gap-2"><span className="min-w-0 text-[13px] font-medium leading-5">{entry.label}</span>
@@ -46,7 +57,7 @@ export function HistoryPanel({ label, entries, preview, visual, error, disabledR
       </div>}
     </div>
     <footer className="ve-footer">
-      {preview ? <button type="button" className="ve-apply w-full" disabled={!!disabledReason || working} onClick={onRestore}>{working ? "Restoring…" : `Restore ${side} this change`}</button>
+      {preview ? <button type="button" className="ve-apply w-full" disabled={!!disabledReason || working} onClick={onRestore}>{working ? "Restoring…" : "Restore this version"}</button>
         : <p className="text-[11px] leading-5 text-[var(--dg-text-muted)]">Your unsaved adjustments stay intact while you browse history.</p>}
     </footer>
   </section>;

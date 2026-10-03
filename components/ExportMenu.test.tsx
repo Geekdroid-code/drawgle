@@ -6,10 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Button } from "@/components/ui/button";
 import type { ProjectData, ScreenData } from "@/lib/types";
 
-const { buildAgentHandoffPromptMock, buildAgentPackZipMock, buildStandaloneHtmlExportMock } = vi.hoisted(() => ({
+const { buildAgentHandoffPromptMock, buildAgentPackZipMock, buildCleanHtmlExportMock } = vi.hoisted(() => ({
   buildAgentHandoffPromptMock: vi.fn(() => "Auto-detect prompt with compiled selected screen HTML"),
   buildAgentPackZipMock: vi.fn(() => new Uint8Array([1, 2, 3])),
-  buildStandaloneHtmlExportMock: vi.fn(() => "compiled standalone html"),
+  buildCleanHtmlExportMock: vi.fn(() => "clean standalone html"),
 }));
 
 vi.mock("@/lib/export-pipeline", async (importOriginal) => {
@@ -18,7 +18,7 @@ vi.mock("@/lib/export-pipeline", async (importOriginal) => {
     ...actual,
     buildAgentHandoffPrompt: buildAgentHandoffPromptMock,
     buildAgentPackZip: buildAgentPackZipMock,
-    buildStandaloneHtmlExport: buildStandaloneHtmlExportMock,
+    buildCleanHtmlExport: buildCleanHtmlExportMock,
   };
 });
 
@@ -94,7 +94,7 @@ describe("ExportMenu", () => {
     cleanup();
     buildAgentHandoffPromptMock.mockClear();
     buildAgentPackZipMock.mockClear();
-    buildStandaloneHtmlExportMock.mockClear();
+    buildCleanHtmlExportMock.mockClear();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -109,7 +109,7 @@ describe("ExportMenu", () => {
     expect(view.getByText("Download Agent Pack")).toBeTruthy();
     expect(view.queryByText("Native Scaffolds")).toBeNull();
     expect(view.queryByText(/Preview/)).toBeNull();
-    expect(buildStandaloneHtmlExportMock).not.toHaveBeenCalled();
+    expect(buildCleanHtmlExportMock).not.toHaveBeenCalled();
   });
 
   it("blocks fidelity exports when design token changes are unsaved", async () => {
@@ -164,7 +164,7 @@ describe("ExportMenu", () => {
     const user = userEvent.setup();
     const view = renderMenu("home", { screens: screens.map(s => ({ ...s, code: "", sourceLoaded: false })) });
     await user.click(view.getByTestId("download-screen-html"));
-    await waitFor(() => expect(buildStandaloneHtmlExportMock).toHaveBeenCalledWith(expect.objectContaining({ screen: expect.objectContaining({ code: "saved source" }) })));
+    await waitFor(() => expect(buildCleanHtmlExportMock).toHaveBeenCalledWith(expect.objectContaining({ screen: expect.objectContaining({ code: "saved source" }) })));
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Refresh and reselect" }) } as Response);
     await user.click(view.getByTestId("download-screen-html"));
     expect((await view.findByRole("alert")).textContent).toContain("Refresh and reselect");

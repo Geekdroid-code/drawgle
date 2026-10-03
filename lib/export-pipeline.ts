@@ -3,6 +3,7 @@ import { renderProductSpecification, type ProductSpecification } from "@/lib/exp
 
 import { buildPublicDesignMdDocument } from "@/lib/design-md";
 import { buildDrawgleExportRuntimeCss, buildDrawgleTailwindConfigScript } from "@/lib/drawgle-html-runtime";
+import { buildHandoffThemeCss, settleNavigationState, trimExportPage, writeKitTabsOnce } from "@/lib/export/trim-export";
 import { LUCIDE_DRAW_ICONS_CALL, LUCIDE_NAME_REPAIR_SCRIPT } from "@/lib/lucide-runtime";
 import {
   extractFixedBottomNodes,
@@ -264,25 +265,41 @@ export function buildStandaloneHtmlExport(input: Parameters<typeof buildCompiled
   return buildCompiledExportSnapshot(input).standaloneHtml;
 }
 
-export function buildScreenOnlyHtmlExport(input: Parameters<typeof buildCompiledExportSnapshot>[0]) {
-  const snapshot = buildCompiledExportSnapshot(input);
+const escapeHtmlText = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const LUCIDE_SCRIPTS = `${LUCIDE_NAME_REPAIR_SCRIPT}\n${LUCIDE_DRAW_ICONS_CALL}`;
 
-  return `<!DOCTYPE html>
+function cleanExportDocument({ title, screenHtml, navigationHtml, tokenCss, googleFontAssetLinks }: {
+  title: string;
+  screenHtml: string;
+  navigationHtml: string;
+  tokenCss: string;
+  googleFontAssetLinks: string;
+}) {
+  const includeNavigation = Boolean(navigationHtml.trim());
+  const page = trimExportPage({
+    screenHtml,
+    navigationHtml,
+    tokenCss,
+    baseCss: buildDrawgleExportRuntimeCss("", { includeNavigation }),
+    scripts: LUCIDE_SCRIPTS,
+  });
+  const html = `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    ${buildDrawgleTailwindConfigScript()}
-    <script src="https://cdn.tailwindcss.com"><\/script>
+    <title>${escapeHtmlText(title)}</title>
+    ${page.theme ? `${buildDrawgleTailwindConfigScript(page.theme)}\n    ` : ""}<script src="https://cdn.tailwindcss.com"><\/script>
     <script src="https://unpkg.com/lucide@latest"><\/script>
-    ${snapshot.googleFontAssetLinks}
+    ${googleFontAssetLinks}
     <style>
-${buildDrawgleExportRuntimeCss(snapshot.tokenCss, { includeNavigation: false })}
+${buildDrawgleExportRuntimeCss(page.tokenCss, { includeNavigation })}
     </style>
   </head>
   <body>
     <div id="drawgle-export-root">
-${snapshot.cleanScreenHtml}
+${page.screenHtml}
+      ${includeNavigation ? `<div id="drawgle-export-navigation">${page.navigationHtml}</div>` : ""}
     </div>
     <script>
       ${LUCIDE_NAME_REPAIR_SCRIPT}
@@ -290,7 +307,52 @@ ${snapshot.cleanScreenHtml}
     <\/script>
   </body>
 </html>`;
+  return { html, page };
 }
+
+/**
+ * What a person downloads, copies or reads in the code view: the canvas's markup, classes and tokens as generated,
+ * without what this screen does not use (lib/export/trim-export.ts). The navigation is written as this screen shows
+ * it, so no script has to choose its tab. buildCompiledExportSnapshot stays the faithful page that generation checks,
+ * design evals and history previews render.
+ */
+export function buildCleanExportSnapshot(input: Parameters<typeof buildCompiledExportSnapshot>[0]): CompiledExportSnapshot {
+  const faithful = buildCompiledExportSnapshot(input);
+  const activeNavigationItemId = faithful.activeNavigationItemId;
+  const { html, page } = cleanExportDocument({
+    title: input.screen.name || "Screen",
+    screenHtml: settleNavigationState(faithful.cleanScreenHtml, activeNavigationItemId),
+    navigationHtml: faithful.cleanNavigationHtml
+      ? writeKitTabsOnce(settleNavigationState(faithful.cleanNavigationHtml, activeNavigationItemId))
+      : "",
+    tokenCss: faithful.tokenCss,
+    googleFontAssetLinks: faithful.googleFontAssetLinks,
+  });
+
+  return {
+    ...faithful,
+    standaloneHtml: html,
+    cleanScreenHtml: page.screenHtml,
+    tokenCss: page.tokenCss,
+  };
+}
+
+export function buildCleanHtmlExport(input: Parameters<typeof buildCompiledExportSnapshot>[0]) {
+  return buildCleanExportSnapshot(input).standaloneHtml;
+}
+
+/** One screen without its shared navigation, for the Agent Pack, which ships the navigation once on its own. */
+export function buildCleanScreenOnlyHtmlExport(input: Parameters<typeof buildCompiledExportSnapshot>[0]) {
+  const faithful = buildCompiledExportSnapshot(input);
+  return cleanExportDocument({
+    title: input.screen.name || "Screen",
+    screenHtml: faithful.cleanScreenHtml,
+    navigationHtml: "",
+    tokenCss: faithful.tokenCss,
+    googleFontAssetLinks: faithful.googleFontAssetLinks,
+  }).html;
+}
+
 const TARGET_INSTRUCTIONS: Record<AgentTarget, string> = {
   auto: "Inspect the repository and determine the active UI framework, architecture, language, and platform conventions before implementing.",
   html: "Implement this screen as accessible HTML and Tailwind CSS that matches the repository's existing web conventions.",
@@ -325,7 +387,7 @@ export function buildAgentHandoffPrompt({
     tokenDraft: designTokens,
   });
   const navigationCode = resolveScreenNavigationCode(screen, context.projectNavigation);
-  const compiledSnapshot = buildCompiledExportSnapshot({
+  const compiledSnapshot = buildCleanExportSnapshot({
     screen,
     navigationCode,
     activeNavigationItemId: screen.navigationItemId,
@@ -505,7 +567,7 @@ No root instruction files are included or overwritten.
     ".drawgle/manifest.json": JSON.stringify(manifest, null, 2),
     ".drawgle/design.md": designMd,
     ".drawgle/design-tokens.json": JSON.stringify(normalizedTokens.tokens ?? {}, null, 2),
-    ".drawgle/design-tokens.css": tokenCss,
+    ".drawgle/design-tokens.css": buildHandoffThemeCss(tokenCss),
     ".agents/skills/drawgle-ui-handoff/SKILL.md": AGENT_SKILL,
     ".claude/skills/drawgle-ui-handoff/SKILL.md": AGENT_SKILL,
   };
@@ -516,7 +578,7 @@ No root instruction files are included or overwritten.
   }
 
   for (const [index, screen] of context.screens.entries()) {
-    files[screenEntries[index].file] = buildScreenOnlyHtmlExport({
+    files[screenEntries[index].file] = buildCleanScreenOnlyHtmlExport({
       screen,
       navigationCode: resolveScreenNavigationCode(screen, context.projectNavigation),
       activeNavigationItemId: screen.navigationItemId,

@@ -231,6 +231,13 @@ export function withKitNavigation(navigationPlan: NavigationPlan, kit: KitNaviga
 }
 
 /**
+ * Hides the copy of each kit tab that its data-active does not show. An export, which knows its current tab,
+ * writes each tab once and leaves this rule out.
+ */
+export const KIT_TAB_STATE_RULE =
+  "[data-drawgle-primary-nav] .dg-nav-kit-item[data-active=\"true\"] > [data-dg-nav-state=\"inactive\"],[data-drawgle-primary-nav] .dg-nav-kit-item:not([data-active=\"true\"]) > [data-dg-nav-state=\"active\"]{display:none !important;}";
+
+/**
  * The kit's bar with the project's tabs. The renderer only places it at the bottom of the screen and owns the
  * space the screen leaves for it; its look is the kit's. Each tab is drawn as the current one and as another, and
  * the canvas shows the right one by the data-active it sets on the tab, as it does for the built-in bars.
@@ -254,7 +261,7 @@ function renderKitNavigationShell(
     `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),96px);--dg-navigation-anatomy-height:auto;--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${design.safeAreaOffsetPx}px;--dg-navigation-overlap-buffer:12px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
     "[data-drawgle-primary-nav].dg-nav-kit{box-sizing:border-box;display:block;width:100%;max-width:100%;margin:0;padding:0 0 var(--dg-effective-safe-area-bottom);background:transparent;border:0;box-shadow:none;pointer-events:auto;}",
     "[data-drawgle-primary-nav] .dg-nav-kit-item{display:contents;}",
-    "[data-drawgle-primary-nav] .dg-nav-kit-item[data-active=\"true\"] > [data-dg-nav-state=\"inactive\"],[data-drawgle-primary-nav] .dg-nav-kit-item:not([data-active=\"true\"]) > [data-dg-nav-state=\"active\"]{display:none !important;}",
+    KIT_TAB_STATE_RULE,
     "[data-drawgle-primary-nav] .dg-nav-kit-item[aria-disabled=\"true\"] > *{cursor:default;}",
     "</style>",
     fillKitNavigationBar(kit, tabs),

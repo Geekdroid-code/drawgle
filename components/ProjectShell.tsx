@@ -1,5 +1,6 @@
 "use client";
-import { HistoryControls } from "@/components/HistoryControls";
+import { HistoryControls, type CanvasHistoryPreview } from "@/components/HistoryControls";
+import { HistoryPreviewBar } from "@/components/HistoryPreviewBar";
 import { confirmPermanentScreenDeletion } from "@/lib/confirm-screen-deletion";
 
 import type { ProductAnswers } from "@/lib/product-planning/questions";
@@ -41,6 +42,7 @@ import { useGenerationRuns } from "@/hooks/use-generation-runs";
 import { useProductFulfillments } from "@/hooks/use-product-fulfillments";
 import { isProductApprovalRun, readApprovalFromRun } from "@/lib/agent/flow-build";
 import { flowPlaceholders } from "@/lib/canvas/flow-placeholders";
+import { parseStoredNavigationPlan } from "@/lib/project-navigation";
 import { useProject } from "@/hooks/use-project";
 import { useProjectNavigation } from "@/hooks/use-project-navigation";
 import { useScreens } from "@/hooks/use-screens";
@@ -270,6 +272,7 @@ export function ProjectShell({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historySelection, setHistorySelection] = useState("");
   const [historyPanelTarget, setHistoryPanelTarget] = useState<HTMLDivElement | null>(null);
+  const [historyCanvasPreview, setHistoryCanvasPreview] = useState<CanvasHistoryPreview | null>(null);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const mobileChatWasCollapsed = useRef<boolean | null>(null);
 
@@ -333,6 +336,32 @@ export function ProjectShell({
   const effectiveDesignTokens = tokenDraft && hasApprovedDesignTokens(tokenDraft)
     ? tokenDraft
     : project?.designTokens ?? null;
+  // A saved version being previewed in Recent changes is drawn on the canvas in place of the current one. Only what the
+  // canvas draws changes; the saved design, exports and edits keep using the current one.
+  const canvasScreens = useMemo(() => {
+    if (historyCanvasPreview?.context === "screen") {
+      return screens.map(screen => screen.id === historyCanvasPreview.screenId ? { ...screen, code: historyCanvasPreview.code, sourceLoaded: true } : screen);
+    }
+    if (historyCanvasPreview?.context === "navigation" && Array.isArray(historyCanvasPreview.navigation.assignments)) {
+      const assignments = new Map((historyCanvasPreview.navigation.assignments as Array<{ screenId: string; chromePolicy: ScreenData["chromePolicy"]; navigationItemId: string | null }>)
+        .map(assignment => [assignment.screenId, assignment]));
+      return screens.map(screen => {
+        const assignment = assignments.get(screen.id);
+        return assignment ? { ...screen, chromePolicy: assignment.chromePolicy, navigationItemId: assignment.navigationItemId } : screen;
+      });
+    }
+    return screens;
+  }, [historyCanvasPreview, screens]);
+  const canvasNavigation = useMemo(() => historyCanvasPreview?.context === "navigation" && projectNavigation
+    ? { ...projectNavigation, plan: parseStoredNavigationPlan(historyCanvasPreview.navigation.plan), shellCode: String(historyCanvasPreview.navigation.shellCode ?? "") }
+    : projectNavigation, [historyCanvasPreview, projectNavigation]);
+  const canvasDesignTokens = historyCanvasPreview?.context === "tokens" ? historyCanvasPreview.tokens : effectiveDesignTokens;
+  const showHistoryOnCanvas = useCallback((preview: CanvasHistoryPreview | null) => {
+    setHistoryCanvasPreview(preview);
+    // On a phone the editor drawer covers the canvas, so it steps aside to show the version; the chat stays collapsed,
+    // and the preview bar restores or exits. The drawer's toggle brings back Before/After.
+    if (preview && isMobile) setInspectorOpen(false);
+  }, [isMobile]);
 
   const exportTokenCss = useMemo(() => buildDrawgleTokenCss(effectiveDesignTokens), [effectiveDesignTokens]);
   const exportGoogleFontLinks = useMemo(() => buildGoogleFontAssetLinks(effectiveDesignTokens), [effectiveDesignTokens]);
@@ -1206,7 +1235,7 @@ export function ProjectShell({
                 workspaceTab === "design" ? { context: "tokens" } :
                 selectedScreen ? { context: "screen", screenId: selectedScreen.id } : null}
               screenName={screens.find(screen => screen.id === (editSession?.screenId ?? selectedScreen?.id))?.name}
-              screens={screens} navigation={projectNavigation ?? null} tokens={effectiveDesignTokens ?? null}
+              screens={screens} onCanvasPreviewChange={showHistoryOnCanvas}
               disabledReason={tokenDirty && !editor.hasLocalHistory ? "Save or discard the current draft before using saved history." :
                 isCanvasInteractionLocked ? "Wait for the active design job to finish." : null}
               onApplied={async () => { editor.discard(); setExportMenuOpen(false); notifyProjectChanged(project.id); await refreshScreens(); const recoveredScreenId = editSession?.screenId ?? selectedScreen?.id; if (recoveredScreenId) await loadScreenSource(recoveredScreenId); }}
@@ -1230,6 +1259,8 @@ export function ProjectShell({
             </div>
           </div>
         </div>
+
+        <HistoryPreviewBar preview={historyCanvasPreview} />
 
         <div
           data-canvas-obstacle="top"
@@ -1424,9 +1455,9 @@ export function ProjectShell({
             }} />}
           <CanvasStage
             hasEditorDraft={inspectorDirty}
-            screens={screens}
-            projectNavigation={projectNavigation}
-            designTokens={effectiveDesignTokens}
+            screens={canvasScreens}
+            projectNavigation={canvasNavigation}
+            designTokens={canvasDesignTokens}
             generationPreview={generationPreview}
             flowPlaceholders={flowPlaceholderPhones}
             selectedScreen={selectedScreen}

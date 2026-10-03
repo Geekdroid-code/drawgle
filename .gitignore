@@ -11,3 +11,6 @@ repair-backups/
 .codex-remote-attachments/
 scripts/design-eval/out/
 scripts/curated/out/
+
+# Export fidelity reports and the screens they were run on (local, read-only copies)
+scripts/export-fidelity/out/
