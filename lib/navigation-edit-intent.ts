@@ -13,8 +13,9 @@ export const parseNavigationEditIntent = (value: unknown): NavigationEditIntent 
   NAVIGATION_EDIT_INTENTS.find(intent => intent === value) ?? null;
 
 const REDESIGN_WORDS = /\b(?:redesign|restyle|moderni[sz]e|revamp|premium|modern|better|new|improve|creative)\b/i;
+const MORE_OR_FEWER_TABS = /\b(?:more|fewer|less|extra|additional)\s+(?:nav(?:igation)?\s+)?tabs\b/i;
 // A tab bar is the nav itself, not one of its tabs.
-const DESTINATION_CHANGE = /\b(?:add|remove|delete|drop|rename|reorder|swap)\b[^.!?]{0,40}\b(?:tabs?(?!\s*bar)|destinations?)\b|\brename\s+["']?[^"'\s]+["']?\s+to\b/i;
+const DESTINATION_CHANGE = /\b(?:add|remove|delete|drop|rename|reorder|swap)\b[^.!?]{0,40}\b(?:tabs?(?!\s*bar)|destinations?)\b|\brename\s+["']?[^"'\s]+["']?\s+to\b|\b(?:more|fewer|less|extra|additional)\s+(?:nav(?:igation)?\s+)?tabs\b/i;
 
 export function navigationEditIntent(prompt: string, navigationSelected = false): NavigationEditIntent | null {
   const namesNavigation = /\b(nav(?:s|bar|igation)?|tab\s*bar|bottom\s+bar|floating\s+dock)\b/i.test(prompt);
@@ -27,13 +28,14 @@ export function navigationEditIntent(prompt: string, navigationSelected = false)
     const directRequest = /\b(?:add|create|build|use|reuse|re-use|apply|put|include|copy|make|change|edit|redesign|restyle|moderni[sz]e|revamp|improve|replace|move|fix|remove)\s+(?:(?:the|a|an|this|that|our|my|existing|new|shared|premium|modern|better|bottom|floating|primary|project|same)\s+){0,8}(?:nav(?:s|bar|igation)?|tab\s*bar|bottom\s+bar|dock)\b/i.test(prompt);
     const complaint = /\b(?:different|inconsistent)\s+nav(?:s|igation)?\b/i.test(prompt);
     const navSubject = /^(?:(?:the|this|our|bottom|shared|primary)\s+)*(?:nav(?:bar|igation)?|tab\s*bar)\b/i.test(prompt.trim());
-    if (!directRequest && !complaint && !navSubject) return null;
+    const wish = /\b(?:want|need|wish|give\s+me|i'?d\s+like|would\s+like|looking\s+for)\b[^.!?]{0,30}\b(?:nav(?:s|bar|igation)?|tab\s*bar|bottom\s+bar|dock)\b/i.test(prompt);
+    if (!directRequest && !complaint && !navSubject && !wish && !MORE_OR_FEWER_TABS.test(prompt)) return null;
   }
   // "Add a profile tab to the nav" changes the tabs; it is not a request to put the nav somewhere.
   if (DESTINATION_CHANGE.test(prompt) && !REDESIGN_WORDS.test(prompt)) return "destinations";
   if (/\b(?:reuse|re-use|same|consistent|different navs?|different navigation)\b/i.test(prompt)
     || /\b(?:add|create|build|use|apply|put|include|copy)\b[^.!?]{0,80}\b(?:nav(?:igation)?|tab bar|bottom bar)\b/i.test(prompt)
-    || /\b(?:nav(?:igation)?|tab bar)\b[^.!?]{0,70}\b(?:this|that|another|second)\s+(?:screen|page)\b/i.test(prompt)) {
+    || /\b(?:nav(?:igation)?|tab bar)\b[^.!?]{0,70}\b(?:this|that|another|second|the\s+[\w-]+(?:\s+[\w-]+)?)\s+(?:screen|page)\b/i.test(prompt)) {
     // A request to redesign an existing bar is not a reuse request.
     if (!/\b(?:redesign|restyle|moderni[sz]e|revamp|improve)\b/i.test(prompt)
       && !/\b(?:create|make|build)\b[^.!?]{0,35}\bnew\b/i.test(prompt)) return "reuse";

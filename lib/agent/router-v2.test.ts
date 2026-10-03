@@ -130,6 +130,20 @@ describe("bounded project agent loop", () => {
     expect(mocks.generateContent).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps a nav request on the canvas when the agent reads it as product planning", async () => {
+    const context = { agentContext: { project: { hasProductBlueprint: true } } };
+    mocks.generateContent.mockResolvedValueOnce({ functionCalls: [{ name: "plan_product", args: { instruction: "Promote more screens to the main navigation." } }] });
+    const decision = await routeAgentPrompt({ ...input(), ...context, prompt: "i want a premium Nav. and more tabs as per screens" });
+    expect(decision).toMatchObject({ action: "modify_existing_ui", executionIntent: "edit", targetType: "navigation", scope: "navigation",
+      navigationChange: "redesign", targetScreenId: "22222222-2222-4222-8222-222222222222", responseMessage: null,
+      instruction: "i want a premium Nav. and more tabs as per screens" });
+    // An explicit request for new screens or a flow is still product work, even when it mentions the nav.
+    for (const prompt of ["Add the orders flow and put it in the nav", "Create a settings screen and add it to the nav as a new tab"]) {
+      mocks.generateContent.mockResolvedValueOnce({ functionCalls: [{ name: "plan_product", args: { instruction: prompt } }] });
+      expect((await routeAgentPrompt({ ...input(), ...context, prompt })).action).toBe("plan_product");
+    }
+  });
+
   it("carries the agent's reading of a navigation request, and drops one it cannot name", async () => {
     const navigationCall = (navigationChange: string) => ({ functionCalls: [{ name: "modify_existing_ui", args: {
       instruction: "Redesign the shared nav for this habit tracker.", targetType: "navigation", scope: "navigation", editOperation: "restyle_region", navigationChange,

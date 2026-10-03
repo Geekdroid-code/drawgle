@@ -20,6 +20,16 @@ describe("navigation edit routing", () => {
   it.each(["add a profile tab to the nav", "remove the history tab", 'rename "Today" to "Habits"'])("recognizes a tab change: %s", prompt => {
     expect(navigationEditIntent(prompt, true)).toBe("destinations");
   });
+  it("reads a wish for a premium nav with more tabs as a redesign, without a nav selection", () => {
+    expect(navigationEditIntent("i want a premium Nav. and more tabs as per screens")).toBe("redesign");
+  });
+  it.each(["add more tabs to the nav", "the nav needs fewer tabs"])("reads more or fewer tabs as a tab change: %s", prompt => {
+    expect(navigationEditIntent(prompt)).toBe("destinations");
+  });
+  it("reads wanting the nav on a named screen as reuse", () => {
+    expect(navigationEditIntent("I need the nav on the profile screen")).toBe("reuse");
+    expect(navigationEditIntent("redesign the nav for the habit screen")).toBe("redesign");
+  });
   it("still reads adding a tab bar to a screen as reuse", () => {
     expect(navigationEditIntent("add the tab bar to this screen")).toBe("reuse");
   });
