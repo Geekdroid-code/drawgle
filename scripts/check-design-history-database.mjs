@@ -35,10 +35,70 @@ try {
   await db.query("insert into projects(id,owner_id,design_tokens) values($1,$2,'{}')", [project,owner]);
   await db.query("insert into screens(id,project_id,owner_id,name,code,status) values($1,$2,$3,'One','A','ready')", [screen,project,owner]);
   await db.exec("set role service_role");
-  const read = async (context = "screen", target = screen) => (await db.query("select read_design_target($1,$2,$3,$4) as value", [project,owner,context,target])).rows[0].value;
+  const read = async (context = "screen", target = screen, forProject = project) => (await db.query("select read_design_target($1,$2,$3,$4) as value", [forProject,owner,context,target])).rows[0].value;
   const op = async (action, payload = null, options = {}) => (await db.query("select apply_design_history($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) as value",
-    [project, options.owner ?? owner, options.context ?? "screen", options.target ?? screen, options.revision ?? (await read(options.context,options.target)).revision,
-      options.requestId ?? randomUUID(), action, payload && JSON.stringify(payload), options.entryId ?? null, "Test change", "test"])).rows[0].value;
+    [options.project ?? project, options.owner ?? owner, options.context ?? "screen", options.target ?? screen,
+      options.revision ?? (await read(options.context,options.target,options.project ?? project)).revision,
+      options.requestId ?? randomUUID(), action, payload && JSON.stringify(payload), options.entryId ?? null, options.label ?? "Test change", options.origin ?? "test"])).rows[0].value;
+
+  // Where history starts: the design system and the navigation that generation created, saved before and after the
+  // starting-points migration. Nothing comes before them, so they are never undone or restored to before.
+  const fresh = randomUUID(), starter = randomUUID();
+  const system = (accent) => ({ tokens: { system_schema: "mobile_universal_core", tokens: { color: { action: { primary: accent } } } } });
+  await db.query("insert into projects(id,owner_id,design_tokens) values($1,$2,null),($3,$2,null)", [fresh,owner,starter]);
+  await db.query("insert into project_navigation(id,project_id,owner_id,plan,shell_code,status) values($1,$2,$3,'{}','','ready'),($4,$5,$3,'{}','starter-bar','ready')",
+    [randomUUID(),fresh,owner,randomUUID(),starter]);
+  const freshTokens = { context: "tokens", target: fresh, project: fresh };
+  const freshNavigation = { context: "navigation", target: fresh, project: fresh };
+  const starterNavigation = { context: "navigation", target: starter, project: starter };
+  await op("commit", system("#111111"), { ...freshTokens, label: "Updated generated design tokens", origin: "generation" });
+  await op("commit", { ...(await read("navigation",fresh,fresh)).payload, shellCode: "kit-bar" }, { ...freshNavigation, label: "Updated shared navigation", origin: "generation" });
+  await op("commit", { ...(await read("navigation",starter,starter)).payload, shellCode: "kit-bar" }, { ...starterNavigation, label: "Updated shared navigation", origin: "generation" });
+  // Before the migration, undoing the design system emptied the project's styles.
+  assert.equal((await db.query("select list_design_history($1,$2,'tokens',$1) as value",[fresh,owner])).rows[0].value.canUndo,true);
+  await db.exec("reset role");
+  await db.exec(await readFile("supabase/migrations/20261003120000_history_starting_points.sql", "utf8"));
+  await db.exec("set role service_role");
+  const listing = async (context, forProject) => (await db.query("select list_design_history($1,$2,$3,$1) as value",[forProject,owner,context])).rows[0].value;
+  const tokenHistory = await listing("tokens",fresh);
+  assert.equal(tokenHistory.canUndo,false);
+  assert.deepEqual(tokenHistory.entries.map(entry => [entry.label, entry.startingPoint]), [["Created the design system", true]]);
+  const createdSystem = tokenHistory.entries[0].id;
+  assert.equal((await db.query("select read_design_history_entry($1,$2,'tokens',$1,$3) as value",[fresh,owner,createdSystem])).rows[0].value.startingPoint,true);
+  assert.equal((await op("undo",null,freshTokens)).status,"unavailable_entry");
+  assert.equal((await op("restore-before",null,{ ...freshTokens, entryId: createdSystem })).status,"unavailable_entry");
+  assert.deepEqual((await read("tokens",fresh,fresh)).payload,system("#111111"));
+  assert.equal((await op("restore",null,{ ...freshTokens, entryId: createdSystem })).unchanged,true);
+  // A later change is an ordinary one: undo goes back to the created system, and stops there.
+  await op("commit", system("#222222"), { ...freshTokens, label: "Saved design tokens", origin: "design-panel" });
+  assert.deepEqual((await listing("tokens",fresh)).entries.map(entry => entry.startingPoint), [false, true]);
+  assert.equal((await listing("tokens",fresh)).canUndo,true);
+  assert.equal((await op("undo",null,freshTokens)).status,"success");
+  assert.deepEqual((await read("tokens",fresh,fresh)).payload,system("#111111"));
+  assert.equal((await listing("tokens",fresh)).canUndo,false);
+  assert.equal((await op("undo",null,freshTokens)).status,"unavailable_entry");
+  assert.equal((await op("redo",null,freshTokens)).status,"success");
+  assert.deepEqual((await read("tokens",fresh,fresh)).payload,system("#222222"));
+  // A navigation created from nothing starts its history; one replacing the starter bar is an ordinary change.
+  const freshNavigationHistory = await listing("navigation",fresh);
+  assert.equal(freshNavigationHistory.canUndo,false);
+  assert.deepEqual(freshNavigationHistory.entries.map(entry => [entry.label, entry.startingPoint]), [["Created the navigation", true]]);
+  assert.equal((await op("undo",null,freshNavigation)).status,"unavailable_entry");
+  assert.equal((await read("navigation",fresh,fresh)).payload.shellCode,"kit-bar");
+  const starterHistory = await listing("navigation",starter);
+  assert.deepEqual(starterHistory.entries.map(entry => [entry.label, entry.startingPoint]), [["Updated shared navigation", false]]);
+  assert.equal((await op("undo",null,starterNavigation)).status,"success");
+  assert.equal((await read("navigation",starter,starter)).payload.shellCode,"starter-bar");
+  // Saved after the migration, a first design system is still where its history starts.
+  const later = randomUUID();
+  await db.query("insert into projects(id,owner_id,design_tokens) values($1,$2,null)", [later,owner]);
+  await op("commit", system("#333333"), { context: "tokens", target: later, project: later, label: "Created the design system", origin: "generation" });
+  assert.equal((await listing("tokens",later)).canUndo,false);
+  await db.query("delete from projects where id = any($1)", [[fresh,starter,later]]);
+  assert.equal((await db.query("select count(*)::integer as count from design_history_heads where project_id = any($1)",[[fresh,starter,later]])).rows[0].count,0);
+  await db.exec("reset role; set role anon");
+  await assert.rejects(db.query("select design_history_starting_point('tokens','{}'::jsonb)"),/permission denied/);
+  await db.exec("reset role; set role service_role");
   const first = randomUUID();
   assert.equal((await op("commit",{code:"B"},{revision:0,requestId:first})).revision,1);
   assert.equal((await op("commit",{code:"B"},{revision:0,requestId:first})).replayed,true);
@@ -192,5 +252,5 @@ try {
   await db.query("delete from screens where id=$1",[screen]);
   assert.equal((await db.query("select count(*)::integer as count from design_history_heads where context='screen'")).rows[0].count,0);
   await assert.rejects(op("commit",{code:"resurrect"},{revision:0}),/unavailable/);
-  console.log("PASS: export snapshot, owner/grant isolation, CAS, retry identity, undo/redo/restore, branches, retention, independent tokens, metadata revisions, reconciliation, insertion rollback and deletion lifetime.");
+  console.log("PASS: export snapshot, owner/grant isolation, CAS, retry identity, undo/redo/restore, branches, retention, independent tokens, metadata revisions, reconciliation, insertion rollback, deletion lifetime and history starting points.");
 } finally { await db.close(); }

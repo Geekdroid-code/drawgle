@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { describeElementEdit } from "./labels";
+import { describeElementEdit, designSystemSaveLabel, navigationSaveLabel } from "./labels";
+
+describe("names for what generation saves", () => {
+  it("says Created where there was nothing before, which is where that history starts", () => {
+    expect(designSystemSaveLabel(null)).toBe("Created the design system");
+    expect(designSystemSaveLabel({ tokens: {} })).toBe("Created the design system");
+    expect(designSystemSaveLabel({ tokens: { radii: { app: "16px" } } })).toBe("Updated the design system");
+    expect(navigationSaveLabel("")).toBe("Created the navigation");
+    expect(navigationSaveLabel(undefined)).toBe("Created the navigation");
+    expect(navigationSaveLabel("<nav data-drawgle-primary-nav></nav>")).toBe("Updated the navigation");
+  });
+});
 
 const code = `<main data-drawgle-id="root">
   <button data-drawgle-id="out" class="dg-type-button-label">Sign&nbsp;Out</button>

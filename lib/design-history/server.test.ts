@@ -14,6 +14,13 @@ describe("history snapshot side", () => {
     expect(entry?.beforePayload).toEqual({ code: "<main>Before</main>" });
     expect(entry?.payload).toEqual({ code: "<main>After</main>" });
   });
+  it("says when an entry is where history starts, and assumes not when an older database does not say", async () => {
+    const tokens = { context: "tokens" as const };
+    rpc.mockResolvedValueOnce({ data: { id: entryId, label: "Created the design system", createdAt: "2026-10-02", payload: { tokens: { tokens: { color: {} } } }, beforePayload: { tokens: null }, startingPoint: true }, error: null });
+    expect((await previewHistory(projectId,ownerId,tokens,entryId))?.startingPoint).toBe(true);
+    rpc.mockResolvedValueOnce({ data: { id: entryId, label: "Saved design tokens", createdAt: "2026-10-02", payload: { tokens: { tokens: {} } }, beforePayload: { tokens: { tokens: {} } } }, error: null });
+    expect((await previewHistory(projectId,ownerId,tokens,entryId))?.startingPoint).toBe(false);
+  });
   it.each(["before", "after"] as const)("restores the same %s side selected in the preview", async side => {
     rpc.mockResolvedValueOnce({ data: { code: `<main>${side}</main>` }, error: null });
     rpc.mockResolvedValueOnce({ data: { status: "success", revision: 5 }, error: null });
