@@ -109,5 +109,8 @@ describe("whether an analysis describes every screen it counts", () => {
     const salvaged = normalizeReferenceAnalysis({ screenCountEstimate: 3, screenReferences: [] }).analysis;
     expect(salvaged?.screenReferences).toHaveLength(3);
     expect(salvaged && describesEveryScreen(salvaged)).toBe(false);
+    // more descriptions than screens counted is a reading that contradicts itself
+    const contradictory = normalizeReferenceAnalysis({ screenCountEstimate: 2, screenReferences: [screen(1), screen(2), screen(3)] }).analysis;
+    expect(contradictory && describesEveryScreen(contradictory)).toBe(false);
   });
 });

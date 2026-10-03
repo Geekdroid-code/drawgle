@@ -549,7 +549,7 @@ const UNDESCRIBED_SCREEN_SUMMARY = "Visible screen count was detected, but detai
  * describe, so a placeholder counts as missing.
  */
 export const describesEveryScreen = (analysis: ReferenceAnalysis) =>
-  analysis.screenReferences.length >= analysis.screenCountEstimate
+  analysis.screenReferences.length === analysis.screenCountEstimate
   && analysis.screenReferences.every((screen) => screen.layoutSummary !== UNDESCRIBED_SCREEN_SUMMARY);
 
 export const normalizeReferenceAnalysis = (raw: unknown): ReferenceAnalysisResult => {

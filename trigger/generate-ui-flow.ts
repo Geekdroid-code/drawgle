@@ -2404,8 +2404,6 @@ export const generateUiFlowTask = task({
     );
     await postGenerationJournal(admin, payload.projectId, payload.ownerId, generationJournal);
 
-    const scopeStartedAt = now();
-    const scopeStartedMs = Date.now();
     const useProjectWideTokens = earlyDesignMode() === "on" && !screenScoped && !exactRecreation && Boolean(productPlanning);
     // The project design preparation, read once, waiting for it when it is still being made.
     let preparedDesignLookup: Promise<{ prepared: ProjectDesignPreparation | null; matchesCurrent: boolean }> | null = null;
@@ -2434,6 +2432,8 @@ export const generateUiFlowTask = task({
     // The preparation read this reference with the project-wide prompt and made the tokens from that reading. A first
     // batch plans from the same reading instead of analysing the image again, so the tokens, the plan and the
     // charter's reference DNA agree, and the build skips a model call. The token step below uses the same lookup.
+    const preparedReadingStartedAt = now();
+    const preparedReadingStartedMs = Date.now();
     const preparedReferenceAnalysis = useProjectWideTokens && productPlanning
       ? await preparedReadingForFirstBatch({
           state: productPlanning,
@@ -2447,6 +2447,14 @@ export const generateUiFlowTask = task({
             projectDesignPreparationKey(productPlanning!, publishedStylePreset?.version ?? null)).catch(() => null),
         })
       : null;
+    if (preparedDesignLookup) {
+      // Waiting for the preparation is its own stage, so the scope stage stays the analysis alone.
+      await mergeGenerationPerformance(admin, payload.generationRunId, {
+        stages: { designPreparationWait: performanceStage(preparedReadingStartedAt, preparedReadingStartedMs) },
+      });
+    }
+    const scopeStartedAt = now();
+    const scopeStartedMs = Date.now();
     const scopePreflight = payload.scopeContract
       ? payload.referenceAnalysis ?? reusableProjectReferenceDna?.analysis
         ? {
