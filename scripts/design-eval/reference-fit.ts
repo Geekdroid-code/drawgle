@@ -28,21 +28,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { costOf, formatCost, priceOf } from "./cost";
 
 /**
- * The founder's own curated-style projects from 2026-09-16 to 2026-10-04: the ones whose library reference was made
- * for another kind of product, and two that matched, as controls.
+ * Five of the founder's own curated-style projects from 2026-09-16 to 2026-10-04, each a different way the library
+ * pick went wrong, and one that went right as a control: enough to judge the fix for under a dollar. More of them
+ * (a subscription tracker, private jet charters, home management, a multi-pet tracker, a T-shirt shop and a
+ * neo-brutalist sneaker shop) can be added here for a wider run.
  */
 export const REFERENCE_FIT_CASES: Array<{ projectId: string; why: string }> = [
   { projectId: "e8ca8623-cef0-44ba-926e-d7843976b8f2", why: "file explorer, drew a creator dashboard" },
-  { projectId: "50b9ab73-f881-4889-a17b-122cbb093210", why: "invoice tracker, drew a travel tracker" },
-  { projectId: "895fbef5-5471-49cc-835b-9da5fc2bca36", why: "subscription tracker, drew a travel tracker" },
+  { projectId: "50b9ab73-f881-4889-a17b-122cbb093210", why: "invoice tracker with the person's own colours and font, drew a travel tracker" },
   { projectId: "69e2a8bd-f3b6-4c60-b276-452b03414e7f", why: "doctor booking, drew a travel tracker" },
-  { projectId: "dba0010e-1da8-4bd9-8fbb-27fb1df79e39", why: "private jet charters, drew a travel tracker" },
   { projectId: "bcc377f9-a147-4942-899a-b1170a19de50", why: "hobby gear swapper, drew a crypto exchange" },
-  { projectId: "f660a620-2db1-42aa-bd4b-01f14fcb161d", why: "home management, drew a photo gallery" },
-  { projectId: "0ce99a06-351c-40e5-8cd6-20c62bb1db4f", why: "multi-pet family tracker, drew a meditation app" },
-  { projectId: "77347553-135c-495a-8aae-a1d62efbc91a", why: "T-shirt shop, drew a bakery" },
   { projectId: "b2c18f09-d0a2-4318-9e97-208b3a5c775c", why: "control: food delivery, drew food delivery" },
-  { projectId: "2329071e-4e98-4035-b6ca-1ba41e7252f7", why: "control: neo-brutalist sneaker drops, drew a sneaker shop" },
 ];
 
 /**
@@ -50,8 +46,19 @@ export const REFERENCE_FIT_CASES: Array<{ projectId: string; why: string }> = [
  * reads, then another assessment, proposal and retry when a question card is skipped. Most cases make about six.
  */
 const MAX_CALLS_PER_CASE = 10;
-/** Skips a case may need before it reaches the approval card. */
-const MAX_SKIPS = 2;
+/** Skips a case may make before it reaches the approval card: one, so that the calls above are its bound. */
+const MAX_SKIPS = 1;
+/**
+ * The most one case can cost, in dollars at the Flash price: every call above at its output limit, thinking
+ * included (two proposals of 10k in and 12k out per turn, two assessments, three reads of 5k in and 4.5k out). A
+ * run starts a case only when what it has spent plus this stays within its budget.
+ */
+const CASE_WORST_COST = 0.25;
+/**
+ * The traces report output without the model's thinking, which is billed as output; what a run has spent is counted
+ * with its reported output doubled.
+ */
+const THINKING_ALLOWANCE = 2;
 
 type Before = { prompt: string; referenceId: string | null; direction: string | null; adaptations: string | null };
 type Trace = Record<string, unknown>;
@@ -141,19 +148,26 @@ function caseReport(why: string, before: Before, after: ProductPlanning | null, 
 
 async function main() {
   const { values, positionals } = parseArgs({ allowPositionals: true, options: {
-    yes: { type: "boolean", default: false }, label: { type: "string", default: "after" } } });
+    yes: { type: "boolean", default: false }, label: { type: "string", default: "after" },
+    budget: { type: "string", default: "1" } } });
   const [command = "plan", ...ids] = positionals;
   const cases = ids.length ? REFERENCE_FIT_CASES.filter(item => ids.some(id => item.projectId.startsWith(id))) : REFERENCE_FIT_CASES;
   if (!cases.length) throw new Error("No case matches those project ids.");
-  const price = priceOf(process.env.DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL?.trim() || "gemini-3-flash-preview");
+  const model = process.env.DRAWGLE_GEMINI_PROJECT_PLANNER_MODEL?.trim() || "gemini-3-flash-preview";
+  const price = priceOf(model);
+  const budget = Number(values.budget);
+  if (!Number.isFinite(budget) || budget <= 0) throw new Error("--budget must be a number of dollars above zero.");
 
   console.log(`${cases.length} cases, at most ${cases.length * MAX_CALLS_PER_CASE} model calls, about six each (an assessment, a proposal, a library query, up to three candidate reads, and another assessment and proposal when a question card is skipped). Planning only: nothing is built or saved, and no task is queued.`);
+  console.log(`Budget $${budget.toFixed(2)}: a case starts only when what the run has spent plus its worst case ($${CASE_WORST_COST.toFixed(2)}) stays within it.`);
   for (const item of cases) console.log(`- ${item.projectId.slice(0, 8)}  ${item.why}`);
   if (command !== "run" || !values.yes) {
     if (command === "run") console.log("\nPass --yes to run it.");
     return;
   }
 
+  // Without a price the budget cannot be kept, so nothing runs.
+  if (!price) throw new Error(`No price is known for ${model}; the budget cannot be kept.`);
   // Nothing here may queue work on the real project pipeline.
   process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = "off";
   process.env.DRAWGLE_SCOPE_PREPARATION = "off";
@@ -163,7 +177,19 @@ async function main() {
   const sections: string[] = [];
   const results: Array<Record<string, unknown>> = [];
   let total = { input: 0, output: 0 };
+  const spent = () => costOf({ inputTokens: total.input, outputTokens: total.output * THINKING_ALLOWANCE, thinkingTokens: null }, price) ?? 0;
+  const write = () => {
+    const reported = costOf({ inputTokens: total.input, outputTokens: total.output, thinkingTokens: null }, price);
+    writeFileSync(path.join(out, "report.md"), [`# Reference fit: ${values.label}`, "",
+      `${results.length} of ${cases.length} cases. Tokens the traces reported: ${total.input} in, ${total.output} out: ${formatCost(reported)} at the Flash price, or ${formatCost(spent())} with thinking counted as much again as the reported output.`, "",
+      ...sections].join("\n"));
+    writeFileSync(path.join(out, "report.json"), JSON.stringify(results, null, 2));
+  };
   for (const item of cases) {
+    if (spent() + CASE_WORST_COST > budget) {
+      console.log(`Stopped before ${item.projectId.slice(0, 8)}: ${formatCost(spent())} spent, and its worst case would pass the $${budget.toFixed(2)} budget.`);
+      break;
+    }
     const before = await readBefore(item.projectId);
     let after: ProductPlanning | null = null;
     let traces: Trace[] = [];
@@ -179,13 +205,10 @@ async function main() {
     sections.push(caseReport(item.why, before, after, traces, failure));
     results.push({ ...item, before, after: after ? { anatomy: after.scope?.anatomy ?? null, experience: after.experience ?? null,
       screens: (after.scope?.manifest ?? []).map(entry => entry.name), navigation: after.scope?.navigation ?? null } : null, failure, tokens: used });
+    // Written after every case, so that a run stopped part way keeps what it found.
+    write();
   }
-  const cost = costOf({ inputTokens: total.input, outputTokens: total.output, thinkingTokens: null }, price);
-  writeFileSync(path.join(out, "report.md"), [`# Reference fit: ${values.label}`, "",
-    `${cases.length} cases. Tokens the traces reported: ${total.input} in, ${total.output} out (${formatCost(cost)} at the Flash price; calls that report no tokens are not counted).`, "",
-    ...sections].join("\n"));
-  writeFileSync(path.join(out, "report.json"), JSON.stringify(results, null, 2));
-  console.log(`\nWrote ${path.join(out, "report.md")}. Tokens reported: ${total.input} in, ${total.output} out, about ${formatCost(cost)}.`);
+  console.log(`\nWrote ${path.join(out, "report.md")}. Tokens reported: ${total.input} in, ${total.output} out; about ${formatCost(spent())} with thinking.`);
 }
 
 main().catch((error) => { console.error(error instanceof Error ? error.message : "The reference-fit run failed."); process.exitCode = 1; });
