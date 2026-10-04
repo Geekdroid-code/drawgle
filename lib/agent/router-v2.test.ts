@@ -152,4 +152,14 @@ describe("bounded project agent loop", () => {
     expect((await routeAgentPrompt({ ...input(), prompt: "this nav looks filthy" })).navigationChange).toBe("redesign");
     mocks.generateContent.mockResolvedValueOnce(navigationCall("make it pretty"));
     expect((await routeAgentPrompt({ ...input(), prompt: "this nav looks filthy" })).navigationChange).toBeNull();
+  });
+
+  it("carries taking the nav off a screen, alone or after another nav change", async () => {
+    const call = (args: Record<string, unknown>) => ({ functionCalls: [{ name: "modify_existing_ui", args: {
+      instruction: "Take the shared nav off this screen.", targetType: "navigation", scope: "navigation", editOperation: "remove_element", ...args } }] });
+    mocks.generateContent.mockResolvedValueOnce(call({ navigationChange: "hide" }));
+    expect(await routeAgentPrompt({ ...input(), prompt: "Remove nav from this screen" })).toMatchObject({ navigationChange: "hide", hideNavigationOnScreen: false });
+    mocks.generateContent.mockResolvedValueOnce(call({ navigationChange: "destinations", hideNavigationOnScreen: true }));
+    expect(await routeAgentPrompt({ ...input(), prompt: "First put back that tab you removed from nav. And then remove the nav from this screen" }))
+      .toMatchObject({ navigationChange: "destinations", hideNavigationOnScreen: true });
   });});

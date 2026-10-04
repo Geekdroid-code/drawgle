@@ -5,8 +5,9 @@
  * - restyle: change how the nav looks. The tabs stay.
  * - redesign: a new or better nav for this app. Both its look and which tabs it has are open.
  * - destinations: add, remove, rename, reorder or re-icon specific tabs. The look stays.
+ * - hide: take the nav off a screen. Its tabs and look stay for every other screen.
  */
-export const NAVIGATION_EDIT_INTENTS = ["reuse", "restyle", "redesign", "destinations"] as const;
+export const NAVIGATION_EDIT_INTENTS = ["reuse", "restyle", "redesign", "destinations", "hide"] as const;
 export type NavigationEditIntent = typeof NAVIGATION_EDIT_INTENTS[number];
 
 export const parseNavigationEditIntent = (value: unknown): NavigationEditIntent | null =>
@@ -15,6 +16,8 @@ export const parseNavigationEditIntent = (value: unknown): NavigationEditIntent 
 const REDESIGN_WORDS = /\b(?:redesign|restyle|moderni[sz]e|revamp|premium|modern|better|new|improve|creative)\b/i;
 const MORE_OR_FEWER_TABS = /\b(?:more|fewer|less|extra|additional)\s+(?:nav(?:igation)?\s+)?tabs\b/i;
 // A tab bar is the nav itself, not one of its tabs.
+/** "Remove the nav from this screen", "hide the tab bar on Settings": the screen loses the bar, the bar keeps its tabs. */
+export const HIDE_ON_SCREEN = /\b(?:remove|hide|drop|delete|take\s+(?:off|out|away)|get\s+rid\s+of)\b[^.!?]{0,30}\b(?:nav(?:s|bar|igation)?|tab\s*bar|bottom\s+bar|dock)\b(?!\s+(?:tabs?|items?|buttons?|icons?|labels?)\b)[^.!?]{0,40}\b(?:from|on|in|off)\b[^.!?]{0,30}\b(?:screen|page)s?\b|\b(?:no|without)\s+(?:the\s+|a\s+)?(?:nav(?:s|bar|igation)?|tab\s*bar|bottom\s+bar)\s+(?:on|in|for)\b[^.!?]{0,30}\b(?:screen|page)s?\b|\btake\s+(?:the\s+|this\s+|that\s+)?(?:nav(?:s|bar|igation)?|tab\s*bar|bottom\s+bar|dock)\s+(?:off|away)\b/i;
 const DESTINATION_CHANGE = /\b(?:add|remove|delete|drop|rename|reorder|swap)\b[^.!?]{0,40}\b(?:tabs?(?!\s*bar)|destinations?)\b|\brename\s+["']?[^"'\s]+["']?\s+to\b|\b(?:more|fewer|less|extra|additional)\s+(?:nav(?:igation)?\s+)?tabs\b/i;
 
 export function navigationEditIntent(prompt: string, navigationSelected = false): NavigationEditIntent | null {
@@ -29,8 +32,10 @@ export function navigationEditIntent(prompt: string, navigationSelected = false)
     const complaint = /\b(?:different|inconsistent)\s+nav(?:s|igation)?\b/i.test(prompt);
     const navSubject = /^(?:(?:the|this|our|bottom|shared|primary)\s+)*(?:nav(?:bar|igation)?|tab\s*bar)\b/i.test(prompt.trim());
     const wish = /\b(?:want|need|wish|give\s+me|i'?d\s+like|would\s+like|looking\s+for)\b[^.!?]{0,30}\b(?:nav(?:s|bar|igation)?|tab\s*bar|bottom\s+bar|dock)\b/i.test(prompt);
-    if (!directRequest && !complaint && !navSubject && !wish && !MORE_OR_FEWER_TABS.test(prompt)) return null;
+    if (!directRequest && !complaint && !navSubject && !wish && !MORE_OR_FEWER_TABS.test(prompt) && !HIDE_ON_SCREEN.test(prompt)) return null;
   }
+  // Taking the bar off a screen is not a change of its tabs, and not a request to put it there.
+  if (HIDE_ON_SCREEN.test(prompt) && !DESTINATION_CHANGE.test(prompt)) return "hide";
   // "Add a profile tab to the nav" changes the tabs; it is not a request to put the nav somewhere.
   if (DESTINATION_CHANGE.test(prompt) && !REDESIGN_WORDS.test(prompt)) return "destinations";
   if (/\b(?:reuse|re-use|same|consistent|different navs?|different navigation)\b/i.test(prompt)

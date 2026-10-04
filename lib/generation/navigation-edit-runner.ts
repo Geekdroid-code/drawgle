@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/lib/supabase/database.types";
 import { navigationSnapshotSchema, historyResultSchema } from "@/lib/design-history/types";
-import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
+import { persistDesignChange, readDesignTarget, readRecentNavigationChanges } from "@/lib/design-history/persistence";
 import { ensureDrawgleIds } from "@/lib/drawgle-dom";
 import { navigationEditIntent, type NavigationEditIntent } from "@/lib/navigation-edit-intent";
 import { indexNavigationShell, renderDeterministicNavigationShell, validateNavigationShell } from "@/lib/project-navigation";
@@ -15,6 +15,8 @@ type Request = {
   projectId: string; ownerId: string; userMessageId: string; prompt: string;
   screenId?: string | null; sourceReferences?: Array<{ screenId: string }> | null;
   intent?: NavigationEditIntent | null;
+  /** Also take the bar off the target screen, after the nav change ("put the tab back, then remove the nav here"). */
+  hideOnScreen?: boolean;
   selectedElementTarget?: "screen" | "navigation" | null;
   selectedElementDrawgleId?: string | null;
 };
@@ -49,6 +51,35 @@ function followDestinations(plan: NavigationPlan, assignments: Assignment[], scr
   const screenChrome = plan.screenChrome.filter(entry => !moved.has(entry.screenName) && (!entry.navigationItemId || ids.has(entry.navigationItemId)));
   for (const [screenName, navigationItemId] of moved) screenChrome.push({ screenName, chrome: navigationItemId ? "bottom-tabs" : "top-bar", navigationItemId });
   return { plan: { ...plan, screenChrome }, assignments: next };
+}
+
+/** The target screen stops showing the bar; the bar's tabs and look stay for every other screen. */
+function hideOnTargetScreen(plan: NavigationPlan, assignments: Assignment[], screen: { id: string; name: string }) {
+  const current = assignments.find(assignment => assignment.screenId === screen.id);
+  // A screen that does not show the bar has nothing to take off.
+  if (!current || (current.chromePolicy?.showPrimaryNavigation !== true && !current.navigationItemId)) return { plan, assignments };
+  const next = assignments.map(assignment => assignment.screenId === screen.id
+    ? { ...assignment, navigationItemId: null, chromePolicy: { ...assignment.chromePolicy, chrome: "top-bar", showPrimaryNavigation: false } }
+    : assignment);
+  const screenChrome = [...plan.screenChrome.filter(entry => entry.screenName.toLowerCase() !== screen.name.toLowerCase()),
+    { screenName: screen.name, chrome: "top-bar" as const, navigationItemId: null }];
+  return { plan: { ...plan, screenChrome }, assignments: next };
+}
+
+/** JSON with object keys in a fixed order, so equal navigation compares equal however its objects were built. */
+const canonicalJson = (value: unknown) => JSON.stringify(value, (_key, item: unknown) => item && typeof item === "object" && !Array.isArray(item)
+  ? Object.fromEntries(Object.keys(item).sort().map(key => [key, (item as Record<string, unknown>)[key]])) : item);
+
+/** Recent tab additions and removals, newest first, so the designer can put back what an earlier edit took away. */
+async function recentTabChanges(admin: SupabaseClient<Database>, projectId: string, ownerId: string) {
+  const items = (snapshot: unknown) => ((snapshot as { plan?: { items?: NavigationPlan["items"] } } | null)?.plan?.items ?? []);
+  return (await readRecentNavigationChanges(admin, projectId, ownerId).catch(() => [])).flatMap(change => {
+    const before = items(change.before_snapshot);
+    const after = items(change.after_snapshot);
+    const removed = before.filter(item => !after.some(next => next.id === item.id));
+    const added = after.filter(item => !before.some(previous => previous.id === item.id));
+    return removed.length || added.length ? [{ change: change.label, at: change.created_at, removed, added }] : [];
+  });
 }
 
 /** What changed in the tabs, as lines for the chat card: computed, never taken from the model's description. */
@@ -95,6 +126,12 @@ export async function executeNavigationEdit(admin: SupabaseClient<Database>, req
   let shell = plan ? plan.version === 2 ? renderDeterministicNavigationShell(plan) : saved?.shell_code ?? "" : "";
   if (plan && !validateNavigationShell(shell, plan)) throw new Error("The saved shared navigation needs repair before it can be reused.");
   const intent = request.intent ?? navigationEditIntent(request.prompt, true) ?? "restyle";
+  const hideOnScreen = intent === "hide" || (request.hideOnScreen === true && intent !== "reuse");
+  const hiddenScreen = hideOnScreen ? screens.find(screen => screen.id === request.screenId) ?? null : null;
+  if (hideOnScreen && !hiddenScreen) throw new Error("Which screen should stop showing the navigation?");
+  if (intent === "hide" && !storedPlan?.enabled) {
+    return { changed: false, designSummary: null, message: "This project has no shared navigation to take off a screen, so nothing changed." };
+  }
   let sourceScreenId: string | null = null;
   if (!plan) {
     const references = request.sourceReferences?.map(reference => reference.screenId) ?? [];
@@ -177,22 +214,29 @@ export async function executeNavigationEdit(admin: SupabaseClient<Database>, req
   } else if (creating || intent === "restyle" || intent === "redesign") {
     ({ plan, notes } = await redesignNavigation(designContext, plan, creating ? "create" : intent === "redesign" ? "redesign" : "restyle"));
   } else if (intent === "destinations") {
-    ({ plan, notes } = await reviseNavigationDestinations(designContext, plan));
+    ({ plan, notes } = await reviseNavigationDestinations({ ...designContext, recentTabChanges: await recentTabChanges(admin, request.projectId, request.ownerId) }, plan));
   }
   if (plan.items !== previousItems) ({ plan, assignments } = followDestinations(plan, assignments, screens));
-  // A reuse request never passes the accepted visual design through generation.
-  if (!legacyElementEdit && (plan.version === 2 || creating || intent !== "reuse")) shell = renderDeterministicNavigationShell(plan);
+  // Taken off the screen after the tabs settle, so a tab that opens it cannot put the bar back.
+  if (hiddenScreen) ({ plan, assignments } = hideOnTargetScreen(plan, assignments, hiddenScreen));
+  // Neither reusing the accepted design nor hiding it on a screen passes it through generation.
+  if (!legacyElementEdit && (plan.version === 2 || creating || (intent !== "reuse" && intent !== "hide"))) shell = renderDeterministicNavigationShell(plan);
   shell = ensureDrawgleIds(shell, "dg-nav").code;
   if (!validateNavigationShell(shell, plan)) throw new Error("The shared navigation did not pass validation; no changes were saved.");
   const payload = navigationSnapshotSchema.parse({ plan, shellCode: shell, assignments });
-  const changed = JSON.stringify(before) !== JSON.stringify(payload);
-  const label = creating ? "Created shared navigation" : { reuse: "Reused shared navigation", restyle: "Restyled shared navigation",
-    redesign: "Redesigned shared navigation", destinations: "Changed navigation tabs" }[intent];
+  let changed = canonicalJson(before) !== canonicalJson(payload);
+  const hiddenNote = hiddenScreen ? `Took the navigation off ${hiddenScreen.name}; its tabs stay the same on the other screens.` : "";
+  const label = ((creating ? "Created shared navigation" : { reuse: "Reused shared navigation", restyle: "Restyled shared navigation",
+    redesign: "Redesigned shared navigation", destinations: "Changed navigation tabs",
+    hide: `Removed navigation from ${hiddenScreen?.name ?? "a screen"}` }[intent])
+    + (hiddenScreen && intent !== "hide" ? `, and removed it from ${hiddenScreen.name}` : "")).slice(0, 160);
   if (changed) {
     if (snapshot) {
       const result = await persistDesignChange(admin, identity, { expectedRevision: snapshot.revision, requestId: request.userMessageId,
         payload, label, origin: "ai-edit" });
       if (result.status !== "success") throw new Error("Navigation or its screens changed during this edit. Please retry.");
+      // The database compares the saved navigation itself; when it found nothing new, nothing was saved.
+      if (result.unchanged) changed = false;
     } else {
       const { data, error } = await admin.rpc("apply_navigation_repair", {
         input_project_id: request.projectId, input_owner_id: request.ownerId, input_expected_revision: null,
@@ -200,17 +244,25 @@ export async function executeNavigationEdit(admin: SupabaseClient<Database>, req
         input_block_index: indexNavigationShell(shell) as unknown as Json,
       });
       if (error) throw error;
-      if (historyResultSchema.parse(data).status !== "success") throw new Error("Navigation or its screens changed during this edit. Please retry.");
+      const result = historyResultSchema.parse(data);
+      if (result.status !== "success") throw new Error("Navigation or its screens changed during this edit. Please retry.");
+      if (result.unchanged) changed = false;
     }
+  }
+  if (intent === "hide") {
+    const message = changed ? hiddenNote : `${hiddenScreen!.name} already doesn't show the navigation, so nothing changed.`;
+    return { changed, designSummary: changed ? { title: `Navigation off ${hiddenScreen!.name}`, summary: message, styleDiff: null } : null, message };
   }
   if (intent === "reuse" && !creating) {
     return { changed, designSummary: null, message: changed ? "Applied the shared project navigation, preserving its design and icons." : "This screen already uses the shared project navigation." };
   }
-  if (!changed) return { changed, designSummary: null, message: "The shared navigation already matches that request, so nothing changed." };
+  // Never report a change that was not saved: the designer's own summary describes what it meant to do.
+  if (!changed) return { changed, designSummary: null, message: "Nothing changed: the shared navigation is the same as before." };
   const unbuilt = plan.items.filter(item => item.availability === "planned" && !previousItems.some(previous => previous.id === item.id)).map(item => item.label);
   const message = [
     notes.summary ?? (intent === "destinations" ? "Updated the navigation tabs." : "Updated the shared project navigation."),
     unbuilt.length ? `${listLabels(unbuilt)} ${unbuilt.length === 1 ? "doesn't have its screen" : "don't have their screens"} yet; ask me to create ${unbuilt.length === 1 ? "it" : "them"} when you're ready.` : "",
+    hiddenNote,
   ].filter(Boolean).join(" ");
   const diff = tabChanges(previousItems, plan.items);
   const designSummary: NavigationDesignSummary = {

@@ -13,6 +13,28 @@ const identityArgs = ({ projectId, ownerId, target }: DesignIdentity) => ({
   input_context: historyTargetSchema.parse(target).context,
   input_target_id: target.context === "screen" ? target.screenId : projectId,
 });
+/**
+ * The latest saved navigation changes on the current timeline, newest first, for an edit that refers back to one
+ * ("put back the tab you removed"). Context only: a failure to read returns nothing rather than failing the edit.
+ */
+export async function readRecentNavigationChanges(client: Client, projectId: string, ownerId: string, limit = 3) {
+  const target = { input_project_id: projectId, input_owner_id: ownerId, input_context: "navigation", input_target_id: projectId };
+  const { data: listing, error } = await client.rpc("list_design_history", target);
+  const parsed = z.object({ entries: z.array(z.object({ id: z.string(), sequence: z.number(), isCurrent: z.boolean() })) }).safeParse(listing);
+  if (error || !parsed.success) return [];
+  // Entries come newest first; changes after the current one were undone and are not part of the design.
+  const current = parsed.data.entries.findIndex(entry => entry.isCurrent);
+  if (current < 0) return [];
+  const changes: Array<{ label: string; created_at: string; before_snapshot: unknown; after_snapshot: unknown }> = [];
+  for (const entry of parsed.data.entries.slice(current, current + limit)) {
+    const { data, error: entryError } = await client.rpc("read_design_history_entry", { ...target, input_entry_id: entry.id });
+    const read = z.object({ label: z.string(), createdAt: z.string(), payload: z.unknown(), beforePayload: z.unknown() }).safeParse(data);
+    if (entryError || !read.success) break;
+    changes.push({ label: read.data.label, created_at: read.data.createdAt, before_snapshot: read.data.beforePayload, after_snapshot: read.data.payload });
+  }
+  return changes;
+}
+
 export async function readDesignTarget(client: Client, identity: DesignIdentity) {
   const { data, error } = await client.rpc("read_design_target", identityArgs(identity));
   if (error) throw new Error("The saved design is unavailable. Refresh before retrying.");

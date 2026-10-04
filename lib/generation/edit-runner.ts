@@ -79,6 +79,8 @@ export type ModifyScreenPayload = {
   requestTargetsNavigation?: boolean;
   /** The router's reading of a navigation request; the text backstop decides only when it is missing. */
   navigationIntent?: NavigationEditIntent | null;
+  /** The navigation edit also takes the bar off the target screen. */
+  hideNavigationOnScreen?: boolean;
   targetScope?: EditTargetScope | string | null;
   editOperation?: EditOperation | string | null;
   editStrategy?: EditStrategy | string | null;
@@ -691,6 +693,7 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
       ...payload,
       prompt: prompt === originalPrompt ? prompt : `${originalPrompt}\nResolved request: ${prompt}`,
       intent: payload.navigationIntent ?? navigationEditIntent(originalPrompt) ?? navigationEditIntent(prompt, true),
+      hideOnScreen: payload.hideNavigationOnScreen === true,
     }, designTokens, projectCharter);
     const modelMessage = await upsertActivityMessage(admin, editActivityKey, {
       projectId: payload.projectId, ownerId: payload.ownerId, screenId: payload.screenId ?? null,
