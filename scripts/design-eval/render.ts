@@ -15,9 +15,11 @@ import {
   type ScreenCheckResult,
 } from "./checks";
 
-/** The size Drawgle's canvas draws a screen at. */
+/** The width Drawgle's canvas draws a screen at, and the height a frame starts from. */
 export const SCREEN_VIEWPORT = { width: 390, height: 844 } as const;
-export const MAX_SCREEN_HEIGHT = 1800;
+/** The canvas grows a frame to its content, up to this height (components/ScreenNode.tsx). */
+export const MAX_SCREEN_HEIGHT = 2000;
+const CONTENT_HEIGHT_EXPRESSION = "Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0)";
 
 export type RenderedScreen = {
   screen: ScreenData;
@@ -84,9 +86,16 @@ export async function renderBundle(browser: Browser, bundle: ProjectBundle, opti
         await page.setContent(html, { waitUntil: options.offline ? "domcontentloaded" : "networkidle", timeout: 60_000 });
         await page.evaluate("document.fonts.ready.then(() => true)");
         await page.waitForTimeout(options.settleMs ?? (options.offline ? 50 : 700));
+        // The canvas frame is as tall as the screen, so anything pinned to the bottom sits at the screen's end. An
+        // 844px window kept it at 844px, in the middle of a long screen, where the frame never draws it.
+        const contentHeight = await page.evaluate(CONTENT_HEIGHT_EXPRESSION) as number;
+        const height = Math.min(MAX_SCREEN_HEIGHT, Math.max(SCREEN_VIEWPORT.height, contentHeight));
+        if (height !== SCREEN_VIEWPORT.height) {
+          await page.setViewportSize({ width: SCREEN_VIEWPORT.width, height });
+          await page.waitForTimeout(options.offline ? 20 : 150);
+        }
         const facts = await page.evaluate(PROBE_EXPRESSION) as ProbeFacts;
-        const height = Math.min(MAX_SCREEN_HEIGHT, Math.max(SCREEN_VIEWPORT.height, facts.scrollHeight));
-        const png = await page.screenshot({ type: "png", fullPage: true, clip: { x: 0, y: 0, width: SCREEN_VIEWPORT.width, height } });
+        const png = await page.screenshot({ type: "png", clip: { x: 0, y: 0, width: SCREEN_VIEWPORT.width, height } });
         rendered.push({ screen, png, facts, sharedNavigation, height });
       } finally {
         await page.close();

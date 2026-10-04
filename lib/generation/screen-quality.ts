@@ -728,10 +728,27 @@ const expectedRequirementUses = (assets: ScreenAssetManifest[]) => {
     : Math.max(1, assets.length);
 };
 
-const placeholderLabel = (asset: ScreenAssetManifest) => {
-  const label = asset.alt.trim();
-  return label.length > 48 ? `${label.slice(0, 45).trim()}...` : label;
+// An image that could not be found is drawn as a tile in the screen's action colour with an icon for what it was
+// meant to show. Its description stays in aria-label: printed in a grey box, it read as a broken screen.
+const PLACEHOLDER_ICONS: Record<ScreenAssetManifest["semanticCategory"], string> = {
+  person: "user",
+  animal: "paw-print",
+  food: "utensils",
+  fashion: "shirt",
+  electronics: "smartphone",
+  vehicle: "car",
+  fitness: "dumbbell",
+  beauty: "sparkles",
+  home: "house",
+  place: "map-pin",
+  nature: "leaf",
+  map: "map",
+  logo: "hexagon",
+  generic_product: "package",
+  other: "sparkles",
 };
+const PLACEHOLDER_TILE_CLASSES = "flex items-center justify-center overflow-hidden "
+  + "bg-[color-mix(in_srgb,var(--dg-color-action-primary)_12%,transparent)] text-[var(--dg-color-action-primary)]";
 
 const applyAssetImageMetadata = (
   $image: ReturnType<ReturnType<typeof load>>,
@@ -849,15 +866,15 @@ export function hydrateScreenAssetSlots({
         .attr("data-asset-provider", asset.provider)
         .attr("data-asset-source", asset.source)
         .attr("data-asset-placeholder", "true")
-        .addClass("bg-slate-100 border border-slate-200 flex items-center justify-center text-center");
-      const label = placeholderLabel(asset);
+        .addClass(PLACEHOLDER_TILE_CLASSES);
       if (asset.role === "avatar" && asset.semanticCategory === "person") {
-        $placeholder.text(label.charAt(0).toUpperCase() || "?");
+        $placeholder.text(asset.alt.trim().charAt(0).toUpperCase() || "?");
       } else {
         $placeholder.append(
-          $("<span></span>")
-            .addClass("px-3 text-xs text-slate-500")
-            .text(label || "Image unavailable"),
+          $("<i></i>")
+            .attr("data-lucide", PLACEHOLDER_ICONS[asset.semanticCategory] ?? "sparkles")
+            .attr("aria-hidden", "true")
+            .addClass("w-2/5 h-2/5 min-w-5 min-h-5 max-w-24 max-h-24"),
         );
       }
       placeholderUseCount += 1;

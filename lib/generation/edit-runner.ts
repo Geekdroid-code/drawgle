@@ -32,6 +32,8 @@ import { sanitizeScreenCodeForPersist } from "@/lib/generation/persist-safe";
 import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
 import { cleanUnknownError } from "@/lib/ai/error-handler";
 import { findRepairTarget, replaceSourceRegion, type RepairTarget } from "@/lib/generation/screen-repair";
+import { settlePinnedControls } from "@/lib/generation/pinned-controls";
+import { repairTokenOpacityClasses } from "@/lib/generation/color-opacity-classes";
 import {
   sanitizeScreenCodeForSharedNavigation,
 } from "@/lib/project-navigation";
@@ -837,7 +839,10 @@ export async function executeModifyScreenTask(payload: ModifyScreenPayload, llmL
         screenPlanForSave.navigationItemId,
       ),
     });
-    return ensureDrawgleIds(tokenizeStaticDrawgleHtml(clearanceNormalization.code, designTokens).code).code;
+    // Pinned controls are docked so they cover nothing; none is removed, because an edit may have asked for it.
+    const settled = settlePinnedControls({ code: clearanceNormalization.code, navigationOwnsCenterAction: false });
+    const repaired = repairTokenOpacityClasses(settled.code);
+    return ensureDrawgleIds(tokenizeStaticDrawgleHtml(repaired.code, designTokens).code).code;
   };
   const health = detectScreenHealth({ code: screenCode, screenPrompt });
   const selectedRegionStaticHealth = regionReplacementTarget
