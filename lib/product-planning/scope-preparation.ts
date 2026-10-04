@@ -38,7 +38,8 @@ export function scopePreparationKey(state: ProductPlanning, keys: string[], shar
     version, tokenPolicy: earlyDesignMode() === "on" ? "project-wide-v1" : "screen-scoped-v1",
     contentRevision: state.contentRevision ?? 0,
     // Absent for a scope approved before navigation was decided in it, so those keys are unchanged.
-    manifest: state.scope?.manifest, navigation: state.scope?.navigation, keys, experience: state.experience,
+    manifest: state.scope?.manifest, navigation: state.scope?.navigation, anatomy: state.scope?.anatomy,
+    keys, experience: state.experience,
     reference: { provenance: state.experience?.provenance, hash: state.experience?.referenceHash,
       screenReference: state.screenReference },
     requirements: designRequirementsKey(state), input: state.input, shared,

@@ -4,6 +4,7 @@ import { functionalItemSchema, validateFunctionalPlan, type FunctionalItem } fro
 import { MAX_SCOPE_NAVIGATION_DESTINATIONS, activeFacts, productPatchSchema, productSectionSchema,
   type ProductFact, type ProductPlanning, type ScopeNavigation } from "./model";
 import { outputRendering } from "./output-policy";
+import { normalizeProductAnatomy, productAnatomySchema } from "./product-anatomy";
 import { quotedByUser, userFactWording } from "./designer-patch";
 
 const ref = z.string().regex(/^[a-z][a-z0-9_-]{0,79}$/);
@@ -41,6 +42,8 @@ export const designFlowCandidateSchema = z.object({
     outputRefs: z.array(z.string()).max(40), surfaceRefs: z.array(z.string()).max(40).default([]) }),
   // Absent when the response did not decide it; the plan then keeps no decision rather than an invented one.
   navigation: navigation.optional(),
+  // Absent when the response gave none usable; the runner then keeps the scope's earlier one.
+  anatomy: productAnatomySchema.optional(),
 });
 export type DesignFlowCandidate = z.infer<typeof designFlowCandidateSchema>;
 
@@ -186,6 +189,7 @@ export function normalizeDesignFlowCandidate(value: unknown): DesignFlowCandidat
     scope: { goal, rationale: clip(scope.rationale, 2400) || goal, outputRefs: selected,
       surfaceRefs: strings(scope.surfaceRefs, 40).map(factRef) },
     navigation: normalizeCandidateNavigation(raw.navigation, outputRef),
+    anatomy: normalizeProductAnatomy(raw.anatomy),
   });
 }
 
@@ -491,5 +495,6 @@ export function candidateRoadmap(candidate: DesignFlowCandidate, state: ProductP
       rationale: candidate.scope.rationale, surfaceIds: scopeSurfaces, outputKeys: selectedKeys,
       manifest: selected.map(item => ({ ...item, rendering: outputRendering(item, false) })),
       existingOutputs, boundaries, ...(navigation ? { navigation } : {}),
+      ...(candidate.anatomy ? { anatomy: candidate.anatomy } : {}),
       status: "draft" as const, approvedRevision: null, generationRunId: null } };
 }

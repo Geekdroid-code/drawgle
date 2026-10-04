@@ -121,7 +121,8 @@ export const prepareProductScopeTask = task({
           image, referenceMode: reference.mode }) ? (await normalizeReferenceImage(image, "style")).image : null,
         referenceMode: reference.mode, referenceId: reference.referenceId,
         referenceKey: reference.imagePath ?? reference.referenceId, designStyle,
-        productContent: recreate ? null : compileProductContent(state), navigationTabs: kitNavigationTabsOf(approved) }),
+        productContent: recreate ? null : compileProductContent(state), navigationTabs: kitNavigationTabsOf(approved),
+        anatomy: recreate ? null : approved.scope?.anatomy ?? null }),
       buildScreen: buildScreenCode,
       reuse: (basis) => readPreparedComponentKit(admin, projectId, ownerId, basis),
       onSettled: ({ kit, notes, error, reused }) => {

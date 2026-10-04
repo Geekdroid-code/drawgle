@@ -8,6 +8,7 @@ import { extractStyleComponents } from "@/lib/generation/style-component-extract
 import { usableStyleComponents } from "@/lib/generation/style-components";
 import type { FunctionalItem } from "@/lib/product-planning/functional-plan";
 import { activeFacts, type ProductPlanning } from "@/lib/product-planning/model";
+import type { ProductAnatomy } from "@/lib/product-planning/product-anatomy";
 import type {
   BuildScreenInput,
   DesignStylePack,
@@ -47,6 +48,11 @@ export type ComponentKitInput = {
   designStyle?: DesignStylePack | null;
   /** The product's own content, so that the kit's samples are this product's kinds of item. */
   productContent?: string | null;
+  /**
+   * How this kind of product is built: its own components and the form each takes, decided from the product alone.
+   * The kit draws those, in the reference's look; without one it falls back to a generic list.
+   */
+  anatomy?: ProductAnatomy | null;
   /**
    * The tabs of the bottom navigation the person approved, in order, when the project has one. The kit then draws
    * the bar too, in the app's own style, and every screen shows that bar.
@@ -107,6 +113,8 @@ export function componentKitBasis(input: ComponentKitInput): string {
     reference: input.referenceKey ?? input.referenceId ?? null,
     style: input.designStyle?.id ?? null,
     navigation: input.navigationTabs ?? [],
+    // Only when there is one, so that a kit made before anatomies existed keeps its basis.
+    ...(input.anatomy ? { anatomy: input.anatomy } : {}),
   })).digest("hex");
 }
 
@@ -119,18 +127,28 @@ const clipped = (text: string, max: number) => {
 };
 
 /**
- * What the kit build is asked to draw. Generic on purpose: the screens and the product say what it needs. The product
- * itself reaches the build as its prompt.
+ * What the kit build is asked to draw. The product's anatomy says which components it has and the form each takes;
+ * the style reference, which the build also sees, says only how they look. Without an anatomy the brief stays
+ * generic, and asks for nothing a product may not have: it once asked every product for a summary tile and a
+ * person's avatar, and a file manager's kit drew a storage figure and a person row.
  */
-export function componentKitBrief({ screens, navigationTabs = [] }: Pick<ComponentKitInput, "screens" | "navigationTabs">): string {
+export function componentKitBrief({ screens, navigationTabs = [], anatomy }: Pick<ComponentKitInput, "screens" | "navigationTabs" | "anatomy">): string {
+  const components = anatomy?.components ?? [];
   return [
     "This is not a screen of the app. It is the product's component kit: one page that shows, once each, the components its screens are built from, so that every screen uses the same header, the same card or row for the same kind of item, and the same controls.",
+    anatomy ? `The product is ${clipped(anatomy.kind, 200)}.` : null,
     `The product's screens: ${screens.slice(0, 16).map((screen) => `${screen.name}${screen.purpose ? ` (${clipped(screen.purpose, 180)})` : ""}`).join("; ")}.`,
     "Show only the components these screens need, each once, with short sample content, one under another:",
     "- the header of a main screen, and the top bar of a detail screen with its back control and one action;",
-    "- for each kind of item the screens list or show (for example an order, a person or a message), the one card or row that shows it on every screen, with its avatar, status badge and trailing detail where the item has them;",
-    "- a summary tile for a key figure, a section header with its action, a text field, filter chips or a segmented control, and the primary and secondary buttons.",
-    "A person is shown the same way everywhere, so draw one avatar, a frame that holds their photo, and use it in every row and card that shows a person.",
+    components.length > 0
+      ? [
+        "- the product's own components, each in the form given and marked with the name given. The form is this product's: build it as described, and take only its look (colour, type, surface, depth, edges, icon wells) from the style reference, never a different form because the reference shows one:",
+        ...components.map((component) => `  - ${component.name}: ${clipped(component.shows, 200)}. Form: ${clipped(component.form, 360)}`),
+      ].join("\n")
+      : "- for each kind of item the screens list or show, the one card or row that shows it on every screen, with its status badge and trailing detail where the item has them;",
+    "- the controls these screens use, among a section header with its action, a text field, filter chips or a segmented control, and the primary and secondary buttons. Draw a summary tile only for a figure a screen shows as its job.",
+    "When the product shows people, a person is shown the same way everywhere: draw one avatar, a frame that holds their photo, and use it in every row and card that shows a person. A product that shows no people gets no avatar.",
+    anatomy?.avoid.length ? `Avoid, because it would read as another kind of app: ${anatomy.avoid.map((item) => clipped(item, 200)).join("; ")}.` : null,
     navigationTabs.length >= 2 ? kitNavigationBrief(navigationTabs) : null,
   ].filter(Boolean).join("\n");
 }

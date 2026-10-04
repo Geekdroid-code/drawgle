@@ -6,6 +6,7 @@ import { decisionProvenanceSchema, evidenceAssessmentSchema, evidenceAllowsPropo
 import { designRequirementsKey } from "./design-requirements";
 import { experienceSchema } from "./experience";
 import { functionalItemSchema, validateFunctionalPlan } from "./functional-plan";
+import { productAnatomySchema } from "./product-anatomy";
 import { ProductToolError } from "./tool-failure";
 import { assertRequiredFacts, requiredFactSections } from "./required-facts";
 
@@ -66,6 +67,8 @@ export const designScopeSchema = z.object({
   boundaries: z.array(z.object({ key: z.string(), name: z.string(), outcome: z.string() })).max(500).optional(),
   // Absent on scopes approved before navigation was decided here; those keep the planner's heuristic.
   navigation: scopeNavigationSchema.optional(),
+  // How this kind of product is built, decided with the flow from the product alone; absent on older scopes.
+  anatomy: productAnatomySchema.optional(),
   journeyCoverage: z.array(journeyCoverageSchema).max(100).optional(),
   requestedScope: z.enum(["whole_product", "focused"]).optional(),
   scopeEvidence: z.string().max(1500).optional(),

@@ -42,4 +42,14 @@ export const proposalResponseSchema = { type: Type.OBJECT, properties: {
     }, required: ["label", "outputRef"] } },
     rationale: { type: Type.STRING, description: "One sentence: why the product does or does not need persistent navigation." },
   }, required: ["persistent", "destinations", "rationale"] },
-}, required: ["facts", "removeFactIds", "outputs", "removeOutputKeys", "scope", "navigation"] };
+  anatomy: { type: Type.OBJECT, description: "How this kind of product is built, decided from the product, its people and their tasks alone, never from a visual reference.", properties: {
+    kind: { type: Type.STRING, description: "What kind of app this is, in plain words." },
+    components: { type: Type.ARRAY, description: "The product's own recurring components, 2 to 8: each kind of item people meet on more than one screen, and the main screen's header.", items: { type: Type.OBJECT, properties: {
+      name: { type: Type.STRING, description: "A short kebab-case name for what it is, never for its sample content." },
+      shows: { type: Type.STRING, description: "What it shows." },
+      form: { type: Type.STRING, description: "The form the best app of this kind gives it, chosen from how people use that content: a compact row where they scan many items, a tile where they pick a visual one, a card for one rich item, a sheet, a bar. Its parts, how neighbouring items are separated, and how dense it is." },
+    }, required: ["name", "shows", "form"] } },
+    conventions: { type: Type.ARRAY, description: "At most 6 things people expect from this kind of app and miss when absent: how they sort, filter, select, act on items and move through depth.", items: string },
+    avoid: { type: Type.ARRAY, description: "At most 5 structures that would make it read as another kind of app.", items: string },
+  }, required: ["kind", "components", "conventions", "avoid"] },
+}, required: ["facts", "removeFactIds", "outputs", "removeOutputKeys", "scope", "navigation", "anatomy"] };

@@ -232,13 +232,18 @@ describe("state-scoped prompt construction", () => {
     expect(plannerScreenBriefStepInstruction("prompt")).toContain("at least 8 concrete visible layout and composition decisions");
 
     // the reference dresses the screen's own components; it never chooses them
-    expect(style).toContain("KEY COMPONENTS come from this screen's job and the product's own components, never from the reference");
+    expect(style).toContain("KEY COMPONENTS come from this screen's job and the product's own components");
     expect(style).toContain("When a VISUAL TREATMENT MAP is supplied, use it to say how those components look.");
     expect(style).toContain("Never reproduce the reference's sections, their order or its content.");
     expect(style).not.toContain("REFERENCE COMPONENT MAPPING");
     expect(style).not.toMatch(/its stat tile for a single figure|each screen borrows/);
     expect(style).toContain("Never add a component, section, figure or greeting because the reference has one.");
     expect(plannerScreenBriefStepInstruction("prompt")).not.toContain("VISUAL TREATMENT MAP");
+    // the product's anatomy decides the components in every mode
+    for (const mode of ["style", "prompt"] as const) {
+      expect(plannerScreenBriefStepInstruction(mode)).toContain("Product anatomy: when the context supplies a PRODUCT ANATOMY, it names this product's own components and the form each takes");
+    }
+    expect(style).toContain("(PRODUCT ANATOMY and PROJECT COMPONENTS when supplied), never from the reference");
 
     // the mode contract no longer asks the planner to write materials, shadows or radii
     expect(style).not.toContain("material quality, shadows, radii, blur/glass");
