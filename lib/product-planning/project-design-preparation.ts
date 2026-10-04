@@ -36,7 +36,9 @@ export function projectDesignPrompt(state: ProductPlanning) {
     state.input.originalRequest?.trim(),
     activeFacts(state).filter(fact => fact.section === "identity" || fact.section === "actors")
       .map(fact => `${fact.section}: ${fact.detail}`).join("\n"),
-    state.experience ? `Visual direction: ${state.experience.direction}\nVisual observations: ${state.experience.observations}\nAdaptations: ${state.experience.adaptations}` : null,
+    // Labelled as Drawgle's reading: the token model records which colours the person's own words name, and once took
+    // this reading's "the required navy blue" as theirs, for the page background.
+    state.experience ? `Drawgle's reading of the style reference (not the person's words; their own words are the request above and the requirements below):\nVisual direction: ${state.experience.direction}\nVisual observations: ${state.experience.observations}\nAdaptations: ${state.experience.adaptations}` : null,
     compileDesignRequirements(state),
     "Create a reusable project-wide visual system. Individual screen layouts and output order are planned separately.",
   ].filter(Boolean).join("\n\n");

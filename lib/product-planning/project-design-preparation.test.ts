@@ -30,6 +30,8 @@ describe("project-wide design preparation", () => {
     const prompt = projectDesignPrompt(state);
     expect(prompt).toContain("A store for T-shirts");
     expect(prompt).toContain("Product-led restrained shopping");
+    // the token model reads which colours the person's own words name; the reading is not their words
+    expect(prompt).toContain("Drawgle's reading of the style reference (not the person's words; their own words are the request above and the requirements below):");
     expect(prompt).not.toContain("screen:onboarding");
     expect(prompt).not.toContain("Design exactly");
   });
