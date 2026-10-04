@@ -54,7 +54,9 @@ function LoginPageContent() {
   const searchParams = useSearchParams();
   const queryStateKey = searchParams.toString();
   const nextPath = useMemo(() => getSafeAuthRedirect(searchParams.get("next")), [searchParams]);
-  const [mode, setMode] = useState<AuthMode>("sign-in");
+  // A claim link is mostly opened by people who have no account yet.
+  const claimingCredits = nextPath.startsWith("/claim");
+  const [mode, setMode] = useState<AuthMode>(claimingCredits ? "sign-up" : "sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -286,9 +288,13 @@ function LoginPageContent() {
               </h1>
               <p className="mt-3 max-w-sm text-sm leading-relaxed text-mk-body">
                 {mode === "sign-in"
-                  ? "Sign in to keep refining your screens and design system."
+                  ? claimingCredits
+                    ? "Sign in to claim your free credits."
+                    : "Sign in to keep refining your screens and design system."
                   : mode === "sign-up"
-                    ? "Describe an idea, get connected mobile screens, and hand them to your coding agent."
+                    ? claimingCredits
+                      ? "Create your account to claim your free credits, then describe your first app."
+                      : "Describe an idea, get connected mobile screens, and hand them to your coding agent."
                     : "Enter your email and we'll send you a link to choose a new password."}
               </p>
             </div>
@@ -454,7 +460,9 @@ function LoginPageContent() {
                   Create your workspace
                 </AuthSubmitButton>
                 <p className="text-center text-[11px] leading-4 text-neutral-500">
-                  Planning is free. Generating screens needs a plan, and you can choose one when you&apos;re ready.
+                  {claimingCredits
+                    ? "Planning is free. You'll claim your credits right after you sign up."
+                    : <>Planning is free. Generating screens needs a plan, and you can choose one when you&apos;re ready.</>}
                 </p>
               </form>
             ) : (

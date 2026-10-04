@@ -5,7 +5,7 @@ import { getSafeAuthRedirect } from "@/lib/auth-redirect";
 import { getSupabasePublicEnv } from "@/lib/env/public";
 import type { Database } from "@/lib/supabase/database.types";
 
-const protectedPathPrefixes = ["/project", "/account", "/billing", "/admin"];
+const protectedPathPrefixes = ["/project", "/account", "/billing", "/admin", "/claim"];
 
 export async function updateSession(request: NextRequest) {
   const requestHeaders = new Headers(request.headers);

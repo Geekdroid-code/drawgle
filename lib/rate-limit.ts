@@ -27,6 +27,11 @@ export const RATE_LIMITS = {
     { bucket: "agent:hour", limit: 150, windowSeconds: HOUR },
     { bucket: "agent:day", limit: 600, windowSeconds: DAY },
   ],
+  // Credit codes are short; a person types one or two, a script guessing them types thousands.
+  redeem: [
+    { bucket: "redeem:hour", limit: 10, windowSeconds: HOUR },
+    { bucket: "redeem:day", limit: 20, windowSeconds: DAY },
+  ],
 } satisfies Record<string, RateLimitRule[]>;
 
 type ConsumeResult = {

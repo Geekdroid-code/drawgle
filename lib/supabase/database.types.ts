@@ -392,6 +392,69 @@ export interface Database {
         };
         Relationships: [];
       };
+      credit_codes: {
+        Row: {
+          code: string;
+          campaign: string;
+          credits: number;
+          max_redemptions: number;
+          redemption_count: number;
+          expires_at: string | null;
+          disabled_at: string | null;
+          note: string | null;
+          created_at: string;
+        };
+        Insert: {
+          code: string;
+          campaign: string;
+          credits: number;
+          max_redemptions?: number;
+          redemption_count?: number;
+          expires_at?: string | null;
+          disabled_at?: string | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          code?: string;
+          campaign?: string;
+          credits?: number;
+          max_redemptions?: number;
+          redemption_count?: number;
+          expires_at?: string | null;
+          disabled_at?: string | null;
+          note?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      credit_code_redemptions: {
+        Row: {
+          id: number;
+          code: string;
+          campaign: string;
+          user_id: string;
+          credits: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: number;
+          code: string;
+          campaign: string;
+          user_id: string;
+          credits: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: number;
+          code?: string;
+          campaign?: string;
+          user_id?: string;
+          credits?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
       credit_reservations: {
         Row: {
           id: string;
@@ -1024,6 +1087,13 @@ export interface Database {
           input_bucket: string;
           input_limit: number;
           input_window_seconds: number;
+        };
+        Returns: Json;
+      };
+      redeem_credit_code: {
+        Args: {
+          input_user_id: string;
+          input_code: string;
         };
         Returns: Json;
       };
