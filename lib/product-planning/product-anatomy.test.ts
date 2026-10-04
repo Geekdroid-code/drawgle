@@ -61,6 +61,8 @@ describe("formatProductAnatomy", () => {
     const text = formatProductAnatomy(anatomy)!;
     expect(text).toContain("PRODUCT ANATOMY (how this kind of product is built: it decides which components exist and the form each takes. A style reference only decides how they look.)");
     expect(text).toContain(`Kind: ${anatomy.kind}`);
+    // the planner does not always keep looks out of a form; a look it names never outranks the reference or tokens
+    expect(text).toContain("A form decides structure only. Where it names a look (a colour, font, shadow, material or effect), the style reference, the tokens and the person's own requirements decide instead.");
     expect(text).toContain("- document-row: One document in any listing. Form: A compact row: type icon");
     expect(text).toContain("People expect: Sort by name, date or size; Switch between list and grid");
     expect(text).toContain("Avoid, because it would read as another kind of app: A greeting and summary figures on the first screen");

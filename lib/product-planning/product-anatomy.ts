@@ -59,6 +59,9 @@ export function formatProductAnatomy(anatomy: ProductAnatomy | null | undefined)
   if (!anatomy) return null;
   return [
     "PRODUCT ANATOMY (how this kind of product is built: it decides which components exist and the form each takes. A style reference only decides how they look.)",
+    // The planner is asked for structure only and does not always comply ("a refined serif font", "glassmorphic
+    // backgrounds"); what it says about looks never outranks the reference, the tokens or the person's requirements.
+    "A form decides structure only. Where it names a look (a colour, font, shadow, material or effect), the style reference, the tokens and the person's own requirements decide instead.",
     `Kind: ${anatomy.kind}`,
     "Components:",
     ...anatomy.components.map(component => `- ${component.name}: ${component.shows}. Form: ${component.form}`),

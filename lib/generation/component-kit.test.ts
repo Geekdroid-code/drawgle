@@ -118,7 +118,7 @@ describe("what the kit build is asked for", () => {
     expect(brief).toContain("The product is a personal document manager.");
     expect(brief).toContain("  - document-row: one document in any listing. Form: a compact row with a type icon, name and size, separated from the next by a hairline");
     expect(brief).toContain("  - folder-tile: one folder. Form: a square tile with a folder glyph and item count");
-    expect(brief).toContain("take only its look (colour, type, surface, depth, edges, icon wells) from the style reference, never a different form because the reference shows one");
+    expect(brief).toContain("build its structure as described, and take its look (colour, type, surface, depth, edges, icon wells) from the style reference and the tokens, even where the form names a look, and never a different form because the reference shows one");
     expect(brief).toContain("Avoid, because it would read as another kind of app: a greeting and summary figures on the first screen.");
     // the generic request is for a product without an anatomy only
     expect(brief).not.toContain("the one card or row that shows it on every screen");

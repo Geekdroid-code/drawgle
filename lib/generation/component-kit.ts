@@ -142,7 +142,7 @@ export function componentKitBrief({ screens, navigationTabs = [], anatomy }: Pic
     "- the header of a main screen, and the top bar of a detail screen with its back control and one action;",
     components.length > 0
       ? [
-        "- the product's own components, each in the form given and marked with the name given. The form is this product's: build it as described, and take only its look (colour, type, surface, depth, edges, icon wells) from the style reference, never a different form because the reference shows one:",
+        "- the product's own components, each in the form given and marked with the name given. The form is this product's: build its structure as described, and take its look (colour, type, surface, depth, edges, icon wells) from the style reference and the tokens, even where the form names a look, and never a different form because the reference shows one:",
         ...components.map((component) => `  - ${component.name}: ${clipped(component.shows, 200)}. Form: ${clipped(component.form, 360)}`),
       ].join("\n")
       : "- for each kind of item the screens list or show, the one card or row that shows it on every screen, with its status badge and trailing detail where the item has them;",
