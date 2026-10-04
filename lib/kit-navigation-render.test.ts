@@ -44,6 +44,9 @@ describe("a project whose component kit drew its bar", () => {
     expect(shell).toContain('.dg-nav-kit-item:not([data-active="true"]) > [data-dg-nav-state="active"]{display:none !important;}');
     // screens still leave room for it
     expect(shell).toContain("--dg-navigation-clearance:");
+    // and nothing is added under it: the bar keeps the safe area once, so an attached bar reaches the edge
+    expect(shell).toContain("[data-drawgle-primary-nav].dg-nav-kit{box-sizing:border-box;display:block;width:100%;max-width:100%;margin:0;padding:0;");
+    expect(shell).not.toContain("padding:0 0 var(--dg-effective-safe-area-bottom)");
     // none of the built-in bar's own look
     expect(shell).not.toContain("backdrop-filter");
     expect(shell).not.toContain('class="dg-nav-item');

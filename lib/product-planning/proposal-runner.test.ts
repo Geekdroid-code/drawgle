@@ -284,6 +284,9 @@ describe("single-candidate proposal turn", () => {
         // a live run wrote radii, shadows and colours into it, and left out the invoice row
         expect(request.config.systemInstruction).toMatch(/It is structure only: never a colour, font, radius, shadow, blur, glass, material, mood or number/);
         expect(request.config.systemInstruction).toMatch(/First, the item each list or grid on these screens holds/);
+        // a live run planned a desktop file explorer: a side-docked inspector, a sidebar, right-click and shortcuts
+        expect(request.config.systemInstruction).toMatch(/Every screen is a phone screen, so the anatomy is the phone app of this kind, used by touch: never a sidebar, a panel docked beside the content, a right-click menu/);
+        expect(request.config.systemInstruction).toMatch(/a sheet is opened by an action, never shown open on a screen by default/);
         expect(request.config.responseSchema.required).toContain("anatomy");
         return respond(proposalResponseFixture(withAnatomy(anatomy)));
       });

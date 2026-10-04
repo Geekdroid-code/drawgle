@@ -1,5 +1,5 @@
 import { indexScreenCode } from "@/lib/generation/block-index";
-import { fillKitNavigationBar, usableKitNavigation } from "@/lib/kit-navigation";
+import { fillKitNavigationBar, kitBarWithBottom, usableKitNavigation } from "@/lib/kit-navigation";
 import { createNavigationArchitecture, resolveScreenChromePolicy, shouldForceImmersiveScreen } from "@/lib/navigation";
 import type {
   KitNavigation,
@@ -259,12 +259,13 @@ function renderKitNavigationShell(
     `<nav data-drawgle-primary-nav data-navigation-version="${navigationPlan.version ?? 1}" data-navigation-anatomy="kit" data-navigation-layout="kit-bar" data-navigation-clearance-owner="renderer" class="dg-nav-shell dg-nav-kit" aria-label="Primary navigation">`,
     "<style>",
     `:root{--dg-navigation-visual-height:clamp(64px,var(--dg-sizing-bottom-nav-height,72px),96px);--dg-navigation-anatomy-height:auto;--dg-effective-safe-area-bottom:max(env(safe-area-inset-bottom,0px),var(--dg-mobile-layout-safe-area-bottom,0px));--dg-navigation-safe-offset:${design.safeAreaOffsetPx}px;--dg-navigation-overlap-buffer:12px;--dg-navigation-clearance:calc(var(--dg-navigation-visual-height) + var(--dg-navigation-safe-offset) + var(--dg-effective-safe-area-bottom) + var(--dg-navigation-overlap-buffer));}`,
-    "[data-drawgle-primary-nav].dg-nav-kit{box-sizing:border-box;display:block;width:100%;max-width:100%;margin:0;padding:0 0 var(--dg-effective-safe-area-bottom);background:transparent;border:0;box-shadow:none;pointer-events:auto;}",
+    // No padding of its own: the bar keeps the safe area (kitBarWithBottom), so an attached bar reaches the edge.
+    "[data-drawgle-primary-nav].dg-nav-kit{box-sizing:border-box;display:block;width:100%;max-width:100%;margin:0;padding:0;background:transparent;border:0;box-shadow:none;pointer-events:auto;}",
     "[data-drawgle-primary-nav] .dg-nav-kit-item{display:contents;}",
     KIT_TAB_STATE_RULE,
     "[data-drawgle-primary-nav] .dg-nav-kit-item[aria-disabled=\"true\"] > *{cursor:default;}",
     "</style>",
-    fillKitNavigationBar(kit, tabs),
+    fillKitNavigationBar({ ...kit, bar: kitBarWithBottom(kit.bar) }, tabs),
     "</nav>",
   ].join("\n");
 }

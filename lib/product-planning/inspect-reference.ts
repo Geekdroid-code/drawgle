@@ -24,11 +24,22 @@ const clip = (value: unknown, max: number) => typeof value === "string" ? value.
 const RECREATION_INSPECTION_INSTRUCTION = "Inspect only the supplied frames for faithful recreation. Preserve their visible copy, layout, typography, colors, assets, controls and states. Describe the source itself, not a redesigned product. Product preferences and inherited architecture must not adapt these screens. Apply only explicit user-requested deviations. Return optional frames containing each one-based index and bounds {x,y,width,height} in normalized 0-1 coordinates enclosing its complete visible frame, including overlays/shadows. Omit uncertain bounds. Compatibility is true because the user selected this source for recreation; transfer describes source preservation. Return JSON only.";
 
 /**
+ * A colour the person named keeps the role they gave it. The live invoice tracker asked for "navy blue as the main
+ * colour", drew a dark reference, and its reading wrote "replacing the reference's black with the required navy blue":
+ * the token model took that for the person's own words, and every screen was a page of pure navy under near-black
+ * cards. The same request had been read before as navy buttons and text on a light page.
+ */
+export const USER_COLOUR_RULE = [
+  "A colour the person named keeps the role their words give it. A colour named without a role (their main, brand or primary colour) is the colour of actions, emphasis and key text, never the page background or the card surfaces.",
+  "Never write that their colour replaces the reference's background or surfaces, and never call a colour of yours required: say only what their words say.",
+  "Report compatible=false, naming the conflict, when their colour would not carry on the reference's page: a dark colour of theirs on a dark page, or a pale one on a pale page.",
+].join(" ");
+
+/**
  * Whether a library reference's look suits the product, which the library pick cannot know: it ranks the library by
- * how close each reference's description is to the request, and a request's mood words ("premium", "clean",
- * "sophisticated") outweighed what the product was. A reference made for another kind of product is fine, since only
- * its look transfers; one whose look depends on content or a mood the product does not have is not. The person's own
- * upload is never rejected for this: they chose it.
+ * how close each reference's description is to the look asked for. A reference made for another kind of product is
+ * fine, since only its look transfers; one whose look depends on content or a mood the product does not have is not.
+ * The person's own upload is never rejected for this: they chose it.
  */
 export const CURATED_FIT_RULE = [
   "When referenceSource is \"curated\", also judge whether this look suits this product's content and use, from scope.anatomy and the facts.",
@@ -55,20 +66,10 @@ export const STYLE_INSPECTION_INSTRUCTION = [
   "- compatibility.transfer: the transferable visual rules only.",
   "Preserve product decisions; the reference does not establish hidden business rules.",
   "When explicit user design requirements are provided, evaluate visual compatibility honestly. If the reference's core visual traits clashingly violate explicit constraints (such as dark palette vs explicit white/cream requirement, heavy gradients vs explicit no-gradients), report compatible=false with identified conflicts. If transferable craft (typography, rhythm, surface delicacy) can guide unspecified choices while honoring the explicit constraints, report compatible=true.",
+  USER_COLOUR_RULE,
   CURATED_FIT_RULE,
   "Return JSON only.",
 ].join("\n");
-
-/**
- * What the product is and what its screens show, first in the library query: the request alone let its mood words
- * outweigh the product, and a file manager drew a creator dashboard while an invoice tracker, a subscription tracker
- * and a doctor booking app all drew the same travel tracker. Null for a plan without an anatomy.
- */
-export function curatedQueryProduct(state: Pick<ProductPlanning, "scope">): string | null {
-  const anatomy = state.scope?.anatomy;
-  if (!anatomy) return null;
-  return `Product: ${anatomy.kind}. It shows: ${anatomy.components.map(component => component.shows).join("; ")}.`;
-}
 
 /** Shape model observations to the saved contract. A verbose answer is
  * shortened, never a reason to discard a good reference. A library candidate
@@ -150,8 +151,10 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
   if (!image) {
     const preset = state.input.stylePresetSlug ? await resolvePublishedStylePreset(state.input.stylePresetSlug) : null;
     if (state.input.stylePresetSlug && !preset) throw new Error("The selected style preset is unavailable. Choose a current direction or upload a reference.");
+    // The look the person asked for, in their words. A query led by the product ("a freelance billing tool…
+    // financial figures") drew a dark crypto wallet for an invoice tracker that had asked for navy and rounded cards;
+    // only the look transfers, so the look is what is searched for.
     const query = [
-      curatedQueryProduct(state),
       activeFacts(state).filter(f => ["identity", "jobs", "preferences", "constraints"].includes(f.section)).map(f => f.detail).join("\n"),
       explicitReqs.length ? `Explicit requirements:\n${JSON.stringify(explicitReqs)}` : null,
       preset ? JSON.stringify({ title: preset.title, description: preset.description, style: preset.stylePack }) : null,

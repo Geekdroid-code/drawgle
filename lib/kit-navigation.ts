@@ -34,6 +34,35 @@ export function usableKitNavigation(value: unknown): KitNavigation | null {
   return { bar, activeItem, inactiveItem };
 }
 
+const BAR_ROOT = /^(\s*<[a-z][a-z0-9-]*\b)([^>]*)>/i;
+const CLASS_ATTRIBUTE = /\sclass\s*=\s*"([^"]*)"/i;
+/** A class that already spaces the bar's bottom: its own padding or margin. */
+const BOTTOM_SPACING = /^-?(?:p|py|pb|m|my|mb)-/;
+/** A class that floats the bar: a side margin or rounded corners all round. */
+const FLOATING = /^(?:-?(?:mx|ml|mr|m)-|rounded(?:-(?:sm|md|lg|xl|2xl|3xl|full|\[[^\]]+\]))?$|dg-radius-(?:app|pill))/;
+
+/**
+ * The bar with the phone's bottom safe area kept once, by the bar. A bar attached to the bottom edge pads its own
+ * bottom, so its fill reaches the edge; a floating bar keeps a margin below it. The renderer used to add the safe area
+ * again as transparent space under every kit bar, so an attached bar stopped short of the edge with a strip of page
+ * showing below it. A bar that already spaces its bottom is left as it is.
+ */
+export function kitBarWithBottom(bar: string): string {
+  const root = bar.match(BAR_ROOT);
+  if (!root) return bar;
+  const attributes = root[2];
+  const classes = attributes.match(CLASS_ATTRIBUTE)?.[1] ?? "";
+  const tokens = classes.split(/\s+/).filter(Boolean);
+  if (tokens.some((token) => BOTTOM_SPACING.test(token))) return bar;
+  const added = tokens.some((token) => FLOATING.test(token))
+    ? "mb-[var(--dg-effective-safe-area-bottom)]"
+    : "pb-[var(--dg-effective-safe-area-bottom)]";
+  const nextAttributes = CLASS_ATTRIBUTE.test(attributes)
+    ? attributes.replace(CLASS_ATTRIBUTE, (_match, value: string) => ` class="${[value.trim(), added].filter(Boolean).join(" ")}"`)
+    : `${attributes} class="${added}"`;
+  return `${root[1]}${nextAttributes}>${bar.slice(root[0].length)}`;
+}
+
 export type KitNavigationTab = {
   id: string;
   label: string;

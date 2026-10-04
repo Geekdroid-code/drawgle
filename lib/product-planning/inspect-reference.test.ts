@@ -9,7 +9,7 @@ vi.mock("@/lib/generation/curated-style-references", () => ({
   loadCuratedStyleReferenceImage: mocks.curated,
   shortlistCuratedStyleReferences: mocks.shortlist,
 }));
-import { CURATED_FIT_RULE, curatedQueryProduct, inspectProductReference, STYLE_INSPECTION_INSTRUCTION } from "./inspect-reference";
+import { CURATED_FIT_RULE, inspectProductReference, STYLE_INSPECTION_INSTRUCTION, USER_COLOUR_RULE } from "./inspect-reference";
 import { designerFixture, experienceFixture } from "./test-fixtures";
 describe("reference-backed experience reasoning", () => {
   beforeEach(() => {
@@ -91,17 +91,22 @@ describe("reference-backed experience reasoning", () => {
     // it no longer asks for the reference's composition and how to adapt it
     expect(instruction).not.toMatch(/Describe the observed composition|recommend how to adapt/);
   });
-  it("asks the library for a look that suits what the product is, before the request's mood words", async () => {
+  it("asks the library for the look the person asked for, not for products like theirs", async () => {
+    // led by the product, an invoice tracker that asked for navy and rounded cards drew a dark crypto wallet
     mocks.load.mockResolvedValue(null);
     const state = designerFixture(); state.input.imagePath = null;
-    state.scope = { ...state.scope!, anatomy: { kind: "A personal document manager",
-      components: [{ name: "document-row", shows: "One document", form: "A compact row" }, { name: "folder-tile", shows: "One folder", form: "A tile" }],
-      conventions: [], avoid: [] } };
+    state.scope = { ...state.scope!, anatomy: { kind: "A freelance billing tool",
+      components: [{ name: "invoice-row", shows: "Financial figures", form: "A compact row" }], conventions: [], avoid: [] } };
     await inspectProductReference({}, "owner", state, "premium, clean and sophisticated");
     const query = mocks.shortlist.mock.calls[0][0] as string;
-    expect(query.startsWith("Product: A personal document manager. It shows: One document; One folder.")).toBe(true);
     expect(query).toContain("premium, clean and sophisticated");
-    expect(curatedQueryProduct(designerFixture())).toBeNull();
+    expect(query).not.toMatch(/A freelance billing tool|Financial figures|^Product:/);
+  });
+  it("keeps a colour the person named in the role their words give it, and rejects a look their colour cannot carry", () => {
+    expect(STYLE_INSPECTION_INSTRUCTION).toContain(USER_COLOUR_RULE);
+    expect(USER_COLOUR_RULE).toContain("A colour named without a role (their main, brand or primary colour) is the colour of actions, emphasis and key text, never the page background or the card surfaces.");
+    expect(USER_COLOUR_RULE).toContain("Never write that their colour replaces the reference's background or surfaces, and never call a colour of yours required");
+    expect(USER_COLOUR_RULE).toContain("a dark colour of theirs on a dark page, or a pale one on a pale page");
   });
   it("judges whether a library look suits the product, but never rejects the person's own image for it", () => {
     expect(STYLE_INSPECTION_INSTRUCTION).toContain(CURATED_FIT_RULE);
