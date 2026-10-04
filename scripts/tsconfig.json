@@ -9,7 +9,8 @@
     "../types/**/*.d.ts",
     "design-eval/**/*.ts",
     "curated/**/*.ts",
-    "export-fidelity/**/*.ts"
+    "export-fidelity/**/*.ts",
+    "credits/**/*.ts"
   ],
   "exclude": ["../node_modules"]
 }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   BadgeCheck,
   CreditCard,
+  Gift,
   LogOut,
   CircleDollarSign,
 } from "lucide-react";
@@ -62,6 +63,12 @@ export function HeaderUser({ user }: HeaderUserProps) {
         label: "Account",
         icon: BadgeCheck,
         onClick: () => router.push("/account"),
+      },
+      {
+        id: "redeem",
+        label: "Redeem a code",
+        icon: Gift,
+        onClick: () => router.push("/claim"),
       },
       {
         id: "divider",
