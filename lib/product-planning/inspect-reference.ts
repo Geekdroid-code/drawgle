@@ -21,6 +21,30 @@ import { loadDesignReference } from "./load-design-reference";
 
 const clip = (value: unknown, max: number) => typeof value === "string" ? value.trim().slice(0, max).trim() : "";
 
+const RECREATION_INSPECTION_INSTRUCTION = "Inspect only the supplied frames for faithful recreation. Preserve their visible copy, layout, typography, colors, assets, controls and states. Describe the source itself, not a redesigned product. Product preferences and inherited architecture must not adapt these screens. Apply only explicit user-requested deviations. Return optional frames containing each one-based index and bounds {x,y,width,height} in normalized 0-1 coordinates enclosing its complete visible frame, including overlays/shadows. Omit uncertain bounds. Compatibility is true because the user selected this source for recreation; transfer describes source preservation. Return JSON only.";
+
+/**
+ * How a style reference is read. It once asked for the reference's composition and then how to adapt it, and the
+ * answer mapped the reference's screens onto the product: a file manager was told to "replace the social metrics
+ * with file storage data using the same card-based layout", and came out as a creator's analytics dashboard with a
+ * greeting and figure tiles. A style reference is another product; only its look is this product's.
+ */
+export const STYLE_INSPECTION_INSTRUCTION = [
+  "You are the visual designer inspecting the actual provided reference pixels. Curated library references were selected by Drawgle; never describe them as user uploads.",
+  "The reference shows another product. Only its look transfers to this one: colour and its rhythm, typography character, surface material and depth, edges and corners, iconography, control styling, imagery treatment, and the craft of each component (how a row, tile, chip, toggle, field or bar is built).",
+  "Its screens, sections and their order, content, figures, greetings, feeds, component choices and information architecture never transfer: this product's own facts and scope decide what each screen contains and how it is arranged.",
+  "Write every field about this product, in the reference's visual language:",
+  "- observations: the reference's look, concretely. Name no screen, section, content or feature of the reference.",
+  "- direction: how this product should look.",
+  "- informationHierarchy: how the look builds emphasis (scale and weight contrast, colour, depth, quiet metadata), applied to this product's own priorities. Never carry over the reference's priorities, such as its hero figure or its greeting.",
+  "- navigation: only how navigation is drawn (shape, material, active state). Whether there is a bar, and what it holds, come from the product.",
+  "- adaptations: for each of this product's own components, the reference treatment that dresses it, written from the product's component to the treatment, for example \"<a component of this product> takes the reference's inset icon wells and quiet two-line metadata\". Never turn a reference component into a component of this product, and never add a component, section or figure because the reference has one.",
+  "- compatibility.transfer: the transferable visual rules only.",
+  "Preserve product decisions; the reference does not establish hidden business rules.",
+  "When explicit user design requirements are provided, evaluate visual compatibility honestly. If the reference's core visual traits clashingly violate explicit constraints (such as dark palette vs explicit white/cream requirement, heavy gradients vs explicit no-gradients), report compatible=false with identified conflicts. If transferable craft (typography, rhythm, surface delicacy) can guide unspecified choices while honoring the explicit constraints, report compatible=true.",
+  "Return JSON only.",
+].join("\n");
+
 /** Shape model observations to the saved contract. A verbose answer is
  * shortened, never a reason to discard a good reference. A library candidate
  * needs an explicit compatible verdict; the user's own image does not. */
@@ -58,7 +82,7 @@ export async function inspectProductReference(admin: PlanningStore, ownerId: str
 
   const fields = ["observations", "direction", "informationHierarchy", "navigation", "adaptations"];
   const policy = geminiPolicyForTask("project_planning", {
-    systemInstruction: recreation ? "Inspect only the supplied frames for faithful recreation. Preserve their visible copy, layout, typography, colors, assets, controls and states. Describe the source itself, not a redesigned product. Product preferences and inherited architecture must not adapt these screens. Apply only explicit user-requested deviations. Return optional frames containing each one-based index and bounds {x,y,width,height} in normalized 0-1 coordinates enclosing its complete visible frame, including overlays/shadows. Omit uncertain bounds. Compatibility is true because the user selected this source for recreation; transfer describes source preservation. Return JSON only." : `You are the visual/product designer inspecting the actual provided reference pixels. Curated library references were selected by Drawgle; never describe them as user uploads. Describe the observed composition, hierarchy, spacing, density, imagery and component relationships concretely. Then recommend how to adapt that visual language to the provided product's actual tasks and information. Preserve product decisions; the reference does not establish hidden business rules. When explicit user design requirements are provided, evaluate visual compatibility honestly. If the reference's core visual traits clashingly violate explicit constraints (such as dark palette vs explicit white/cream requirement, heavy gradients vs explicit no-gradients), report compatible=false with identified conflicts. If transferable craft (typography, rhythm, surface delicacy) can guide unspecified choices while honoring the explicit constraints, report compatible=true. Return JSON only.`,
+    systemInstruction: recreation ? RECREATION_INSPECTION_INSTRUCTION : STYLE_INSPECTION_INSTRUCTION,
     responseMimeType: "application/json", maxOutputTokens: 4500,
     responseSchema: {
       type: Type.OBJECT,

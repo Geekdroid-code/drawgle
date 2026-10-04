@@ -189,16 +189,16 @@ describe("the brief planner in style mode", () => {
     mocks.generate.mockReset();
   });
 
-  it("is given the discovery designer's component mapping, and no token values", async () => {
+  it("is given the discovery designer's visual treatment map, and no token values", async () => {
     mocks.generate.mockRejectedValueOnce(new Error("Captured planner request"));
     await expect(planUiFlow(laterBatchInput(numericAnalysis()))).rejects.toThrow("Captured planner request");
 
     const request = mocks.generate.mock.calls[0][0];
     expect(systemInstruction(request)).toContain("STEP: SCREEN BRIEFS ONLY");
     const prompt = requestParts(request).join("\n");
-    expect(prompt).toContain("REFERENCE COMPONENT MAPPING");
-    expect(prompt).toContain("Mapping: Use product data rather than editorial filler");
-    expect(prompt).toContain("name that component in KEY COMPONENTS");
+    expect(prompt).toContain("VISUAL TREATMENT MAP");
+    expect(prompt).toContain("Map: Use product data rather than editorial filler");
+    expect(prompt).toContain("never decides what a screen contains");
     expect(prompt).not.toContain("Approved Token Context");
     expect(prompt).not.toContain("Approved Token Language");
     // the reference arrives as invariants, and none of its values do
@@ -207,10 +207,10 @@ describe("the brief planner in style mode", () => {
     for (const text of requestParts(request)) expect(text).not.toMatch(VALUE);
   });
 
-  it("gives no component mapping outside style mode", async () => {
+  it("gives no visual treatment map outside style mode", async () => {
     mocks.generate.mockRejectedValueOnce(new Error("Captured planner request"));
     await expect(planUiFlow(laterBatchInput(null))).rejects.toThrow("Captured planner request");
-    expect(requestParts(mocks.generate.mock.calls[0][0]).join("\n")).not.toContain("REFERENCE COMPONENT MAPPING");
+    expect(requestParts(mocks.generate.mock.calls[0][0]).join("\n")).not.toContain("VISUAL TREATMENT MAP");
   });
 
   it("removes a value a planner slipped into a style-mode brief and its contracts", async () => {

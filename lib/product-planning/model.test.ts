@@ -118,6 +118,15 @@ describe("durable product truth and scope", () => {
     expect(grounded.designRationale).toBe("Editorial");
     expect(grounded.navigationModel).toBe("Tabs");
   });
+  it("keeps the person's own request as the charter's original intent, never the planner's restatement", () => {
+    const charter = { appType: "App", targetAudience: "People", keyFeatures: [], navigationModel: "Tabs", designRationale: "Calm",
+      originalPrompt: "Build a shop using a soft-premium aesthetic with glassmorphic navigation and card-based layouts." } as ProjectCharter;
+    const state = productFixture();
+    expect(groundCharterInProduct(charter, { ...state, input: { ...state.input, originalRequest: "  a shop for my T-shirts  " } })
+      .originalPrompt).toBe("a shop for my T-shirts");
+    // a project planned before the request was saved keeps what it had
+    expect(groundCharterInProduct(charter, state).originalPrompt).toBe(charter.originalPrompt);
+  });
   it("saves the navigation decided with the scope, and reads a scope approved before it existed", () => {
     const decided = { persistent: true, rationale: "Two areas people switch between.",
       destinations: [{ label: "Today", screenKey: "screen:today" }, { label: "Pets", screenKey: null }] };

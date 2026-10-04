@@ -9,7 +9,7 @@ vi.mock("@/lib/generation/curated-style-references", () => ({
   loadCuratedStyleReferenceImage: mocks.curated,
   shortlistCuratedStyleReferences: mocks.shortlist,
 }));
-import { inspectProductReference } from "./inspect-reference";
+import { inspectProductReference, STYLE_INSPECTION_INSTRUCTION } from "./inspect-reference";
 import { designerFixture, experienceFixture } from "./test-fixtures";
 describe("reference-backed experience reasoning", () => {
   beforeEach(() => {
@@ -76,6 +76,26 @@ describe("reference-backed experience reasoning", () => {
     expect(result.experience.referenceId).toBe("clean-minimal");
     expect(result.experience.compatibility?.compatible).toBe(true);
     expect(mocks.store).toHaveBeenCalledWith({}, "owner", { data: "clean-pixels", mimeType: "image/png" });
+  });
+  it("reads a style reference for its look only, and maps it from this product's components", async () => {
+    mocks.load.mockResolvedValue({ data: "uploaded-pixels", mimeType: "image/webp" });
+    await inspectProductReference({}, "owner", designerFixture(), "Prioritize shopping");
+    const instruction = mocks.generate.mock.calls[0][0].config.systemInstruction as string;
+    expect(instruction).toBe(STYLE_INSPECTION_INSTRUCTION);
+    expect(instruction).toContain("The reference shows another product. Only its look transfers to this one");
+    expect(instruction).toContain("never transfer: this product's own facts and scope decide what each screen contains");
+    expect(instruction).toContain("written from the product's component to the treatment");
+    expect(instruction).toContain("never add a component, section or figure because the reference has one");
+    // it no longer asks for the reference's composition and how to adapt it
+    expect(instruction).not.toMatch(/Describe the observed composition|recommend how to adapt/);
+  });
+  it("still reads a recreation's own frames for faithful recreation", async () => {
+    mocks.load.mockResolvedValue({ data: "uploaded-pixels", mimeType: "image/webp" });
+    const state = designerFixture(); state.input.imageReferenceMode = "recreate";
+    await inspectProductReference({}, "owner", state, "Recreate these");
+    const instruction = mocks.generate.mock.calls[0][0].config.systemInstruction as string;
+    expect(instruction).toContain("Inspect only the supplied frames for faithful recreation.");
+    expect(instruction).not.toBe(STYLE_INSPECTION_INSTRUCTION);
   });
   it("fails closed if the reference is unavailable", async () => {
     mocks.load.mockResolvedValue(null);
