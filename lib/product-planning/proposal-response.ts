@@ -42,14 +42,14 @@ export const proposalResponseSchema = { type: Type.OBJECT, properties: {
     }, required: ["label", "outputRef"] } },
     rationale: { type: Type.STRING, description: "One sentence: why the product does or does not need persistent navigation." },
   }, required: ["persistent", "destinations", "rationale"] },
-  anatomy: { type: Type.OBJECT, description: "How this kind of product is built, decided from the product, its people and their tasks alone, never from a visual reference.", properties: {
-    kind: { type: Type.STRING, description: "What kind of app this is, in plain words." },
-    components: { type: Type.ARRAY, description: "The product's own recurring components, 2 to 8: each kind of item people meet on more than one screen, and the main screen's header.", items: { type: Type.OBJECT, properties: {
+  anatomy: { type: Type.OBJECT, description: "How this kind of product is built, decided from the product, its people and their tasks alone, never from a visual reference. Structure only: no colour, font, radius, shadow, blur, glass, material, mood or number.", properties: {
+    kind: { type: Type.STRING, description: "The specific kind of app in a few words, as a person would describe it, never a broad category." },
+    components: { type: Type.ARRAY, description: "The product's own recurring components, 2 to 8. First the item each list or grid holds (every kind of thing people browse, pick or act on), then the main screen's header and other parts that repeat across screens.", items: { type: Type.OBJECT, properties: {
       name: { type: Type.STRING, description: "A short kebab-case name for what it is, never for its sample content." },
       shows: { type: Type.STRING, description: "What it shows." },
-      form: { type: Type.STRING, description: "The form the best app of this kind gives it, chosen from how people use that content: a compact row where they scan many items, a tile where they pick a visual one, a card for one rich item, a sheet, a bar. Its parts, how neighbouring items are separated, and how dense it is." },
+      form: { type: Type.STRING, description: "The form the best app of this kind gives it, chosen from how people use that content: a compact row where they scan many items, a tile where they pick a visual one, a card for one rich item, a sheet, a bar. Its parts, whether neighbouring items are divided by a line or a gap, and how dense it is. Never how it looks." },
     }, required: ["name", "shows", "form"] } },
     conventions: { type: Type.ARRAY, description: "At most 6 things people expect from this kind of app and miss when absent: how they sort, filter, select, act on items and move through depth.", items: string },
-    avoid: { type: Type.ARRAY, description: "At most 5 structures that would make it read as another kind of app.", items: string },
+    avoid: { type: Type.ARRAY, description: "At most 5 structures (screens, sections or components) that would make it read as another kind of app; never a style.", items: string },
   }, required: ["kind", "components", "conventions", "avoid"] },
 }, required: ["facts", "removeFactIds", "outputs", "removeOutputKeys", "scope", "navigation", "anatomy"] };

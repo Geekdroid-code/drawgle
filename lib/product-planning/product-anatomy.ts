@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { stripDesignValues } from "@/lib/generation/design-value-scrub";
+
 /**
  * How this kind of product is built: the components its screens are made from, the form each takes, what people
  * expect of it, and what would make it read as another kind of app.
@@ -24,7 +26,10 @@ export type ProductAnatomy = z.infer<typeof productAnatomySchema>;
 
 const record = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const list = (value: unknown) => Array.isArray(value) ? value : [];
-const clip = (value: unknown, max: number) => typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max).trim() : "";
+// Structure only: a value the model slips in ("a 12px radius", "4px blur shadow") would be copied downstream as an
+// order, so it is removed here as it is from every other prose layer.
+const clip = (value: unknown, max: number) => typeof value === "string"
+  ? stripDesignValues(value).replace(/\s+/g, " ").trim().slice(0, max).trim() : "";
 const kebab = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
 const texts = (value: unknown, max: number) => [...new Set(list(value).map(item => clip(item, 240)).filter(Boolean))].slice(0, max);
 

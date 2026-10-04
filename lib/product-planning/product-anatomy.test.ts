@@ -39,6 +39,15 @@ describe("normalizeProductAnatomy", () => {
     expect(read.avoid).toEqual([]);
   });
 
+  it("keeps design values out, so that structure never carries an order for how it looks", () => {
+    // what a live run wrote into an invoice tracker's anatomy
+    const read = normalizeProductAnatomy({ ...anatomy, components: [
+      { name: "data-card", shows: "Financial figures", form: "White rounded card with a 12px radius, subtle 4px blur shadow and #1E3A8A accents" },
+    ] })!;
+    expect(read.components[0].form).not.toMatch(/12px|4px|#1E3A8A/i);
+    expect(read.components[0].form).toContain("White rounded card");
+  });
+
   it("gives nothing when there is no kind or no usable component, so the plan keeps the behaviour from before", () => {
     expect(normalizeProductAnatomy(undefined)).toBeUndefined();
     expect(normalizeProductAnatomy("an app")).toBeUndefined();

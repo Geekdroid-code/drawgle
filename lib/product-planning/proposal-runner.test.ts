@@ -281,6 +281,9 @@ describe("single-candidate proposal turn", () => {
         expect(JSON.parse(request.contents[0].parts[0].text).currentAnatomy).toBeNull();
         expect(request.config.systemInstruction).toMatch(/anatomy is how this kind of product is built/);
         expect(request.config.systemInstruction).toMatch(/never from a visual reference, and keep currentAnatomy unless the product changed/);
+        // a live run wrote radii, shadows and colours into it, and left out the invoice row
+        expect(request.config.systemInstruction).toMatch(/It is structure only: never a colour, font, radius, shadow, blur, glass, material, mood or number/);
+        expect(request.config.systemInstruction).toMatch(/First, the item each list or grid on these screens holds/);
         expect(request.config.responseSchema.required).toContain("anatomy");
         return respond(proposalResponseFixture(withAnatomy(anatomy)));
       });

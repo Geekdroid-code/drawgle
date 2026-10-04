@@ -86,6 +86,8 @@ describe("reference-backed experience reasoning", () => {
     expect(instruction).toContain("never transfer: this product's own facts and scope decide what each screen contains");
     expect(instruction).toContain("written from the product's component to the treatment");
     expect(instruction).toContain("never add a component, section or figure because the reference has one");
+    // a live run turned a product's divided row into "a soft, elevated charcoal card"
+    expect(instruction).toContain("Each component keeps the form scope.anatomy gives it: a row stays a row with its dividers");
     // it no longer asks for the reference's composition and how to adapt it
     expect(instruction).not.toMatch(/Describe the observed composition|recommend how to adapt/);
   });
