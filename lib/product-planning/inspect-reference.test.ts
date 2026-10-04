@@ -9,7 +9,7 @@ vi.mock("@/lib/generation/curated-style-references", () => ({
   loadCuratedStyleReferenceImage: mocks.curated,
   shortlistCuratedStyleReferences: mocks.shortlist,
 }));
-import { inspectProductReference, STYLE_INSPECTION_INSTRUCTION } from "./inspect-reference";
+import { CURATED_FIT_RULE, curatedQueryProduct, inspectProductReference, STYLE_INSPECTION_INSTRUCTION } from "./inspect-reference";
 import { designerFixture, experienceFixture } from "./test-fixtures";
 describe("reference-backed experience reasoning", () => {
   beforeEach(() => {
@@ -88,6 +88,32 @@ describe("reference-backed experience reasoning", () => {
     expect(instruction).toContain("never add a component, section or figure because the reference has one");
     // it no longer asks for the reference's composition and how to adapt it
     expect(instruction).not.toMatch(/Describe the observed composition|recommend how to adapt/);
+  });
+  it("asks the library for a look that suits what the product is, before the request's mood words", async () => {
+    mocks.load.mockResolvedValue(null);
+    const state = designerFixture(); state.input.imagePath = null;
+    state.scope = { ...state.scope!, anatomy: { kind: "A personal document manager",
+      components: [{ name: "document-row", shows: "One document", form: "A compact row" }, { name: "folder-tile", shows: "One folder", form: "A tile" }],
+      conventions: [], avoid: [] } };
+    await inspectProductReference({}, "owner", state, "premium, clean and sophisticated");
+    const query = mocks.shortlist.mock.calls[0][0] as string;
+    expect(query.startsWith("Product: A personal document manager. It shows: One document; One folder.")).toBe(true);
+    expect(query).toContain("premium, clean and sophisticated");
+    expect(curatedQueryProduct(designerFixture())).toBeNull();
+  });
+  it("judges whether a library look suits the product, but never rejects the person's own image for it", () => {
+    expect(STYLE_INSPECTION_INSTRUCTION).toContain(CURATED_FIT_RULE);
+    expect(CURATED_FIT_RULE).toContain("When referenceSource is \"curated\", also judge whether this look suits this product's content and use");
+    expect(CURATED_FIT_RULE).toContain("A reference made for a different kind of product is otherwise compatible, because only its look transfers.");
+  });
+  it("tells the inspection a library candidate is curated, so the fit rule applies to it", async () => {
+    mocks.load.mockResolvedValueOnce(null).mockResolvedValueOnce({ data: "normalized-pixels", mimeType: "image/webp" });
+    mocks.shortlist.mockResolvedValue([{ reference: { id: "editorial-1" }, catalogHash: "cat-1" }]);
+    mocks.curated.mockResolvedValue({ data: "curated-pixels", mimeType: "image/png" });
+    mocks.store.mockResolvedValue("owner/prompt-images/curated.webp");
+    const state = designerFixture(); state.input.imagePath = null;
+    await inspectProductReference({}, "owner", state, "Product-led layout");
+    expect(JSON.parse(mocks.generate.mock.calls[0][0].contents[0].parts[0].text).referenceSource).toBe("curated");
   });
   it("still reads a recreation's own frames for faithful recreation", async () => {
     mocks.load.mockResolvedValue({ data: "uploaded-pixels", mimeType: "image/webp" });
