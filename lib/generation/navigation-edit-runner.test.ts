@@ -1,10 +1,10 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/design-history/persistence", () => ({ persistDesignChange: vi.fn(), readDesignTarget: vi.fn() }));
+vi.mock("@/lib/design-history/persistence", () => ({ persistDesignChange: vi.fn(), readDesignTarget: vi.fn(), readRecentNavigationChanges: vi.fn() }));
 vi.mock("./navigation-design-edit", () => ({ redesignNavigation: vi.fn(), resolveNavigationMembership: vi.fn(), reviseNavigationDestinations: vi.fn() }));
 vi.mock("./legacy-navigation-edit", () => ({ editLegacyNavigation: vi.fn() }));
-import { persistDesignChange, readDesignTarget } from "@/lib/design-history/persistence";
+import { persistDesignChange, readDesignTarget, readRecentNavigationChanges } from "@/lib/design-history/persistence";
 import { redesignNavigation, resolveNavigationMembership, reviseNavigationDestinations } from "./navigation-design-edit";
 import { executeNavigationEdit } from "./navigation-edit-runner";
 import { editLegacyNavigation } from "./legacy-navigation-edit";
@@ -46,6 +46,80 @@ beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(readDesignTarget).mockResolvedValue({ revision: 3, ready: true, payload: before });
   vi.mocked(persistDesignChange).mockResolvedValue({ status: "success", revision: 4 });
+  vi.mocked(readRecentNavigationChanges).mockResolvedValue([]);
+});
+
+// Habit Details shows the bar from the Health tab; the person asks for it to stop.
+const shown = () => navigationSnapshotSchema.parse({ ...before, assignments: [{ ...before.assignments[0], navigationItemId: "health",
+  chromePolicy: { chrome: "bottom-tabs", showPrimaryNavigation: true } }] });
+
+describe("taking the shared navigation off one screen", () => {
+  it("hides the bar on that screen alone, keeping every tab and the look, without a designer", async () => {
+    vi.mocked(readDesignTarget).mockResolvedValue({ revision: 3, ready: true, payload: shown() });
+    const result = await executeNavigationEdit(client().db, { ...request, prompt: "Remove nav from this screen", intent: "hide" }, null, null);
+    expect(reviseNavigationDestinations).not.toHaveBeenCalled();
+    expect(redesignNavigation).not.toHaveBeenCalled();
+    const saved = vi.mocked(persistDesignChange).mock.calls[0][2];
+    expect(saved.label).toBe("Removed navigation from Training Tracker");
+    const payload = saved.payload as typeof before;
+    expect((payload.plan as unknown as NavigationPlan).items).toEqual(plan.items);
+    expect(payload.shellCode).toBe(before.shellCode);
+    expect(payload.assignments[0]).toMatchObject({ navigationItemId: null, chromePolicy: { chrome: "top-bar", showPrimaryNavigation: false } });
+    expect((payload.plan as unknown as NavigationPlan).screenChrome).toContainEqual({ screenName: "Training Tracker", chrome: "top-bar", navigationItemId: null });
+    expect(result).toMatchObject({ changed: true, message: "Took the navigation off Training Tracker; its tabs stay the same on the other screens." });
+  });
+
+  it("says so, and saves nothing, when the screen already has no bar", async () => {
+    const result = await executeNavigationEdit(client().db, { ...request, prompt: "Remove nav from this screen", intent: "hide" }, null, null);
+    expect(persistDesignChange).not.toHaveBeenCalled();
+    expect(result).toEqual({ changed: false, designSummary: null, message: "Training Tracker already doesn't show the navigation, so nothing changed." });
+  });
+
+  it("puts back the tab an earlier edit removed, then hides the bar here, in one request", async () => {
+    vi.mocked(readDesignTarget).mockResolvedValue({ revision: 3, ready: true, payload: shown() });
+    const add = { id: "add", label: "Add", icon: "plus", role: "Create a new habit to track.", linkedScreenName: null, availability: "planned" as const };
+    vi.mocked(readRecentNavigationChanges).mockResolvedValue([{ label: "Changed navigation tabs", created_at: "2026-10-04T06:24:53Z",
+      before_snapshot: { plan: { items: [...plan.items, add] } }, after_snapshot: { plan: { items: plan.items } } }]);
+    vi.mocked(reviseNavigationDestinations).mockImplementation(async (_, current) => ({ plan: { ...current, items: [...current.items, add] },
+      notes: { title: "Add tab restored", summary: "Put the Add tab back." } }));
+    const result = await executeNavigationEdit(client().db, { ...request, intent: "destinations", hideOnScreen: true,
+      prompt: "First put back that tab you removed from nav. And then remove the nav from this screen" }, null, null);
+    expect(vi.mocked(reviseNavigationDestinations).mock.calls[0][0].recentTabChanges).toEqual([
+      { change: "Changed navigation tabs", at: "2026-10-04T06:24:53Z", removed: [add], added: [] }]);
+    const saved = vi.mocked(persistDesignChange).mock.calls[0][2];
+    expect(saved.label).toBe("Changed navigation tabs, and removed it from Training Tracker");
+    const payload = saved.payload as typeof before;
+    expect((payload.plan as unknown as NavigationPlan).items.map(item => item.id)).toEqual(["home", "health", "messages", "add"]);
+    expect(payload.assignments[0]).toMatchObject({ navigationItemId: null, chromePolicy: { showPrimaryNavigation: false } });
+    expect(result.message).toBe("Put the Add tab back. Add doesn't have its screen yet; ask me to create it when you're ready. Took the navigation off Training Tracker; its tabs stay the same on the other screens.");
+  });
+
+  it("does nothing on a project without a shared navigation", async () => {
+    const result = await executeNavigationEdit(client(null).db, { ...request, prompt: "Remove nav from this screen", intent: "hide" }, null, null);
+    expect(result.changed).toBe(false);
+    expect(redesignNavigation).not.toHaveBeenCalled();
+    expect(persistDesignChange).not.toHaveBeenCalled();
+  });
+});
+
+describe("reporting only what was saved", () => {
+  it("does not claim a change the database found identical", async () => {
+    vi.mocked(persistDesignChange).mockResolvedValue({ status: "success", revision: 3, unchanged: true });
+    vi.mocked(reviseNavigationDestinations).mockImplementation(async (_, current) => ({ plan: { ...current, items: [...current.items].reverse().reverse().map(item => ({ ...item })) },
+      notes: { title: "Insights restored", summary: "The Insights tab has been restored." } }));
+    const result = await executeNavigationEdit(client().db, { ...request, prompt: "put back the tab you removed", intent: "destinations" }, null, null);
+    expect(result).toEqual({ changed: false, designSummary: null, message: "Nothing changed: the shared navigation is the same as before." });
+  });
+
+  it("treats navigation that differs only in key order as unchanged, without saving", async () => {
+    vi.mocked(readDesignTarget).mockResolvedValue({ revision: 3, ready: true, payload: shown() });
+    vi.mocked(reviseNavigationDestinations).mockImplementation(async (_, current) => ({
+      plan: { ...current, items: current.items.map(item => Object.fromEntries(Object.entries(item).reverse()) as typeof item) },
+      notes: { title: "Insights restored", summary: "The Insights tab has been restored." } }));
+    const result = await executeNavigationEdit(client().db, { ...request, prompt: "put back the tab you removed", intent: "destinations" }, null, null);
+    expect(persistDesignChange).not.toHaveBeenCalled();
+    expect(result.message).toBe("Nothing changed: the shared navigation is the same as before.");
+  });
 });
 describe("shared navigation execution", () => {
   it("attaches the canonical nav without generating or editing screen HTML", async () => {

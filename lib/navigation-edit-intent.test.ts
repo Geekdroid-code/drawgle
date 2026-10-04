@@ -30,6 +30,24 @@ describe("navigation edit routing", () => {
     expect(navigationEditIntent("I need the nav on the profile screen")).toBe("reuse");
     expect(navigationEditIntent("redesign the nav for the habit screen")).toBe("redesign");
   });
+  it.each([
+    "Remove nav from this screen",
+    "hide the bottom nav on the Habit Details screen",
+    "take the tab bar off this page",
+    "get rid of the navigation on the settings screen",
+    "no nav on this screen please",
+  ])("reads taking the bar off a screen as hiding it there, never as a tab change: %s", prompt => {
+    expect(navigationEditIntent(prompt)).toBe("hide");
+    expect(navigationEditIntent(prompt, true)).toBe("hide");
+  });
+  it("never reads taking the nav from another screen as hiding it", () => {
+    expect(navigationEditIntent("take the nav from the Home screen and use it here")).not.toBe("hide");
+    expect(navigationEditIntent("take the nav from the Home screen and use it here", true)).toBe("reuse");
+  });
+  it("still reads removing a tab from the bar as a tab change", () => {
+    expect(navigationEditIntent("remove the history tab from the nav on this screen", true)).toBe("destinations");
+    expect(navigationEditIntent("remove the nav tab for insights from this screen", true)).toBe("destinations");
+  });
   it("still reads adding a tab bar to a screen as reuse", () => {
     expect(navigationEditIntent("add the tab bar to this screen")).toBe("reuse");
   });

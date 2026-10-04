@@ -274,6 +274,7 @@ const NAVIGATION_PRE_ACTION: Record<NavigationEditIntent, string> = {
   restyle: "Okay, I'm restyling the shared navigation now.",
   redesign: "Okay, I'm redesigning the shared navigation for this app now.",
   destinations: "Okay, I'm updating the navigation tabs now.",
+  hide: "Okay, I'm taking the navigation off this screen now.",
 };
 
 const fallbackPreActionMessage = ({
@@ -2840,6 +2841,7 @@ export async function POST(request: Request) {
         selectedElementTarget: requestTargetsNavigation ? "navigation" : "screen",
         requestTargetsNavigation,
         navigationIntent: requestTargetsNavigation ? routerDecision.navigationChange ?? null : null,
+        hideNavigationOnScreen: requestTargetsNavigation && routerDecision.hideNavigationOnScreen === true,
         targetScope: resolvedScope,
         editStrategy,
         editOperation,

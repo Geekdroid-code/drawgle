@@ -28,6 +28,8 @@ export type NavigationDesignContext = {
   /** Screens the product plans but has not built: candidates for a tab before their screen exists. */
   plannedScreens?: NavigationRoadmapScreen[];
   currentShellCode?: string;
+  /** Tabs recent edits added or removed, newest first, so a request can refer back to one ("put back the tab you removed"). */
+  recentTabChanges?: Array<{ change: string; at: string; removed: NavigationPlan["items"]; added: NavigationPlan["items"] }>;
 };
 /** create: the project's first bar. restyle: an edit of the current bar's look. redesign: a new bar, tabs included. */
 export type NavigationDesignMode = "create" | "restyle" | "redesign";
@@ -292,11 +294,14 @@ export async function reviseNavigationDestinations(context: NavigationDesignCont
         `Request: ${context.prompt}`,
         `Product brief:\n${navigationProductBrief(context, plan)}`,
         `Current destinations: ${destinationsJson(plan)}`,
+        context.recentTabChanges?.length ? `Recent tab changes, newest first: ${JSON.stringify(context.recentTabChanges)}` : "",
         feedback,
       ].filter(Boolean).join("\n\n"),
       configOverride: { temperature: 0.2, systemInstruction: [
         "You maintain the tabs of an app's shared bottom navigation. Return JSON only: {\"title\": \"a 2-6 word name for the change\", \"summary\": \"one sentence on what changed\", \"destinations\": [...]}.",
         "Apply exactly the requested tab change. Keep every other destination as it is, with the same id, label, icon and linkedScreenName, in the same order unless reordering was asked.",
+        "Change only what the request asks of the tabs, never on your own judgement. When it asks for no tab change (for example taking the nav off one screen), return the current destinations unchanged.",
+        "When asked to put back, restore or undo a tab that was removed, use the recent tab changes and restore that tab exactly as it was, with its id, label, icon, role and linkedScreenName, in its earlier position.",
         ...DESTINATION_RULES,
       ].join("\n") },
     });
