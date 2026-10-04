@@ -55,6 +55,8 @@ export type ProbeFacts = {
   localNavigation: ProbeLocalNavigation[];
   sharedNavigation: { present: boolean; itemCount: number };
   assets: { slots: number; placeholders: number; images: number; brokenImages: number };
+  /** Elements the screen itself pinned with position: fixed, and the controls or text each one covers. */
+  pinned?: { count: number; covering: Array<{ label: string; covers: string }> };
 };
 
 export const PROBE_SOURCE = `() => {
@@ -204,6 +206,51 @@ export const PROBE_SOURCE = `() => {
     };
   }
 
+  // What the screen pinned itself (the shared bar is the renderer's), and whether it lies over a control or text.
+  // Full-screen layers are skipped: a texture or a scrim covers everything by design.
+  const pinned = [];
+  for (const element of root.querySelectorAll("*")) {
+    if (navigationRoot && navigationRoot.contains(element)) continue;
+    const style = getComputedStyle(element);
+    if (style.position !== "fixed") continue;
+    if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) < 0.05) continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 4 || rect.height < 4 || rect.width * rect.height > viewport.width * viewport.height * 0.6) continue;
+    if (pinned.some((outer) => outer.contains(element))) continue;
+    pinned.push(element);
+  }
+  const overlapArea = (a, b) =>
+    Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left)) * Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+  // Controls, text, and filled surfaces such as cards; never a page-sized container.
+  const isFilledSurface = (element) => {
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    if (rect.width * rect.height > viewport.width * viewport.height * 0.4) return false;
+    return Boolean(toRgba(style.backgroundColor)) || (style.borderTopStyle !== "none" && parseFloat(style.borderTopWidth) > 0);
+  };
+  const coverTargets = Array.from(root.querySelectorAll("button, a, input, [role=button], h1, h2, h3, h4, p, li, span"))
+    .concat(Array.from(root.querySelectorAll("div, section, article")).filter(isFilledSurface))
+    .concat(navigationRoot ? Array.from(navigationRoot.querySelectorAll("button, a, [role=button], [data-nav-item-id]")) : []);
+  facts.pinned = { count: pinned.length, covering: [] };
+  for (const element of pinned) {
+    const box = element.getBoundingClientRect();
+    for (const target of coverTargets) {
+      // The shared bar counts: a screen control lying over it is usually a second copy of the bar's own action.
+      if (element.contains(target) || target.contains(element)) continue;
+      if (pinned.some((other) => other.contains(target))) continue;
+      const targetStyle = getComputedStyle(target);
+      if (targetStyle.display === "none" || targetStyle.visibility === "hidden") continue;
+      const targetBox = target.getBoundingClientRect();
+      if (targetBox.width < 4 || targetBox.height < 4) continue;
+      const smaller = Math.min(box.width * box.height, targetBox.width * targetBox.height);
+      if (overlapArea(box, targetBox) >= smaller * 0.1) {
+        const words = ownText(target);
+        facts.pinned.covering.push({ label: labelOf(element), covers: labelOf(target) + (words ? " '" + words + "'" : "") });
+        break;
+      }
+    }
+  }
+
   const images = Array.from(root.querySelectorAll("img"));
   facts.assets = {
     slots: root.querySelectorAll("[data-asset-slot]").length,
@@ -283,6 +330,7 @@ export type ScreenCheckFlag =
   | "local-nav"
   | "no-shared-nav"
   | "placeholders"
+  | "pinned"
   | "brief-values";
 
 export type ScreenCheckResult = {
@@ -300,6 +348,7 @@ export type ScreenCheckResult = {
   localNavigation: { count: number; applicable: boolean; samples: string[] };
   sharedNavigation: { present: boolean; expected: boolean; missing: boolean };
   assets: { placeholders: number; slots: number; brokenImages: number; imageryInBrief: boolean };
+  pinned: { count: number; covering: number; samples: string[] };
   brief: BriefValueScan;
   flags: ScreenCheckFlag[];
 };
@@ -387,6 +436,9 @@ export const evaluateScreen = (facts: ProbeFacts, context: CheckContext): Screen
 
   if (facts.assets.placeholders > 0) flags.push("placeholders");
 
+  const covering = facts.pinned?.covering ?? [];
+  if (covering.length) flags.push("pinned");
+
   const brief = scanBriefValues(context.brief);
   if (brief.total > 0) flags.push("brief-values");
 
@@ -425,6 +477,11 @@ export const evaluateScreen = (facts: ProbeFacts, context: CheckContext): Screen
       brokenImages: facts.assets.brokenImages,
       imageryInBrief: IMAGERY_IN_BRIEF.test(context.brief),
     },
+    pinned: {
+      count: facts.pinned?.count ?? 0,
+      covering: covering.length,
+      samples: covering.slice(0, 3).map((entry) => `${entry.label} covers ${entry.covers}`),
+    },
     brief,
     flags,
   };
@@ -446,6 +503,7 @@ export const CHECK_LEGEND = [
   "local-nav  a <nav> or tab bar drawn inside a screen while shared navigation is disabled",
   "no-nav  a root screen without the shared navigation the approved flow describes",
   "asset ph  bitmap placeholders left in the screen",
+  "pinned  controls the screen pinned itself (position: fixed) that lie over a button or text",
   "brief px/hex/%  raw px, hex and opacity values inside the stored brief",
 ].join("\n");
 
@@ -464,10 +522,11 @@ export const formatCheckTable = (results: ScreenCheckResult[]) => {
       result.localNavigation.applicable ? cell(result.localNavigation.count, result.flags.includes("local-nav")) : "-",
       result.sharedNavigation.expected ? cell(result.sharedNavigation.missing ? "missing" : "ok", result.sharedNavigation.missing) : "-",
       cell(result.assets.placeholders, result.flags.includes("placeholders")),
+      cell(result.pinned.covering, result.flags.includes("pinned")),
       cell(`${result.brief.px}/${result.brief.hex}/${result.brief.opacity}`, result.flags.includes("brief-values")),
     ];
   });
-  const header = ["screen", `r>${MAX_CARD_RADIUS_PX}`, "shadow", "card/page ΔE", "local-nav", "no-nav", "asset ph", "brief px/hex/%"];
+  const header = ["screen", `r>${MAX_CARD_RADIUS_PX}`, "shadow", "card/page ΔE", "local-nav", "no-nav", "asset ph", "pinned", "brief px/hex/%"];
   const widths = header.map((title, column) => Math.max(title.length, ...rows.map((row) => row[column].length)));
   const line = (row: string[]) => row.map((value, column) => value.padEnd(widths[column])).join("  ").trimEnd();
   const flagged = results.filter((result) => result.flags.length).length;
@@ -499,6 +558,7 @@ export const formatCheckMarkdown = (title: string, results: ScreenCheckResult[])
       ...result.radius.samples.map((sample) => `- radius: ${sample}`),
       ...result.shadows.samples.map((sample) => `- shadow: ${sample}`),
       ...result.localNavigation.samples.map((sample) => `- local navigation: ${sample}`),
+      ...result.pinned.samples.map((sample) => `- pinned: ${sample}`),
       ...result.brief.samples.map((sample) => `- brief: “${sample}”`),
     ];
     return details.length ? [`### ${result.screen}`, "", ...details, ""] : [];

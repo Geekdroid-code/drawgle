@@ -323,6 +323,12 @@ describe("screen asset slot hydration", () => {
     expect(hydrated.placeholderUseCount).toBe(1);
     expect(hydrated.code).toContain(`data-asset-placeholder="true"`);
     expect(hydrated.code).not.toContain("<img");
+    // Drawn as a tile in the action colour with an icon for what it shows; the description is never printed.
+    expect(hydrated.code).toContain(`data-lucide="utensils"`);
+    expect(hydrated.code).toContain(`aria-label="Chocolate cookie"`);
+    expect(hydrated.code).toContain("var(--dg-color-action-primary)");
+    expect(hydrated.code).not.toContain(">Chocolate cookie<");
+    expect(hydrated.code).not.toContain("bg-slate-100");
     expect(validateScreenAssetPolicy({ code: hydrated.code, assetManifest: [placeholder] }).valid)
       .toBe(true);
   });

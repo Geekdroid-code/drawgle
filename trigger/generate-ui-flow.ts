@@ -22,6 +22,8 @@ import { persistDesignChange, readDesignTarget } from "@/lib/design-history/pers
 import { runRollingBuilds } from "@/lib/generation/build-scheduler";
 import { acceptedScreenFamily } from "@/lib/generation/accepted-screen-family";
 import { inspectScreenViewport, type ViewportIssue } from "@/lib/generation/viewport-health";
+import { navigationOwnsCenterAction, settlePinnedControls } from "@/lib/generation/pinned-controls";
+import { repairTokenOpacityClasses } from "@/lib/generation/color-opacity-classes";
 import { readProductPlanning, type ProductPlanning } from "@/lib/product-planning/model";
 import { INITIAL_PROJECT_SCREEN_LIMIT } from "@/lib/generation/limits";
 import { reviewScreenContent } from "@/lib/product-planning/review-screen-content";
@@ -338,6 +340,9 @@ type GenerationAttemptDiagnostics = {
   navigationClearanceLegacyPaddingReplacedCount: number;
   navigationClearanceSpacerRemovedCount: number;
   navigationClearanceAmbiguousOwnerCount: number;
+  pinnedControlsDocked?: number;
+  pinnedDuplicateActionsRemoved?: number;
+  tokenOpacityClassesRepaired?: number;
   htmlNormalized: boolean;
   htmlParseErrors: string[];
   viewportIssues?: ViewportIssue[];
@@ -1579,10 +1584,24 @@ export const buildScreenTask = task({
           (payload.screenPlan.chromePolicy?.showPrimaryNavigation || payload.screenPlan.navigationItemId),
         ),
       });
-      const tokenizedCode = tokenizeStaticDrawgleHtml(clearanceNormalization.code, payload.designTokens).code;
+      // Settled in code, whatever the model wrote: pinned controls cover nothing, and token colours fade in the one
+      // spelling the renderer understands.
+      const pinned = settlePinnedControls({
+        code: clearanceNormalization.code,
+        navigationOwnsCenterAction: navigationOwnsCenterAction(payload.navigationPlan),
+      });
+      const opacity = repairTokenOpacityClasses(pinned.code);
+      const tokenizedCode = tokenizeStaticDrawgleHtml(opacity.code, payload.designTokens).code;
       const code = ensureDrawgleIds(tokenizedCode).code;
       const tokenDrift = detectTokenDrift(code, { scope: "screen" });
-      return { code, tokenDrift, clearanceDiagnostics: clearanceNormalization.diagnostics };
+      return {
+        code,
+        tokenDrift,
+        clearanceDiagnostics: clearanceNormalization.diagnostics,
+        pinnedControlsDocked: pinned.docked,
+        pinnedDuplicateActionsRemoved: pinned.removedDuplicates,
+        tokenOpacityClassesRepaired: opacity.repaired,
+      };
     };
 
     let finalized = finalizeGeneratedCode(extractedCode);
@@ -1593,6 +1612,9 @@ export const buildScreenTask = task({
       navigationClearanceLegacyPaddingReplacedCount: finalized.clearanceDiagnostics.legacyPaddingReplacedCount,
       navigationClearanceSpacerRemovedCount: finalized.clearanceDiagnostics.spacerRemovedCount,
       navigationClearanceAmbiguousOwnerCount: finalized.clearanceDiagnostics.ambiguousOwnerCount,
+      pinnedControlsDocked: finalized.pinnedControlsDocked,
+      pinnedDuplicateActionsRemoved: finalized.pinnedDuplicateActionsRemoved,
+      tokenOpacityClassesRepaired: finalized.tokenOpacityClassesRepaired,
     };
 
     if (finalized.tokenDrift.hasSevereDrift) {

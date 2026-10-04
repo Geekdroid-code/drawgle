@@ -105,6 +105,23 @@ describe("design evaluation probe", () => {
     expect(facts.assets).toMatchObject({ slots: 2, placeholders: 1, images: 0 });
   });
 
+  it("finds a control the screen pinned over its own content, and ignores full-screen layers", async () => {
+    const covered = await probe(screen(`
+      <main style="height:844px"><button style="margin-top:760px;width:358px;height:48px">Back to Today</button></main>
+      <div style="position:fixed;bottom:40px;left:155px;width:80px;height:80px"><button style="width:80px;height:80px">+</button></div>
+      <div style="position:fixed;inset:0;opacity:0.03;background:#000"></div>
+    `));
+    expect(covered.pinned).toMatchObject({ count: 1 });
+    expect(covered.pinned?.covering).toHaveLength(1);
+    expect(covered.pinned?.covering[0].covers).toContain("Back to Today");
+
+    const clear = await probe(screen(`
+      <main style="height:600px"><p>Short screen</p></main>
+      <div style="position:fixed;bottom:16px;right:16px;width:56px;height:56px"><button style="width:56px;height:56px">+</button></div>
+    `));
+    expect(clear.pinned).toEqual({ count: 1, covering: [] });
+  });
+
   it("produces facts the pure evaluation turns into the expected findings", async () => {
     const facts = await probe(screen(`
       <div style="margin:16px;width:358px;height:160px;background:#FFFFFF;border-radius:32px;box-shadow:0 4px 20px rgba(45,41,38,0.04)">Card</div>
