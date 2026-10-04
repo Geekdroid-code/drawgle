@@ -1,7 +1,7 @@
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSafeAuthRedirect } from "@/lib/auth-redirect";
+import { getSafeAuthRedirect, PASSWORD_RESET_PATH } from "@/lib/auth-redirect";
 import { createClient } from "@/lib/supabase/server";
 
 const supportedOtpTypes = new Set(["signup", "invite", "magiclink", "recovery", "email", "email_change"]);
@@ -11,7 +11,18 @@ export async function GET(request: NextRequest) {
   const code = requestUrl.searchParams.get("code");
   const tokenHash = requestUrl.searchParams.get("token_hash");
   const type = requestUrl.searchParams.get("type");
-  const next = getSafeAuthRedirect(requestUrl.searchParams.get("next"));
+  // A recovery link always ends at the page that sets a new password, whatever `next` says.
+  const next = type === "recovery"
+    ? PASSWORD_RESET_PATH
+    : getSafeAuthRedirect(requestUrl.searchParams.get("next"));
+  const isRecovery = next === PASSWORD_RESET_PATH;
+
+  const failTo = (error: string) => {
+    const loginUrl = new URL("/login", requestUrl.origin);
+    loginUrl.searchParams.set("error", isRecovery ? "password_reset_link_invalid" : error);
+    if (!isRecovery) loginUrl.searchParams.set("next", next);
+    return NextResponse.redirect(loginUrl);
+  };
 
   const supabase = await createClient();
 
@@ -20,20 +31,14 @@ export async function GET(request: NextRequest) {
 
     if (error) {
       console.error("Supabase email confirmation code exchange error", error);
-      const loginUrl = new URL("/login", requestUrl.origin);
-      loginUrl.searchParams.set("error", "email_confirmation_failed");
-      loginUrl.searchParams.set("next", next);
-      return NextResponse.redirect(loginUrl);
+      return failTo("email_confirmation_failed");
     }
 
     return NextResponse.redirect(new URL(next, requestUrl.origin));
   }
 
   if (!tokenHash || !type || !supportedOtpTypes.has(type)) {
-    const loginUrl = new URL("/login", requestUrl.origin);
-    loginUrl.searchParams.set("error", "missing_email_confirmation_token");
-    loginUrl.searchParams.set("next", next);
-    return NextResponse.redirect(loginUrl);
+    return failTo("missing_email_confirmation_token");
   }
 
   const { error } = await supabase.auth.verifyOtp({
@@ -43,10 +48,7 @@ export async function GET(request: NextRequest) {
 
   if (error) {
     console.error("Supabase email confirmation error", error);
-    const loginUrl = new URL("/login", requestUrl.origin);
-    loginUrl.searchParams.set("error", "email_confirmation_failed");
-    loginUrl.searchParams.set("next", next);
-    return NextResponse.redirect(loginUrl);
+    return failTo("email_confirmation_failed");
   }
 
   return NextResponse.redirect(new URL(next, requestUrl.origin));

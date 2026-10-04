@@ -1,6 +1,6 @@
 import { logger, schedules } from "@trigger.dev/sdk";
 
-import { reconcileStaleGenerationCredits } from "@/lib/generation/credit-reservations";
+import { reconcileStaleGenerationCredits, releaseStaleEditCredits } from "@/lib/generation/credit-reservations";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const reconcileGenerationCreditsTask = schedules.task({
@@ -8,8 +8,10 @@ export const reconcileGenerationCreditsTask = schedules.task({
   cron: "*/10 * * * *",
   maxDuration: 120,
   run: async () => {
-    const result = await reconcileStaleGenerationCredits(createAdminClient(), 200);
-    logger.info("Reconciled stale generation credit reservations", result);
-    return result;
+    const admin = createAdminClient();
+    const result = await reconcileStaleGenerationCredits(admin, 200);
+    const releasedEdits = await releaseStaleEditCredits(admin, 200);
+    logger.info("Reconciled stale credit reservations", { ...result, releasedEdits });
+    return { ...result, releasedEdits };
   },
 });

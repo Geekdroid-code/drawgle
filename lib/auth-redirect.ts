@@ -1,4 +1,5 @@
 export const DEFAULT_AUTH_REDIRECT = "/project/new";
+export const PASSWORD_RESET_PATH = "/auth/reset-password";
 
 export function getSafeAuthRedirect(value: string | null | undefined) {
   if (

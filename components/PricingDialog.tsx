@@ -92,7 +92,7 @@ export function PricingDialog({
   const handleCheckout = useCallback(async (productId: string) => {
     try {
       if (!user) {
-        window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+        window.location.href = `/login?next=${encodeURIComponent(window.location.pathname)}`;
         return;
       }
 

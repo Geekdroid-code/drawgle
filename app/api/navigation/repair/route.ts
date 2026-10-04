@@ -11,6 +11,7 @@ import {
   renderDeterministicNavigationShell,
   validateNavigationShell,
 } from "@/lib/project-navigation";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { NavigationPlan, ProjectCharter, ScreenChromePolicy, ScreenPlan } from "@/lib/types";
@@ -85,6 +86,10 @@ export async function POST(request: Request) {
       : null;
 
     if (payload.action === "preview") {
+      // The preview runs the planner for free, so it shares the planning cap.
+      const limited = await enforceRateLimit(admin, user.id, RATE_LIMITS.plan);
+      if (limited) return limited;
+
       const projectContext = await assembleProjectContext({
         admin,
         projectId: payload.projectId,

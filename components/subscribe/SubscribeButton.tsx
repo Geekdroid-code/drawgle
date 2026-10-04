@@ -12,7 +12,7 @@ export default function SubscribeButton({ productId, isAuthenticated, className,
     const handleCheckout = useCallback(async () => {
         try {
             if (!isAuthenticated) {
-                router.push('/login?redirect=/billing')
+                router.push(`/login?next=${encodeURIComponent('/billing')}`)
                 return
             }
 

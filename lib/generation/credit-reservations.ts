@@ -180,6 +180,91 @@ export async function releaseGenerationCreditRemainder({
   return Number(data ?? 0);
 }
 
+// Edits are reserved one at a time, outside any generation run, keyed by the user
+// message that asked for them. Retrying the same message cannot be charged twice.
+export const editOutputKey = (userMessageId: string) => `edit:${userMessageId}`;
+
+export async function reserveEditCredit({
+  admin,
+  ownerId,
+  projectId,
+  outputKey,
+  amount,
+  metadata,
+}: {
+  admin: AdminClient;
+  ownerId: string;
+  projectId: string;
+  outputKey: string;
+  amount: number;
+  metadata?: Record<string, JsonValue>;
+}) {
+  const { data, error } = await admin.rpc("reserve_edit_credits", {
+    input_owner_id: ownerId,
+    input_project_id: projectId,
+    input_output_key: outputKey,
+    input_amount: amount,
+    input_metadata: (metadata ?? {}) as never,
+  });
+
+  if (error) {
+    const insufficient = /insufficient credits/i.test(error.message);
+    throw new CreditReservationError(
+      error.message,
+      insufficient ? "insufficient_credits" : "reservation_failed",
+    );
+  }
+
+  const result = (data ?? {}) as ReservationRpcResult;
+  return {
+    reservedCredits: Number(result.reservedCredits ?? amount),
+    availableBalance: result.availableBalance == null ? null : Number(result.availableBalance),
+    idempotent: Boolean(result.idempotent),
+  };
+}
+
+export async function captureEditCredit({
+  admin,
+  ownerId,
+  outputKey,
+}: {
+  admin: AdminClient;
+  ownerId: string;
+  outputKey: string;
+}) {
+  const { error } = await admin.rpc("capture_edit_credit", {
+    input_owner_id: ownerId,
+    input_output_key: outputKey,
+  });
+  if (error) throw error;
+}
+
+export async function releaseEditCredit({
+  admin,
+  ownerId,
+  outputKey,
+  reason,
+}: {
+  admin: AdminClient;
+  ownerId: string;
+  outputKey: string;
+  reason: string;
+}) {
+  const { data, error } = await admin.rpc("release_edit_credit", {
+    input_owner_id: ownerId,
+    input_output_key: outputKey,
+    input_reason: reason,
+  });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
+export async function releaseStaleEditCredits(admin: AdminClient, limit = 100) {
+  const { data, error } = await admin.rpc("release_stale_edit_credits", { input_limit: limit });
+  if (error) throw error;
+  return Number(data ?? 0);
+}
+
 export async function getGenerationCreditSummary({
   admin,
   ownerId,

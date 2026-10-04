@@ -12,6 +12,7 @@ import { resolveProjectReferenceDna } from "@/lib/generation/reference-dna";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { resolvePublishedStylePreset } from "@/lib/published-style-presets";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 import type { DesignTokens, GenerationScopeContract, NavigationPlan, PlanningMode, ProjectCharter, PromptImagePayload, ReferenceMode } from "@/lib/types";
 
@@ -55,6 +56,10 @@ export async function POST(req: Request) {
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Planning is free, so it is capped per user before any model call.
+    const limited = await enforceRateLimit(admin, user.id, RATE_LIMITS.plan);
+    if (limited) return limited;
 
     const payload = requestSchema.parse(await req.json());
     const stylePreset = await resolvePublishedStylePreset(payload.stylePresetSlug);

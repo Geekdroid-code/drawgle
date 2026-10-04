@@ -36,6 +36,7 @@ import { approveScreenPlanProposal, ScreenPlanApprovalError } from "@/lib/agent/
 import { findExactPlannedStateCandidate } from "@/lib/agent/screen-state-proposal";
 import { classifyHistoryNeed, HISTORY_LIMITS } from "@/lib/agent/history-policy";
 import { updateWorkTrace, type WorkTrace } from "@/lib/agent/work-trace";
+import { enforceRateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectScreenRoadmapRow } from "@/lib/supabase/database.types";
@@ -1012,6 +1013,10 @@ export async function POST(request: Request) {
     if (authError || !user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    // Product planning chat is free, so every turn counts against a per-user cap.
+    const limited = await enforceRateLimit(admin, user.id, RATE_LIMITS.agent);
+    if (limited) return limited;
 
     const payload = requestSchema.parse(await request.json());
     const prompt = payload.prompt.trim();

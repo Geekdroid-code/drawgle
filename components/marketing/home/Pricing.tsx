@@ -3,6 +3,7 @@ import { Check, ShieldCheck } from "lucide-react";
 import { DrawgleLogo } from "@/components/DrawgleLogo";
 import { MkButton } from "@/components/marketing/MkButton";
 import { Reveal, SectionHeader } from "@/components/marketing/Reveal";
+import { SCREEN_GENERATION_CREDIT_COST, STATE_GENERATION_CREDIT_COST } from "@/lib/generation/pricing";
 import { plans } from "@/lib/marketing/home-content";
 import { cn } from "@/lib/utils";
 
@@ -76,8 +77,8 @@ export function Pricing({ as = "h2", className }: { as?: "h1" | "h2"; className?
 
         <div className="mt-10 flex flex-col items-center gap-2 text-center text-xs leading-relaxed text-neutral-500">
           <p className="max-w-2xl">
-            Planning is free. Screen estimates assume 20 credits per new screen; selected-element edits use 3 to 15 credits depending
-            on their size.
+            Planning is free. Screen estimates assume {SCREEN_GENERATION_CREDIT_COST} credits per new screen; each extra screen
+            state uses {STATE_GENERATION_CREDIT_COST}, and selected-element edits use 3 to 15 credits depending on their size.
           </p>
           <p className="flex items-center gap-1.5 text-neutral-400">
             <ShieldCheck className="size-3.5" />
