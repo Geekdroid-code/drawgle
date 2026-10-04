@@ -15,6 +15,8 @@ export type AnalyticsEvent =
   | "login_started"
   | "login_completed"
   | "signup_completed"
+  | "password_reset_requested"
+  | "password_reset_completed"
   // Activation
   | "project_created"
   | "template_started"

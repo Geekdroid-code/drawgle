@@ -4,6 +4,13 @@ import { executeModifyScreenTask, type ModifyScreenPayload } from "@/lib/generat
 import type { AgentStepMetadata } from "@/lib/agent/message-metadata";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { adminCreditService } from "@/lib/credits";
+import {
+  CreditReservationError,
+  captureEditCredit,
+  editOutputKey,
+  releaseEditCredit,
+  reserveEditCredit,
+} from "@/lib/generation/credit-reservations";
 import { cleanErrorMessage } from "@/lib/ai/error-handler";
 import { enrichScreenMemoryTask } from "@/trigger/enrich-screen-memory";
 
@@ -123,6 +130,20 @@ async function markEditFailed(payload: ModifyScreenPayload, message: string) {
   });
 }
 
+// Hands a reservation back without ever hiding the failure that caused it. A reservation
+// that cannot be released here is refunded by the stale-reservation sweep once it expires.
+async function releaseEditReservation(payload: ModifyScreenPayload, outputKey: string, reason: string) {
+  try {
+    await releaseEditCredit({ admin: createAdminClient(), ownerId: payload.ownerId, outputKey, reason });
+  } catch (error) {
+    logger.error("Failed to release edit credits", {
+      ownerId: payload.ownerId,
+      outputKey,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 export const modifyScreenTask = task({
   id: "modify-screen",
   retry: {
@@ -143,6 +164,8 @@ export const modifyScreenTask = task({
       screenId: payload.screenId,
       error: rawMessage,
     });
+    // A timeout or crash never reaches the catch in run(); release here so a dead edit never keeps credits.
+    await releaseEditReservation(payload, editOutputKey(payload.userMessageId), "The edit run failed.");
     await markEditFailed(payload, `Edit failed: ${cleanErrorMessage(rawMessage)}`);
   },
   run: async (payload: ModifyScreenPayload) => {
@@ -176,46 +199,69 @@ export const modifyScreenTask = task({
       }
     }
 
-    // Gated Credit Check
-    const creditCheck = await adminCreditService.hasCredits(payload.ownerId, requiredCredits);
+    // Reserve the credits before the model runs. The reservation takes them out of the
+    // balance under a row lock, so parallel edits cannot all pass the same balance check.
+    // They are kept if the edit changes something and handed back if it does not.
+    const admin = createAdminClient();
+    const outputKey = editOutputKey(payload.userMessageId);
 
-    if (!creditCheck.hasCredits) {
-      const errorMessage = `Insufficient credits for ${scopeLabel}. (Required: ${requiredCredits}, Balance: ${creditCheck.currentBalance}). Please upgrade your plan.`;
-      
+    try {
+      await reserveEditCredit({
+        admin,
+        ownerId: payload.ownerId,
+        projectId: payload.projectId,
+        outputKey,
+        amount: requiredCredits,
+        metadata: { scope: scopeLabel, screenId: payload.screenId ?? null },
+      });
+    } catch (error) {
+      let errorMessage = "Could not reserve credits for this edit. Nothing was charged. Please try again.";
+      if (error instanceof CreditReservationError && error.code === "insufficient_credits") {
+        const { balance } = await adminCreditService.getUserCredits(payload.ownerId);
+        errorMessage = `Insufficient credits for ${scopeLabel}. (Required: ${requiredCredits}, Balance: ${balance}). Please upgrade your plan.`;
+      } else {
+        logger.error("Could not reserve edit credits", {
+          ownerId: payload.ownerId,
+          outputKey,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
       await markEditFailed(payload, errorMessage);
       throw new Error(errorMessage);
     }
 
-    const result = await executeModifyScreenTask(payload, (label, data) => logger.info(label, data));
+    let result: Awaited<ReturnType<typeof executeModifyScreenTask>>;
+    try {
+      result = await executeModifyScreenTask(payload, (label, data) => logger.info(label, data));
+    } catch (error) {
+      await releaseEditReservation(payload, outputKey, "The edit failed.");
+      throw error;
+    }
 
-    // Deduct credits ONLY if the edit was successful (changed === true)
-    if (result.changed) {
-      const deduction = await adminCreditService.deductCredits(
-        payload.ownerId,
+    if (!result.changed) {
+      await releaseEditReservation(payload, outputKey, "The edit made no change.");
+      return result;
+    }
+
+    try {
+      await captureEditCredit({ admin, ownerId: payload.ownerId, outputKey });
+      logger.info("Captured edit credits", { ownerId: payload.ownerId, requiredCredits, outputKey });
+    } catch (error) {
+      // The edit is saved. The reservation stays open and the stale-reservation sweep settles it.
+      logger.error("Failed to capture edit credits after a successful edit", {
+        ownerId: payload.ownerId,
         requiredCredits,
-        `UI Edit: ${scopeLabel}`
+        outputKey,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    if (payload.screenId && !isNavigation) {
+      await enrichScreenMemoryTask.trigger(
+        { screenId: payload.screenId },
+        { concurrencyKey: `screen-memory-${payload.screenId}` },
       );
-
-      if (!deduction.success) {
-        logger.error("Failed to deduct credits after successful edit", {
-          ownerId: payload.ownerId,
-          requiredCredits,
-          error: deduction.error,
-        });
-      } else {
-        logger.info("Successfully deducted credits after successful edit", {
-          ownerId: payload.ownerId,
-          requiredCredits,
-          newBalance: deduction.newBalance,
-        });
-      }
-
-      if (payload.screenId && !isNavigation) {
-        await enrichScreenMemoryTask.trigger(
-          { screenId: payload.screenId },
-          { concurrencyKey: `screen-memory-${payload.screenId}` },
-        );
-      }
     }
 
     return result;

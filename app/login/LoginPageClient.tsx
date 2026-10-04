@@ -1,23 +1,23 @@
 "use client";
 
 import { type FormEvent, Suspense, useEffect, useMemo, useState } from "react";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { AuthField, AuthSubmitButton } from "@/components/auth/AuthFields";
 import { BrandMark } from "@/components/marketing/BrandMark";
 import { marketingFontVariables } from "@/components/marketing/fonts";
 import { DitherField } from "@/components/marketing/motion/DitherField";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { track } from "@/lib/analytics";
-import { getSafeAuthRedirect } from "@/lib/auth-redirect";
+import { getSafeAuthRedirect, PASSWORD_RESET_PATH } from "@/lib/auth-redirect";
 import { testimonials } from "@/lib/marketing/home-content";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
-type AuthMode = "sign-in" | "sign-up";
+type AuthMode = "sign-in" | "sign-up" | "forgot-password";
 type PendingAction = AuthMode | "google" | null;
 type FeedbackTone = "error" | "success";
 
@@ -27,14 +27,16 @@ type FeedbackMessage = {
 };
 
 const errorMessages: Record<string, string> = {
-  missing_oauth_code: "The Google sign-in callback returned without an OAuth code.",
-  oauth_exchange_failed: "Google sign-in completed, but the Supabase session exchange failed.",
+  missing_oauth_code: "Google sign-in didn't finish. Please try again.",
+  oauth_exchange_failed: "We couldn't complete your Google sign-in. Please try again.",
   missing_email_confirmation_token: "The email confirmation link is incomplete. Request a new confirmation email and try again.",
   email_confirmation_failed: "The email confirmation link is invalid or expired. Request a fresh sign-up email and try again.",
+  password_reset_link_invalid: "That password reset link is invalid or has expired. Request a new one below.",
 };
 
 const noticeMessages: Record<string, string> = {
-  email_confirmation_sent: "Account created. Check your inbox to confirm your email if email confirmation is enabled in Supabase.",
+  email_confirmation_sent: "Account created. Check your inbox for a confirmation link, then sign in.",
+  password_reset_sent: "If an account exists for that email, a reset link is on its way. Check your inbox.",
 };
 
 export default function LoginPage() {
@@ -128,7 +130,7 @@ function LoginPageContent() {
       console.error("Supabase Google sign-in failed", error);
       setFeedback({
         tone: "error",
-        message: "Google sign-in is unavailable until the Google provider is configured in your Supabase project.",
+        message: "Google sign-in isn't available right now. Try again, or continue with your email.",
       });
       setPendingAction(null);
     }
@@ -216,6 +218,36 @@ function LoginPageContent() {
     }
   };
 
+  const handlePasswordResetRequest = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    clearFormFeedback();
+    setPendingAction("forgot-password");
+
+    try {
+      const supabase = createClient();
+      const redirectTo = `${window.location.origin}/auth/confirm?next=${encodeURIComponent(PASSWORD_RESET_PATH)}`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+
+      if (error) {
+        throw error;
+      }
+
+      track("password_reset_requested");
+      setMode("sign-in");
+      setPassword("");
+      // The same answer whether or not the address has an account.
+      setFeedback({ tone: "success", message: noticeMessages.password_reset_sent });
+    } catch (error) {
+      console.error("Supabase password reset request failed", error);
+      setFeedback({
+        tone: "error",
+        message: getErrorMessage(error, "We couldn't send a reset link. Try again in a moment."),
+      });
+    }
+
+    setPendingAction(null);
+  };
+
   return (
     <main className="bg-white text-mk-ink">
       {/* svh, not dvh: the layout must not resize while a phone's address bar slides away. */}
@@ -240,17 +272,24 @@ function LoginPageContent() {
                     Welcome back. <br />
                     <span className="font-semibold text-mk-accent">Your screens await.</span>
                   </>
-                ) : (
+                ) : mode === "sign-up" ? (
                   <>
                     Design your app <br />
                     <span className="font-semibold text-mk-accent">in minutes, not weeks.</span>
+                  </>
+                ) : (
+                  <>
+                    Reset your <br />
+                    <span className="font-semibold text-mk-accent">password.</span>
                   </>
                 )}
               </h1>
               <p className="mt-3 max-w-sm text-sm leading-relaxed text-mk-body">
                 {mode === "sign-in"
                   ? "Sign in to keep refining your screens and design system."
-                  : "Describe an idea, get connected mobile screens, and hand them to your coding agent."}
+                  : mode === "sign-up"
+                    ? "Describe an idea, get connected mobile screens, and hand them to your coding agent."
+                    : "Enter your email and we'll send you a link to choose a new password."}
               </p>
             </div>
 
@@ -267,6 +306,8 @@ function LoginPageContent() {
               </div>
             ) : null}
 
+            {mode !== "forgot-password" ? (
+            <>
             <Button
               className="h-11 w-full rounded-full border border-black/[0.1] bg-white text-[13px] font-semibold text-mk-ink shadow-none hover:bg-black/[0.03]"
               disabled={isBusy}
@@ -320,6 +361,8 @@ function LoginPageContent() {
                 Create account
               </button>
             </div>
+            </>
+            ) : null}
 
             {mode === "sign-in" ? (
               <form className="space-y-3" onSubmit={handlePasswordSignIn}>
@@ -348,12 +391,25 @@ function LoginPageContent() {
                   type="password"
                   value={password}
                 />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => {
+                      clearFormFeedback();
+                      setMode("forgot-password");
+                    }}
+                    className="text-xs font-medium text-neutral-500 transition-colors hover:text-mk-ink disabled:opacity-50"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
 
                 <AuthSubmitButton busy={pendingAction === "sign-in"} disabled={isBusy}>
                   Continue to Drawgle
                 </AuthSubmitButton>
               </form>
-            ) : (
+            ) : mode === "sign-up" ? (
               <form className="space-y-3" onSubmit={handlePasswordSignUp}>
                 <AuthField
                   autoComplete="email"
@@ -397,6 +453,41 @@ function LoginPageContent() {
                 <AuthSubmitButton busy={pendingAction === "sign-up"} disabled={isBusy}>
                   Create your workspace
                 </AuthSubmitButton>
+                <p className="text-center text-[11px] leading-4 text-neutral-500">
+                  Planning is free. Generating screens needs a plan, and you can choose one when you&apos;re ready.
+                </p>
+              </form>
+            ) : (
+              <form className="space-y-3" onSubmit={handlePasswordResetRequest}>
+                <AuthField
+                  autoComplete="email"
+                  disabled={isBusy}
+                  label="Email address"
+                  onChange={(value) => {
+                    clearFormFeedback();
+                    setEmail(value);
+                  }}
+                  placeholder="you@example.com"
+                  type="email"
+                  value={email}
+                />
+
+                <AuthSubmitButton busy={pendingAction === "forgot-password"} disabled={isBusy}>
+                  Send reset link
+                </AuthSubmitButton>
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    disabled={isBusy}
+                    onClick={() => {
+                      clearFormFeedback();
+                      setMode("sign-in");
+                    }}
+                    className="text-xs font-medium text-neutral-500 transition-colors hover:text-mk-ink disabled:opacity-50"
+                  >
+                    Back to sign in
+                  </button>
+                </div>
               </form>
             )}
 
@@ -435,67 +526,6 @@ function LoginPageFallback() {
         <div className="mk-surface m-3 hidden rounded-[36px] lg:block" />
       </div>
     </main>
-  );
-}
-
-function AuthField({
-  autoComplete,
-  disabled,
-  label,
-  minLength,
-  onChange,
-  placeholder,
-  type,
-  value,
-}: {
-  autoComplete: string;
-  disabled: boolean;
-  label: string;
-  minLength?: number;
-  onChange: (value: string) => void;
-  placeholder: string;
-  type: string;
-  value: string;
-}) {
-  return (
-    <label className="block space-y-1.5">
-      <span className="text-xs font-semibold text-neutral-600">{label}</span>
-      <Input
-        autoComplete={autoComplete}
-        className="h-11 rounded-2xl border-black/[0.08] bg-neutral-50 px-4 text-[13px] shadow-none placeholder:text-neutral-400 focus-visible:border-mk-accent/50 focus-visible:ring-4 focus-visible:ring-mk-accent/10"
-        disabled={disabled}
-        minLength={minLength}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-        required
-        type={type}
-        value={value}
-      />
-    </label>
-  );
-}
-
-function AuthSubmitButton({
-  busy,
-  children,
-  disabled,
-}: {
-  busy: boolean;
-  children: string;
-  disabled: boolean;
-}) {
-  return (
-    <Button
-      className="group relative h-11 w-full overflow-hidden rounded-full border-0 bg-mk-accent pl-5 pr-12 text-[13px] font-semibold text-white shadow-none hover:bg-mk-accent-strong"
-      disabled={disabled}
-      type="submit"
-    >
-      {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-      {children}
-      <span className="absolute right-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-full bg-white text-mk-accent">
-        <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-      </span>
-    </Button>
   );
 }
 

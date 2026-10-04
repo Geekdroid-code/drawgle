@@ -987,6 +987,46 @@ export interface Database {
         };
         Returns: number;
       };
+      reserve_edit_credits: {
+        Args: {
+          input_owner_id: string;
+          input_project_id: string;
+          input_output_key: string;
+          input_amount: number;
+          input_metadata?: Json;
+        };
+        Returns: Json;
+      };
+      capture_edit_credit: {
+        Args: {
+          input_owner_id: string;
+          input_output_key: string;
+        };
+        Returns: boolean;
+      };
+      release_edit_credit: {
+        Args: {
+          input_owner_id: string;
+          input_output_key: string;
+          input_reason?: string | null;
+        };
+        Returns: number;
+      };
+      release_stale_edit_credits: {
+        Args: {
+          input_limit?: number;
+        };
+        Returns: number;
+      };
+      consume_rate_limit: {
+        Args: {
+          input_owner_id: string;
+          input_bucket: string;
+          input_limit: number;
+          input_window_seconds: number;
+        };
+        Returns: Json;
+      };
       adjust_user_credits: {
         Args: {
           input_user_id: string;

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-const mocks = vi.hoisted(() => ({ user: { id: "owner" } as { id: string } | null, project: {} as Record<string, unknown>, designer: vi.fn(), router: vi.fn(), trigger: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: { id: "owner" } as { id: string } | null, project: {} as Record<string, unknown>, designer: vi.fn(), router: vi.fn(), trigger: vi.fn(), rpc: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: mocks.user }, error: null }) } }) }));
-vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: () => {
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ rpc: mocks.rpc, from: () => {
   const query = { select: () => query, eq: () => query, maybeSingle: async () => ({ data: mocks.project, error: null }) }; return query;
 } }) }));
 vi.mock("./designer", () => ({ runProductDesigner: mocks.designer }));
@@ -18,6 +18,7 @@ const request = (body: unknown) => new Request("http://localhost/api/agent", { m
 describe("planning API boundaries", () => {
   beforeEach(() => {
     vi.clearAllMocks(); mocks.user = { id: "owner" };
+    mocks.rpc.mockResolvedValue({ data: { allowed: true, remaining: 5, retryAfterSeconds: 0 }, error: null });
     mocks.project = { id: projectId, owner_id: "owner", prompt: "A T-shirt shop", product_planning: createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null }) };
     mocks.designer.mockResolvedValue({ intent: "product_planning", message: "Let's map the product." });
   });
@@ -44,5 +45,47 @@ describe("planning API boundaries", () => {
     expect((await planPost(request({ projectId, prompt: "Create screens" }))).status).toBe(409);
     expect((await generationPost(request({ prompt: "Create a shop" }))).status).toBe(409);
     expect(mocks.trigger).not.toHaveBeenCalled();
+  });
+});
+
+describe("free planning rate limits", () => {
+  const overLimit = { data: { allowed: false, remaining: 0, retryAfterSeconds: 1500 }, error: null };
+  beforeEach(() => {
+    vi.clearAllMocks(); mocks.user = { id: "owner" };
+    mocks.rpc.mockResolvedValue({ data: { allowed: true, remaining: 5, retryAfterSeconds: 0 }, error: null });
+    mocks.project = { id: projectId, owner_id: "owner", prompt: "A T-shirt shop", product_planning: createProductPlanning({ imagePath: null, imageReferenceMode: "style", stylePresetSlug: null }) };
+    mocks.designer.mockResolvedValue({ intent: "product_planning", message: "Let's map the product." });
+  });
+  it("refuses planning with a 429 and a Retry-After once the user is over the cap", async () => {
+    mocks.rpc.mockResolvedValue(overLimit);
+    const response = await planPost(request({ prompt: "Create screens" }));
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("1500");
+    expect(await response.json()).toMatchObject({ code: "rate_limited", retryAfterSeconds: 1500 });
+  });
+  it("counts planning against the user's own buckets before doing any work", async () => {
+    await planPost(request({ projectId, prompt: "Create screens" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("consume_rate_limit", expect.objectContaining({ input_owner_id: "owner", input_bucket: "plan:hour" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("consume_rate_limit", expect.objectContaining({ input_owner_id: "owner", input_bucket: "plan:day" }));
+  });
+  it("stops product-planning chat before the designer runs when the cap is reached", async () => {
+    mocks.rpc.mockResolvedValue(overLimit);
+    expect((await agentPost(request({ projectId, prompt: "hello" }))).status).toBe(429);
+    expect(mocks.designer).not.toHaveBeenCalled();
+    expect(mocks.router).not.toHaveBeenCalled();
+  });
+  it("does not meter or serve signed-out callers", async () => {
+    mocks.user = null;
+    expect((await planPost(request({ prompt: "Create screens" }))).status).toBe(401);
+    expect((await agentPost(request({ projectId, prompt: "hello" }))).status).toBe(401);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it("lets the request through, and says so in the logs, when the limiter itself fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "function consume_rate_limit does not exist" } });
+    expect((await agentPost(request({ projectId, prompt: "hello" }))).status).toBe(200);
+    expect(mocks.designer).toHaveBeenCalledOnce();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining("Rate limit check failed"), expect.anything());
+    log.mockRestore();
   });
 });

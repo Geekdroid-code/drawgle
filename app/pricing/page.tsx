@@ -8,6 +8,7 @@ import { CtaBanner } from "@/components/marketing/home/CtaBanner";
 import { Faq } from "@/components/marketing/home/Faq";
 import { Pricing } from "@/components/marketing/home/Pricing";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { SCREEN_GENERATION_CREDIT_COST, STATE_GENERATION_CREDIT_COST } from "@/lib/generation/pricing";
 import { siteConfig } from "@/lib/seo/config";
 import { buildMetadata } from "@/lib/seo/metadata";
 import { breadcrumbListSchema, faqPageSchema, offerCatalogSchema, webPageSchema } from "@/lib/seo/schema";
@@ -65,8 +66,7 @@ const comparisonFeatures = [
     items: [
       { name: "Clean Tailwind HTML/CSS Export", starter: true, pro: true, studio: true },
       { name: "Design System CSS Variables", starter: true, pro: true, studio: true },
-      { name: "Agent Handoff Pack (Cursor/Copilot Context)", starter: true, pro: true, studio: true },
-      { name: "Agent Pack (Screens + Implementation Context)", starter: true, pro: true, studio: true },
+      { name: "Agent Pack (Screens + Implementation Context for Cursor/Copilot)", starter: true, pro: true, studio: true },
       { name: "Commercial Use Permitted Under Terms", starter: true, pro: true, studio: true },
     ],
   },
@@ -78,7 +78,7 @@ const faqs = [
     answer: "You upload any screenshot of a mobile app. Drawgle runs a visual analysis model to detect the positions of text, buttons, inputs, cards, and image blocks. It then translates that layout structure into clean Tailwind CSS classes, rather than generating a flat image or single uneditable block.",
   },
   {
-    question: "What is the 'Agent Handoff Pack' and how do I use it with Cursor or Copilot?",
+    question: "What is the Agent Pack and how do I use it with Cursor or Copilot?",
     answer: "The Agent Pack is a zip containing screen HTML, design tokens, assets, a project manifest, Design.md, `.drawgle/handoff.md`, and agent skill instructions. Add it to your repository so coding agents such as Cursor, Copilot, Claude Code, or Codex can use the approved mobile UI as implementation context.",
   },
   {
@@ -87,11 +87,11 @@ const faqs = [
   },
   {
     question: "What are AI credits and how are they charged?",
-    answer: "A new parent screen costs 20 credits. Selected edits cost 3 credits for a small component, 10 for a medium container, or 15 for a large section; full-screen and navigation edits cost 20 credits. Starter includes 600 credits (~30 screens), Pro includes 2,400 credits (~120 screens), and Studio includes 8,000 credits (~400 screens).",
+    answer: `Planning is free. A new parent screen costs ${SCREEN_GENERATION_CREDIT_COST} credits, and each additional state of a screen costs ${STATE_GENERATION_CREDIT_COST}. Selected edits cost 3 credits for a small component, 10 for a medium container, or 15 for a large section; full-screen and navigation edits cost 20 credits. Starter includes 600 credits (~30 screens), Pro includes 2,400 credits (~120 screens), and Studio includes 8,000 credits (~400 screens).`,
   },
   {
     question: "Can I upgrade, downgrade, or cancel anytime?",
-    answer: "Yes, billing is monthly and processed securely via Dodo Payments. You can cancel or change your plan with a single click under your Account settings. Cancelled accounts retain their credits and features until the end of your current billing cycle.",
+    answer: "Yes, billing is monthly and processed securely via Dodo Payments. You can cancel or change your plan with a single click on your Billing page. Cancelled accounts retain their credits and features until the end of your current billing cycle.",
   },
 ];
 

@@ -212,10 +212,6 @@ export async function setCredits(userId: string, value: number, description?: st
   return creditService.setCredits(userId, value, description)
 }
 
-export async function deductCredits(userId: string, amount: number, description?: string) {
-  return creditService.deductCredits(userId, amount, description)
-}
-
 export async function hasCredits(userId: string, requiredAmount: number) {
   return creditService.hasCredits(userId, requiredAmount)
 }
