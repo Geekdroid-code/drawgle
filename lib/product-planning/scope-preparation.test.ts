@@ -24,6 +24,10 @@ describe("approval-card preparation identity", () => {
     expect(scopePreparationKey(withBar(true), keys, shared)).not.toBe(key);
     expect(scopePreparationKey(withBar(true), keys, shared)).not.toBe(scopePreparationKey(withBar(false), keys, shared));
     expect(scopePreparationKey({ ...approved, scope: { ...approved.scope!, navigation: undefined } }, keys, shared)).toBe(key);
+    // so is the product's anatomy, which the kit and the briefs are made from; a scope with none keeps its key
+    const anatomy = { kind: "A shop", components: [{ name: "product-tile", shows: "One product", form: "A tile" }], conventions: [], avoid: [] };
+    expect(scopePreparationKey({ ...approved, scope: { ...approved.scope!, anatomy } }, keys, shared)).not.toBe(key);
+    expect(scopePreparationKey({ ...approved, scope: { ...approved.scope!, anatomy: undefined } }, keys, shared)).toBe(key);
     const previous = process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE;
     try {
       process.env.DRAWGLE_EARLY_PROJECT_DESIGN_MODE = "on";

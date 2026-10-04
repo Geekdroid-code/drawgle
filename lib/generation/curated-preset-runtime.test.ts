@@ -269,7 +269,7 @@ describe("the project's reference DNA", () => {
       return (request!.contents.parts as Array<{ text?: string }>).map((part) => part.text ?? "").join("\n");
     };
     const firstBatch = requestText("Approved Project Blueprint:");
-    expect(firstBatch).toContain("REFERENCE COMPONENT MAPPING");
+    expect(firstBatch).toContain("VISUAL TREATMENT MAP");
     for (const component of presetComponents()) expect(firstBatch).toContain(`${component.name} (${component.use}`);
 
     mocks.generate.mockClear();

@@ -2786,6 +2786,7 @@ export const generateUiFlowTask = task({
         designStyle,
         productContent: payload.productContent ?? compileProductContent(productPlanning),
         navigationTabs: kitNavigationTabsOf(payload.productPlanning),
+        anatomy: payload.productPlanning?.scope?.anatomy ?? null,
       }),
       buildScreen: buildScreenCode,
       // a preparation of this project may already have made it from the same screens, tokens and reference

@@ -2,6 +2,7 @@ import { compileProductContent } from "./content-contract";
 import { compileDesignRequirements } from "./design-requirements";
 import type { GenerationScopeContract, ProjectCharter, ReferenceMode } from "@/lib/types";
 import { activeFacts, type ProductPlanning } from "./model";
+import { formatProductAnatomy } from "./product-anatomy";
 import { scopeParents, outputPrompt } from "./scope-outputs";
 
 export function formatProductTruth(state: ProductPlanning, includeScope = false) {
@@ -10,6 +11,8 @@ export function formatProductTruth(state: ProductPlanning, includeScope = false)
   }
   return [
     "AUTHORITATIVE PRODUCT BLUEPRINT: product architecture comes before visual interpretation. Preserve active user decisions; assumptions remain assumptions. Superseded decisions are not product truth. References govern design, never invent or remove product capabilities because of a visual style.",
+    // First after the heading: a build reads this context clipped, and the anatomy is what keeps its structure.
+    formatProductAnatomy(state.scope?.anatomy),
     JSON.stringify(activeFacts(state)),
     compileProductContent(state),
     compileDesignRequirements(state),
@@ -71,6 +74,9 @@ export function productScopeContract(state: ProductPlanning, referenceMode: Refe
 export function groundCharterInProduct(charter: ProjectCharter, state?: ProductPlanning | null): ProjectCharter {
   if (!state || (state.input.imageReferenceMode === "recreate" && state.input.imagePath)) return charter;
   return { ...charter,
+    // The planner restates the request, and once wrote the reference into it ("…using a 'Soft-Premium' aesthetic
+    // with glassmorphic navigation and card-based layouts"). Every later prompt reads this as the person's intent.
+    originalPrompt: state.input.originalRequest?.trim() || charter.originalPrompt,
     appType: activeFacts(state, "identity").map((fact) => fact.detail).join(" ") || charter.appType,
     targetAudience: activeFacts(state, "actors").map((fact) => fact.detail).join(" ") || charter.targetAudience,
     keyFeatures: activeFacts(state, "capabilities").map((fact) => `${fact.label}: ${fact.detail}`),

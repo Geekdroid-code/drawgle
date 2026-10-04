@@ -39,6 +39,10 @@ How to write the plan
 - dependencyRefs are rare build prerequisites, never navigation order.
 - scope.outputRefs lists the screens to design now, in order. scope.goal says in one sentence what these screens let people do.
 - The person reads scope.goal, scope.rationale, fact labels and details, screen names, descriptions, outcomes and action labels. Write them about their product in your own words; never mention a visual reference, a style source or another app in them.
+- anatomy is how this kind of product is built, so that every screen is made from the same, right components. Decide it from the product, its people and their tasks, never from a visual reference, and keep currentAnatomy unless the product changed. It is structure only: never a colour, font, radius, shadow, blur, glass, material, mood or number. How the product looks is decided separately.
+  kind names the specific kind of app in a few words, as a person would describe it, never a broad category.
+  components lists the product's own recurring components. First, the item each list or grid on these screens holds (the product's core objects: every kind of thing people browse, pick or act on); then the main screen's header and any other part that repeats across screens. Give each the form the best app of this kind gives it, chosen from how people use that content: a compact row where they scan many items, a tile where they pick a visual one, a card for one rich item. Name its parts, whether neighbouring items are divided by a line or a gap, and how dense it is.
+  conventions are what people expect from this kind of app and miss when absent. avoid names structures (screens, sections or components) that would make it read as another kind of app, such as a greeting and summary figures on a tool people open to act on their items; never a style. Each screen's information is built from these components.
 - navigation decides whether the app has one persistent bottom bar. The person approves it with the screens. persistent is true only when the product has peer areas that people move between (the things people go back and forth between all day, such as Home, Orders and Messages in one product, or Library and Search in another). Then destinations lists 2 to 5 of them in order, each with a short label and the outputRef of the screen that opens it (null when no screen in this plan does). A linear flow, a single task, or a hierarchy of detail screens has no bar: persistent false and no destinations. Decide from the product and its screens, never from how a visual reference looks. Keep currentNavigation unless the conversation changed it.
 Return JSON only.`;
 
@@ -108,6 +112,7 @@ export async function runProposalPlanner(input: {
     currentRoadmap: current.map(row => ({ ...row.item, status: row.status })),
     currentSelection: before.scope?.outputKeys ?? [],
     currentNavigation: before.scope?.navigation ?? null,
+    currentAnatomy: before.scope?.anatomy ?? null,
     experience: before.experience ? { direction: before.experience.direction, informationHierarchy: before.experience.informationHierarchy,
       navigation: before.experience.navigation, adaptations: before.experience.adaptations } : null,
     ...(retry ? { note: "The previous response was incomplete or not valid JSON. Return the complete plan; keep every text field concise." } : {}),
@@ -150,13 +155,15 @@ export async function runProposalPlanner(input: {
     // The candidate replaces the scope, so an older scope never constrains fact changes.
     const factState = safe.patch.operations.length ? applyProductPatch({ ...before, scope: null }, safe.patch, userMessageId) : before;
     mapped = candidateRoadmap(structured, factState, current, safe.aliases, safe.superseded, projectId, clientTurnId);
+    // A response that gave no usable anatomy keeps the one the product already has.
+    if (!mapped.scope.anatomy && before.scope?.anatomy) mapped = { ...mapped, scope: { ...mapped.scope, anatomy: before.scope.anatomy } };
     const oldScope = before.scope;
     const scopeChanged = !oldScope || JSON.stringify({ goal: oldScope.goal, rationale: oldScope.rationale,
       surfaceIds: oldScope.surfaceIds, outputKeys: oldScope.outputKeys, manifest: oldScope.manifest,
-      navigation: oldScope.navigation })
+      navigation: oldScope.navigation, anatomy: oldScope.anatomy })
       !== JSON.stringify({ goal: mapped.scope.goal, rationale: mapped.scope.rationale,
         surfaceIds: mapped.scope.surfaceIds, outputKeys: mapped.scope.outputKeys, manifest: mapped.scope.manifest,
-        navigation: mapped.scope.navigation });
+        navigation: mapped.scope.navigation, anatomy: mapped.scope.anatomy });
     const contentChanged = JSON.stringify(factState.blueprint) !== JSON.stringify(before.blueprint)
       || mapped.itemsToSave.length > 0 || mapped.removeKeys.length > 0 || scopeChanged;
     draft = { ...factState, contentRevision: (before.contentRevision ?? 0) + (contentChanged ? 1 : 0), scope: mapped.scope };

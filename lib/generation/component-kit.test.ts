@@ -100,7 +100,36 @@ describe("what the kit build is asked for", () => {
     for (const screen of screens) expect(brief).toContain(`${screen.name} (${screen.purpose})`);
     expect(brief).toContain("the one card or row that shows it on every screen");
     expect(brief).toContain("the header of a main screen, and the top bar of a detail screen");
-    expect(brief).toContain("A person is shown the same way everywhere");
+    expect(brief).toContain("When the product shows people, a person is shown the same way everywhere");
+  });
+
+  const anatomy = {
+    kind: "a personal document manager",
+    components: [
+      { name: "document-row", shows: "one document in any listing", form: "a compact row with a type icon, name and size, separated from the next by a hairline" },
+      { name: "folder-tile", shows: "one folder", form: "a square tile with a folder glyph and item count" },
+    ],
+    conventions: ["sort by name or date"],
+    avoid: ["a greeting and summary figures on the first screen"],
+  };
+
+  it("draws the product's own components in the form its anatomy gives them, and takes only their look from the reference", () => {
+    const brief = componentKitBuildInput(input({ anatomy })).screenPlan.description;
+    expect(brief).toContain("The product is a personal document manager.");
+    expect(brief).toContain("  - document-row: one document in any listing. Form: a compact row with a type icon, name and size, separated from the next by a hairline");
+    expect(brief).toContain("  - folder-tile: one folder. Form: a square tile with a folder glyph and item count");
+    expect(brief).toContain("build its structure as described, and take its look (colour, type, surface, depth, edges, icon wells) from the style reference and the tokens, even where the form names a look, and never a different form because the reference shows one");
+    expect(brief).toContain("Avoid, because it would read as another kind of app: a greeting and summary figures on the first screen.");
+    // the generic request is for a product without an anatomy only
+    expect(brief).not.toContain("the one card or row that shows it on every screen");
+  });
+
+  it("asks no product for a summary tile or an avatar it may not have", () => {
+    for (const brief of [componentKitBuildInput(input()).screenPlan.description, componentKitBuildInput(input({ anatomy })).screenPlan.description]) {
+      expect(brief).toContain("Draw a summary tile only for a figure a screen shows as its job.");
+      expect(brief).toContain("A product that shows no people gets no avatar.");
+      expect(brief).not.toMatch(/- a summary tile for a key figure|for example an order, a person or a message/);
+    }
   });
 
   it("asks for marked, composed components, and a bottom bar only when the brief asks for one", () => {
@@ -210,6 +239,15 @@ describe("what a kit is made from", () => {
     expect(componentKitBasis(input({ referenceMode: "user_style", referenceKey: "owner/project/other.png" })))
       .not.toBe(componentKitBasis(input({ referenceMode: "user_style", referenceKey: "owner/project/upload.png" })));
     expect(componentKitBasis(input({ designStyle: { id: "editorial" } as never }))).not.toBe(basis);
+  });
+
+  it("changes with the product's anatomy, and is unchanged for a kit made without one", () => {
+    const basis = componentKitBasis(input());
+    expect(componentKitBasis(input({ anatomy: null }))).toBe(basis);
+    const anatomy = { kind: "a planner", components: [{ name: "task-row", shows: "one task", form: "a row" }], conventions: [], avoid: [] };
+    expect(componentKitBasis(input({ anatomy }))).not.toBe(basis);
+    expect(componentKitBasis(input({ anatomy: { ...anatomy, components: [{ name: "task-row", shows: "one task", form: "a card" }] } })))
+      .not.toBe(componentKitBasis(input({ anatomy })));
   });
 });
 

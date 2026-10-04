@@ -24,7 +24,7 @@ import { describeSurfaceClasses, describeTokenLanguage } from "@/lib/generation/
 import { stripDesignValues, stripDesignValuesDeep } from "@/lib/generation/design-value-scrub";
 import { formatMeasuredColors, measureStyleReferencePalette } from "@/lib/generation/measured-colors";
 import { mergePresetTokens, presetSpecimen, resolveCuratedStylePreset } from "@/lib/generation/curated-style-presets";
-import { formatReferenceComponentMapping } from "@/lib/generation/reference-component-mapping";
+import { formatReferenceTreatmentMap } from "@/lib/generation/reference-treatment-map";
 import { omitCraftBars } from "@/lib/generation/semantic-inspiration";
 import { SPECIMEN_MARKING_INSTRUCTION, usableStyleComponents } from "@/lib/generation/style-components";
 import {
@@ -3011,7 +3011,7 @@ export async function planScreenBriefsForBuild({
   // The project's components, by name, so that a later batch's briefs name the same ones for the same content.
   const componentMapping = plannerMode === "recreate"
     ? null
-    : formatReferenceComponentMapping({ presetComponents: projectComponentSummaries(charter) });
+    : formatReferenceTreatmentMap({ presetComponents: projectComponentSummaries(charter) });
   if (componentMapping) parts.push({ text: componentMapping });
 
   if (requestImage) parts.push({ text: "Request-local image: adapt its relevant layout and content to the approved tokens and navigation. This is not a new project design system." }, { inlineData: requestImage });
@@ -3722,12 +3722,12 @@ export async function planUiFlow({
     () => llmLog?.("[component-kit] not ready in time; the briefs are written without it", {}));
 
   if (parsedBlueprint.success) {
-    // The discovery designer already mapped the reference's components onto this product. The brief
-    // planner gets that mapping as its own labelled evidence, not as one field of a JSON dump, with the
-    // names of the components the builder will be given, so that a brief can say which one a screen uses.
+    // The discovery designer recorded which of the reference's treatments dresses each of this product's own
+    // components. The brief planner gets that map as its own labelled evidence, with the names of the components
+    // the builder will be given, so that a brief can say which one a screen uses and how it looks.
     const componentMapping = plannerMode === "recreate"
       ? null
-      : formatReferenceComponentMapping({
+      : formatReferenceTreatmentMap({
           adaptations: plannerMode === "style" ? productPlanning?.experience?.adaptations : null,
           presetComponents: projectComponentSummaries({ componentKit: kit, referenceDna } as ProjectCharter),
         });

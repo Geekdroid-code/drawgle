@@ -267,6 +267,62 @@ describe("single-candidate proposal turn", () => {
     });
   });
 
+  describe("the product's anatomy, decided with the flow", () => {
+    const anatomy = {
+      kind: "A shared household task planner",
+      components: [{ name: "task-row", shows: "One task", form: "A compact checkable row with assignee initials and due time" }],
+      conventions: ["Check a task off in place"], avoid: ["Summary figures above the day's tasks"],
+    };
+    const withAnatomy = (value: unknown) => ({ ...candidate, anatomy: value });
+
+    it("asks for it from the product alone, saves it on the scope and shows it back on the next turn", async () => {
+      const h = harness();
+      mocks.generate.mockImplementationOnce(async request => {
+        expect(JSON.parse(request.contents[0].parts[0].text).currentAnatomy).toBeNull();
+        expect(request.config.systemInstruction).toMatch(/anatomy is how this kind of product is built/);
+        expect(request.config.systemInstruction).toMatch(/never from a visual reference, and keep currentAnatomy unless the product changed/);
+        // a live run wrote radii, shadows and colours into it, and left out the invoice row
+        expect(request.config.systemInstruction).toMatch(/It is structure only: never a colour, font, radius, shadow, blur, glass, material, mood or number/);
+        expect(request.config.systemInstruction).toMatch(/First, the item each list or grid on these screens holds/);
+        expect(request.config.responseSchema.required).toContain("anatomy");
+        return respond(proposalResponseFixture(withAnatomy(anatomy)));
+      });
+      expect((await h.run()).failure).toBeUndefined();
+      expect(h.getState().scope?.anatomy).toEqual(anatomy);
+      expect(readProductPlanning(h.getState())?.scope?.anatomy).toEqual(anatomy);
+      mocks.generate.mockImplementationOnce(async request => {
+        expect(JSON.parse(request.contents[0].parts[0].text).currentAnatomy).toEqual(anatomy);
+        return respond(proposalResponseFixture(withAnatomy(anatomy)));
+      });
+      expect((await h.run({ kind: "new_request", text: "Keep it as it is" })).failure).toBeUndefined();
+    });
+
+    it("keeps the earlier anatomy when a later response gives none usable", async () => {
+      const h = harness();
+      mocks.generate.mockResolvedValueOnce(respond(proposalResponseFixture(withAnatomy(anatomy))));
+      await h.run();
+      mocks.generate.mockResolvedValueOnce(respond(proposalResponseFixture(withAnatomy({ kind: "", components: [] }))));
+      expect((await h.run({ kind: "new_request", text: "Rename the screen" })).failure).toBeUndefined();
+      expect(h.getState().scope?.anatomy).toEqual(anatomy);
+    });
+
+    it("counts a changed anatomy as a change to the flow", async () => {
+      const h = harness();
+      mocks.generate.mockResolvedValue(respond(proposalResponseFixture(withAnatomy(anatomy))));
+      await h.run();
+      const first = h.getState().contentRevision ?? 0;
+      mocks.generate.mockResolvedValue(respond(proposalResponseFixture(withAnatomy({ ...anatomy, avoid: [] }))));
+      await h.run({ kind: "new_request", text: "Drop the warning" });
+      expect(h.getState().contentRevision).toBe(first + 1);
+    });
+
+    it("leaves a plan without one as it was before anatomies existed", async () => {
+      const h = harness();
+      expect((await h.run()).failure).toBeUndefined();
+      expect(h.getState().scope?.anatomy).toBeUndefined();
+    });
+  });
+
   it("revises the saved screens on a later turn without duplicating them", async () => {
     const h = harness();
     await h.run();

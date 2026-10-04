@@ -118,6 +118,27 @@ describe("durable product truth and scope", () => {
     expect(grounded.designRationale).toBe("Editorial");
     expect(grounded.navigationModel).toBe("Tabs");
   });
+  it("puts the product's anatomy first in the product truth, where a clipped build context still holds it", () => {
+    const state = productFixture();
+    const anatomy = { kind: "A T-shirt shop", components: [{ name: "product-tile", shows: "One T-shirt", form: "A tall image tile with name and price" }],
+      conventions: ["Pick a size before adding to the bag"], avoid: [] };
+    const truth = formatProductTruth({ ...state, scope: { ...state.scope!, anatomy } });
+    const lines = truth.split("\n");
+    expect(lines[0]).toMatch(/^AUTHORITATIVE PRODUCT BLUEPRINT/);
+    expect(lines[1]).toMatch(/^PRODUCT ANATOMY/);
+    expect(truth).toContain("- product-tile: One T-shirt. Form: A tall image tile with name and price");
+    expect(formatProductTruth(state)).not.toContain("PRODUCT ANATOMY");
+    expect(readProductPlanning({ ...state, scope: { ...state.scope!, anatomy } })?.scope?.anatomy).toEqual(anatomy);
+  });
+  it("keeps the person's own request as the charter's original intent, never the planner's restatement", () => {
+    const charter = { appType: "App", targetAudience: "People", keyFeatures: [], navigationModel: "Tabs", designRationale: "Calm",
+      originalPrompt: "Build a shop using a soft-premium aesthetic with glassmorphic navigation and card-based layouts." } as ProjectCharter;
+    const state = productFixture();
+    expect(groundCharterInProduct(charter, { ...state, input: { ...state.input, originalRequest: "  a shop for my T-shirts  " } })
+      .originalPrompt).toBe("a shop for my T-shirts");
+    // a project planned before the request was saved keeps what it had
+    expect(groundCharterInProduct(charter, state).originalPrompt).toBe(charter.originalPrompt);
+  });
   it("saves the navigation decided with the scope, and reads a scope approved before it existed", () => {
     const decided = { persistent: true, rationale: "Two areas people switch between.",
       destinations: [{ label: "Today", screenKey: "screen:today" }, { label: "Pets", screenKey: null }] };
